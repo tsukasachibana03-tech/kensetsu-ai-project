@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>工事見積アプリ</title>
+  <link rel="stylesheet" href="styles.css?v=20260715-plaster-finish-area">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Construction Estimate</p>
+        <h1>工事見積アプリ</h1>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" id="saveButton" title="保存">保存</button>
+        <button type="button" id="clearButton" class="ghost" title="入力を初期化">初期化</button>
+        <button type="button" id="excelButton" title="Excel出力">Excel</button>
+        <button type="button" id="printButton" class="primary" title="PDFプレビュー">PDFプレビュー</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="editor" aria-label="見積入力">
+        <div class="panel project-panel">
+          <div class="section-head">
+            <h2>現場別見積書</h2>
+            <div class="inline-actions">
+              <button type="button" id="newProjectButton" class="ghost">新規現場</button>
+              <button type="button" id="duplicateProjectButton" class="ghost">複製</button>
+              <button type="button" id="deleteProjectButton" class="ghost">削除</button>
+              <button type="button" id="dataLoadButton" class="ghost">データ読込</button>
+              <button type="button" id="dataSaveButton" class="ghost">データ保存</button>
+              <button type="button" id="dataSaveAsButton" class="ghost">別名保存</button>
+            </div>
+          </div>
+          <div class="project-controls">
+            <label>作業中の現場
+              <select id="projectSelect"></select>
+            </label>
+            <p class="helper-text" id="projectStatus">現場ごとに見積書を保存して切り替えできます。</p>
+            <p class="helper-text data-status" id="dataFileStatus">Dropbox共有データ: 未接続</p>
+            <input id="dataFileInput" type="file" accept=".json,application/json" hidden>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>基本情報</h2>
+          <div class="form-grid">
+            <label>見積番号<input id="quoteNo" type="text"></label>
+            <label>発行日<input id="issueDate" type="date"></label>
+            <label>宛先<input id="clientName" type="text" placeholder="例: 山田 太郎 様"></label>
+            <label>工事名<input id="projectName" type="text" placeholder="例: 新築工事"></label>
+            <label class="wide">工事場所<input id="siteAddress" type="text" placeholder="例: 沖縄県..."></label>
+            <label>敷地面積（㎡）<input id="siteArea" type="number" min="0" step="0.01"><span class="area-conversion" id="siteAreaTsuboView">0.00 坪</span></label>
+            <label>建築面積（㎡）<input id="buildingArea" type="number" min="0" step="0.01"><span class="area-conversion" id="buildingAreaTsuboView">0.00 坪</span></label>
+            <label>延べ床面積（㎡）<input id="totalFloorArea" type="number" min="0" step="0.01"><span class="area-conversion" id="totalFloorAreaTsuboView">0.00 坪</span></label>
+            <label>工期<input id="period" type="text" placeholder="例: 打合せによる"></label>
+            <label>有効期限<input id="validUntil" type="text" placeholder="例: 発行日より30日"></label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <h2>自社情報</h2>
+            <label class="stamp-toggle"><input id="useStamp" type="checkbox" checked> 印影を表示</label>
+          </div>
+          <div class="form-grid">
+            <label>会社名<input id="companyName" type="text"></label>
+            <label>電話番号<input id="companyPhone" type="text"></label>
+            <label class="wide">住所<input id="companyAddress" type="text"></label>
+            <label>代表者・担当<input id="companyPerson" type="text"></label>
+            <label>支払条件<input id="paymentTerms" type="text" placeholder="例: 完了後請求、翌月末払い"></label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <h2>見積形式</h2>
+          </div>
+          <div class="mode-switch" role="group" aria-label="見積形式">
+            <label><input type="radio" name="estimateMode" value="simple" id="modeSimple"> 簡易見積</label>
+            <label><input type="radio" name="estimateMode" value="byTrade" id="modeByTrade"> 工種別見積</label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <h2>業者見積・拾い数量の取り込み</h2>
+            <div class="inline-actions">
+              <button type="button" id="createPresetTradesButton" class="ghost">指定工種を作成</button>
+              <button type="button" id="loadUeharaButton" class="ghost">上原邸を読み込み</button>
+              <button type="button" id="importTextButton">自動仕分け取り込み</button>
+            </div>
+          </div>
+          <div class="import-controls">
+            <label>反映先工種
+              <select id="importTargetTrade">
+                <option value="">自動判定</option>
+              </select>
+            </label>
+            <label>OCR設定
+              <select id="ocrMode">
+                <option value="off">OCRしない（高速）</option>
+                <option value="fast">高速OCR（英数字中心）</option>
+                <option value="jpn">日本語OCR（時間がかかる）</option>
+              </select>
+            </label>
+          </div>
+          <textarea id="importText" rows="7" placeholder="業者見積や自社で拾った数量を貼り付けてください。例: 外部足場 メッシュシート張り 440 m2 1000"></textarea>
+          <div class="drop-zone" id="fileDropZone">
+            <input id="fileInput" type="file" accept=".pdf,.xlsx,.xlsm,.csv,.tsv" multiple>
+            <strong>PDF・Excel・CSVをここへドロップ</strong>
+            <span>またはクリックしてファイルを選択</span>
+          </div>
+          <div class="progress-wrap" id="importProgressWrap" aria-hidden="true">
+            <div class="progress-head">
+              <span id="importProgressLabel">待機中</span>
+              <span id="importProgressPercent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar" id="importProgressBar"></div>
+            </div>
+          </div>
+          <p class="helper-text" id="importResult">PDF / Excel(.xlsx, .xlsm) / CSVをドロップすると自動仕分けします。通常はOCRなしで高速に読み込みます。</p>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <h2>明細</h2>
+            <div class="inline-actions">
+              <button type="button" id="addSheetButton" class="ghost">工種シート追加</button>
+              <button type="button" id="resetConcreteTemplateButton" class="ghost">コンクリート明細をテンプレに戻す</button>
+              <button type="button" id="resetConcreteBlockTemplateButton" class="ghost">ブロック明細をテンプレに戻す</button>
+              <button type="button" id="resetEarthworkTemplateButton" class="ghost">土工事明細をテンプレに戻す</button>
+              <button type="button" id="resetFormworkTemplateButton" class="ghost">型枠明細をテンプレに戻す</button>
+              <button type="button" id="resetPlasterTemplateButton" class="ghost">左官明細をテンプレに戻す</button>
+              <button type="button" id="resetMetalTemplateButton" class="ghost">金属明細をテンプレに戻す</button>
+              <button type="button" id="addSectionButton" class="ghost">区分追加</button>
+              <button type="button" id="addItemButton">明細追加</button>
+            </div>
+          </div>
+          <div class="sheet-tools" id="sheetTools">
+            <div class="sheet-tabs" id="sheetTabs" aria-label="工種シート"></div>
+            <div class="sheet-name">
+              <label>工種名<input id="sheetName" type="text"></label>
+              <button type="button" id="deleteSheetButton" class="ghost">シート削除</button>
+            </div>
+          </div>
+          <div class="items-table-wrap">
+            <table class="items-table" aria-label="見積明細">
+              <thead>
+                <tr>
+                  <th>区分</th>
+                  <th>名称</th>
+                  <th>概要</th>
+                  <th>数量</th>
+                  <th>単位</th>
+                  <th>単価</th>
+                  <th>金額</th>
+                  <th>備考</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="itemsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>調整・備考</h2>
+          <div class="form-grid totals-inputs">
+            <label>消費税率（%）<input id="taxRate" type="number" min="0" step="0.1"></label>
+            <label>現場管理費（%）<input id="siteManagementRate" type="number" min="0" step="0.1"></label>
+            <label>一般管理費（%）<input id="generalManagementRate" type="number" min="0" step="0.1"></label>
+            <label>値引き<input id="discount" type="number" min="0" step="1"></label>
+            <label>NET表示額<input id="netAmount" type="number" min="0" step="1" placeholder="空欄なら税込合計"></label>
+            <label class="wide">備考<textarea id="notes" rows="4" placeholder="例: 仕様変更がある場合は別途お見積りいたします。"></textarea></label>
+          </div>
+        </div>
+      </section>
+
+      <aside class="summary" aria-label="見積合計">
+        <div class="summary-card">
+          <h2>合計</h2>
+          <dl>
+            <div><dt>小計</dt><dd id="subtotalView">0円</dd></div>
+            <div><dt id="siteManagementLabel">現場管理費</dt><dd id="siteManagementView">0円</dd></div>
+            <div><dt id="generalManagementLabel">一般管理費</dt><dd id="generalManagementView">0円</dd></div>
+            <div><dt>値引き</dt><dd id="discountView">0円</dd></div>
+            <div><dt>課税対象</dt><dd id="taxableView">0円</dd></div>
+            <div><dt>消費税</dt><dd id="taxView">0円</dd></div>
+            <div><dt>坪単価</dt><dd id="tsuboUnitPriceView">-</dd></div>
+            <div class="total"><dt>税込合計</dt><dd id="totalView">0円</dd></div>
+          </dl>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <section class="print-area" id="printPages" aria-label="印刷用見積書"></section>
+
+  <section class="pdf-preview" id="pdfPreview" aria-label="PDFプレビュー" aria-hidden="true">
+    <div class="preview-toolbar">
+      <div>
+        <strong>PDFプレビュー</strong>
+        <span>A4縦で出力されます。内容を確認してから印刷・PDF保存してください。</span>
+      </div>
+      <div class="preview-actions">
+        <button type="button" id="previewCloseButton" class="ghost">閉じる</button>
+        <button type="button" id="previewPrintButton" class="primary">印刷 / PDF保存</button>
+      </div>
+    </div>
+    <div class="preview-pages" id="pdfPreviewPages"></div>
+  </section>
+
+  <script src="app.js?v=20260715-adjustment-management"></script>
+</body>
+</html>

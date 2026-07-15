@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>広工業 見積書 読み取り結果</title>
+  <style>
+    body { font-family: "Yu Gothic", "Meiryo", sans-serif; margin: 40px; color: #222; }
+    h1 { font-size: 28px; margin: 0 0 18px; }
+    h2 { font-size: 18px; margin-top: 28px; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+    .notice { border: 1px solid #d6a400; background: #fff8db; padding: 12px 14px; margin: 18px 0; }
+    .grid { display: grid; grid-template-columns: 160px 1fr; gap: 8px 14px; max-width: 760px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { border: 1px solid #ccc; padding: 8px; font-size: 14px; }
+    th { background: #f3f5f7; text-align: left; }
+    .num { text-align: right; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <h1>広工業 見積書 読み取り結果</h1>
+
+  <div class="notice">
+    スキャンPDFから読み取った下書きです。手書き部分のため、品名・金額は原本確認をおすすめします。
+    表紙の総金額は「560,000円」に見えますが、明細側には「567,394円」の記載があります。
+  </div>
+
+  <h2>概要</h2>
+  <div class="grid">
+    <div>日付</div><div>2026年7月6日</div>
+    <div>宛先</div><div>株式会社 知花工務店 御中</div>
+    <div>発行者</div><div>広工業</div>
+    <div>工事件名</div><div>干し場屋根工事（読み取り）</div>
+    <div>総金額</div><div>560,000円に見える記載あり / 明細計 567,394円</div>
+    <div>消費税</div><div>別途の記載あり</div>
+  </div>
+
+  <h2>明細読み取り</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>区分</th>
+        <th>品目</th>
+        <th>形状・寸法</th>
+        <th class="num">数量</th>
+        <th>単位</th>
+        <th class="num">単価</th>
+        <th class="num">金額</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>表紙</td><td>干し場屋根工事</td><td></td><td class="num">1</td><td>式</td><td class="num"></td><td class="num">567,394円</td></tr>
+      <tr><td>材料</td><td>角パイプ</td><td>60×60×2.3×6</td><td class="num">3</td><td>本</td><td class="num">7,165円</td><td class="num">21,495円</td></tr>
+      <tr><td>材料</td><td>角パイプ</td><td>75×45×2.3×6</td><td class="num">2</td><td>本</td><td class="num">6,190円</td><td class="num">12,380円</td></tr>
+      <tr><td>材料</td><td>C形鋼</td><td>60×30×10×2.3×10</td><td class="num">5</td><td>本</td><td class="num">6,895円</td><td class="num">34,475円</td></tr>
+      <tr><td>材料</td><td>ステンパイプ</td><td>38φ×2.3×6</td><td class="num">1</td><td>本</td><td class="num"></td><td class="num">3,500円</td></tr>
+      <tr><td>材料</td><td>プレート</td><td>6×75×180</td><td class="num">10</td><td>枚</td><td class="num">250円</td><td class="num">2,500円</td></tr>
+      <tr><td>材料</td><td>ネコ板</td><td></td><td class="num">23</td><td>枚</td><td class="num">168円</td><td class="num">3,864円</td></tr>
+      <tr><td>材料</td><td>タル木クル付ブレス</td><td>10×3000</td><td class="num">4</td><td>本</td><td class="num">2,300円</td><td class="num">9,200円</td></tr>
+      <tr><td>材料</td><td>アレカーボルト</td><td>12×20</td><td class="num">20</td><td>本</td><td class="num">238円</td><td class="num">4,760円</td></tr>
+      <tr><td>材料</td><td>皿ネボルト</td><td>10×25</td><td class="num">50</td><td>本</td><td class="num">68円</td><td class="num">3,400円</td></tr>
+      <tr><td>材料</td><td>ガルバリウム大波</td><td>0.5×1800</td><td class="num">14</td><td>枚</td><td class="num">3,240円</td><td class="num">45,360円</td></tr>
+      <tr><td>材料</td><td>ポリカ大波</td><td>2尺</td><td class="num">2</td><td>枚</td><td class="num">4,940円</td><td class="num">9,880円</td></tr>
+      <tr><td>材料</td><td>ビス類・面戸等</td><td></td><td class="num"></td><td></td><td class="num"></td><td class="num">15,605円</td></tr>
+      <tr><td>材料</td><td>材料小計</td><td></td><td class="num"></td><td></td><td class="num"></td><td class="num">162,419円</td></tr>
+      <tr><td>施工</td><td>工場加工費</td><td></td><td class="num">1</td><td>式</td><td class="num"></td><td class="num">134,750円</td></tr>
+      <tr><td>施工</td><td>トーフ張り/取付（読み取り要確認）</td><td></td><td class="num">1</td><td>式</td><td class="num"></td><td class="num">86,525円</td></tr>
+      <tr><td>施工</td><td>塗装</td><td></td><td class="num">1</td><td>式</td><td class="num"></td><td class="num">58,000円</td></tr>
+      <tr><td>施工</td><td>トタン貼り</td><td></td><td class="num">1</td><td>式</td><td class="num"></td><td class="num">36,000円</td></tr>
+      <tr><td>施工</td><td>水上水切コーキング</td><td></td><td class="num">109</td><td>m</td><td class="num">3,000円</td><td class="num">327,000円</td></tr>
+      <tr><td>施工</td><td>ケラバ包み</td><td></td><td class="num">36</td><td>m</td><td class="num">2,500円</td><td class="num">90,000円</td></tr>
+      <tr><td>施工</td><td>施工小計</td><td></td><td class="num"></td><td></td><td class="num"></td><td class="num">354,975円</td></tr>
+      <tr><td>施工</td><td>諸経費</td><td></td><td class="num"></td><td></td><td class="num"></td><td class="num">50,000円</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

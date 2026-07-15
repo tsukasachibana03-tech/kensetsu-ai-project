@@ -1,0 +1,286 @@
+﻿<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>御見積書 - 登川屋根工事</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f4f4f4;
+      color: #111;
+      font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 12px auto;
+      padding: 26mm 24mm 22mm;
+      background: #fff;
+      position: relative;
+    }
+    .recipient {
+      font-size: 18px;
+      margin-top: 4mm;
+    }
+    .title {
+      text-align: center;
+      font-size: 28px;
+      letter-spacing: 12px;
+      margin-top: 30mm;
+      margin-bottom: 28mm;
+      font-weight: 500;
+    }
+    .info {
+      width: 100%;
+      margin-top: 8mm;
+      font-size: 18px;
+      border-collapse: collapse;
+    }
+    .info td {
+      padding: 4px 6px;
+      border-bottom: 2px dotted #333;
+    }
+    .info .label {
+      width: 74mm;
+      letter-spacing: 12px;
+    }
+    .notice {
+      margin-top: 23mm;
+      text-align: center;
+      color: #e60012;
+      font-size: 16px;
+      font-family: "Yu Gothic", "Meiryo", sans-serif;
+    }
+    .net {
+      margin-top: 4mm;
+      text-align: center;
+      color: #e60012;
+      font-size: 30px;
+      font-family: "Times New Roman", "Yu Mincho", serif;
+    }
+    .amount-box {
+      width: 92mm;
+      margin: 0 auto;
+      border: 1.5px solid #111;
+      text-align: center;
+      font-size: 30px;
+      line-height: 15mm;
+      height: 16mm;
+    }
+    .tax-note {
+      width: 92mm;
+      margin: 3mm auto 0;
+      text-align: right;
+      font-size: 16px;
+    }
+    .date {
+      position: absolute;
+      left: 24mm;
+      bottom: 72mm;
+      font-size: 16px;
+    }
+    .company {
+      position: absolute;
+      right: 18mm;
+      bottom: 24mm;
+      width: 112mm;
+      font-size: 16px;
+      line-height: 1.75;
+      padding-right: 24mm;
+    }
+    .company-grid {
+      display: grid;
+      grid-template-columns: 20mm 1fr;
+      column-gap: 6px;
+      row-gap: 2px;
+    }
+    .address {
+      line-height: 1.55;
+      white-space: nowrap;
+    }
+    .stamp {
+      position: absolute;
+      right: 18mm;
+      bottom: -4mm;
+      width: 22mm;
+      height: 22mm;
+      object-fit: contain;
+    }
+    .detail-title {
+      font-size: 20px;
+      letter-spacing: 8px;
+      margin-bottom: 10mm;
+    }
+    table.detail {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1.5px solid #111;
+      font-size: 12px;
+      table-layout: fixed;
+    }
+    .detail th,
+    .detail td {
+      border: 1.5px dotted #111;
+      padding: 3px 4px;
+      height: 10mm;
+      vertical-align: middle;
+    }
+    .detail th {
+      text-align: center;
+      font-weight: 500;
+      border-bottom: 1.5px solid #111;
+    }
+    .name { width: 38mm; }
+    .summary { width: 34mm; }
+    .qty { width: 17mm; }
+    .unit { width: 14mm; }
+    .price { width: 20mm; }
+    .amount { width: 22mm; }
+    .remarks { width: 34mm; }
+    .num { text-align: right; font-family: "Times New Roman", serif; }
+    .center { text-align: center; }
+    .section td {
+      height: 7mm;
+      font-weight: 600;
+    }
+    .subtotal td {
+      height: 9mm;
+    }
+    .final td {
+      border-top: 1.5px solid #111;
+      height: 11mm;
+      font-weight: 600;
+    }
+    .spread-page th {
+      height: 8.5mm;
+    }
+    .material-page th {
+      height: 8.5mm;
+    }
+    .material-page td,
+    .material-page .section td,
+    .material-page .subtotal td,
+    .material-page .final td,
+    .material-page .blank td {
+      height: 11.6mm;
+    }
+    .spread-page td,
+    .spread-page .section td,
+    .spread-page .subtotal td,
+    .spread-page .final td,
+    .spread-page .blank td {
+      height: 11.8mm;
+    }
+    @media print {
+      body { background: #fff; }
+      .page { margin: 0; box-shadow: none; break-after: page; }
+      .page:last-child { break-after: auto; }
+    }
+  </style>
+</head>
+<body>
+  <section class="page">
+    <div class="recipient"></div>
+    <div class="title">御　見　積　書</div>
+
+    <table class="info">
+      <tr><td class="label">工　事　名　：</td><td>屋根工事</td></tr>
+      <tr><td class="label">工 事 場 所 ：</td><td>沖縄県沖縄市登川２丁目１９−１５</td></tr>
+      <tr><td class="label">工　　　期　：</td><td>打合せによる</td></tr>
+    </table>
+
+    <div class="notice"></div>
+    <div class="net">NET¥790,000-(消費税含む)</div>
+    <div class="amount-box">¥797,885-</div>
+    <div class="tax-note">（消費税込み）</div>
+
+    <div class="date">2026年7月13日</div>
+    <div class="company">
+      <div class="company-grid">
+        <div>住　所</div><div class="address">沖縄県うるま市宮里７９０-２（１F）</div>
+        <div>会社名</div><div>株式会社知花工務店</div>
+        <div>電　話</div><div>098-960-4712</div>
+      </div>
+      <img class="stamp" src="company_stamp.png" alt="会社印">
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="detail-title">工　事　費　内　訳　書</div>
+    <table class="detail material-page">
+      <thead>
+        <tr>
+          <th class="name">名　称</th>
+          <th class="summary">概　要</th>
+          <th class="qty">数　量</th>
+          <th class="unit">単位</th>
+          <th class="price">単価</th>
+          <th class="amount">金　額</th>
+          <th class="remarks">備　考</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="section"><td>屋根工事</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="section"><td>材料費</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>角パイプ</td><td>60×60×2.3×6</td><td class="num">3.00</td><td class="center">本</td><td class="num">7,086</td><td class="num">21,258</td><td></td></tr>
+        <tr><td>角パイプ</td><td>75×45×2.3×6</td><td class="num">2.00</td><td class="center">本</td><td class="num">6,122</td><td class="num">12,243</td><td></td></tr>
+        <tr><td>C形鋼</td><td>60×30×10×2.3×10</td><td class="num">5.00</td><td class="center">本</td><td class="num">6,819</td><td class="num">34,094</td><td></td></tr>
+        <tr><td>ステンパイプ</td><td>38φ×2.3×6</td><td class="num">1.00</td><td class="center">本</td><td class="num">3,461</td><td class="num">3,461</td><td></td></tr>
+        <tr><td>プレート</td><td>6×75×180</td><td class="num">10.00</td><td class="center">枚</td><td class="num">247</td><td class="num">2,472</td><td></td></tr>
+        <tr><td>ネコ板</td><td></td><td class="num">23.00</td><td class="center">枚</td><td class="num">166</td><td class="num">3,821</td><td></td></tr>
+        <tr><td>タル木クル付ブレス</td><td>10×3000</td><td class="num">4.00</td><td class="center">本</td><td class="num">2,275</td><td class="num">9,098</td><td></td></tr>
+        <tr><td>アンカーボルト</td><td>12×20</td><td class="num">20.00</td><td class="center">本</td><td class="num">235</td><td class="num">4,707</td><td></td></tr>
+        <tr><td>皿ネボルト</td><td>10×25</td><td class="num">50.00</td><td class="center">本</td><td class="num">67</td><td class="num">3,362</td><td></td></tr>
+        <tr><td>ガルバリウム大波</td><td>0.5×1800</td><td class="num">14.00</td><td class="center">枚</td><td class="num">3,204</td><td class="num">44,859</td><td></td></tr>
+        <tr><td>ポリカ大波</td><td>六尺</td><td class="num">2.00</td><td class="center">枚</td><td class="num">4,886</td><td class="num">9,771</td><td></td></tr>
+        <tr><td>トタンスクリュー</td><td>亀座パッキン付き 5×45</td><td class="num">138.00</td><td class="center">個</td><td class="num">53</td><td class="num">7,370</td><td></td></tr>
+        <tr><td>波止め材</td><td></td><td class="num">9.00</td><td class="center">個</td><td class="num">76</td><td class="num">685</td><td></td></tr>
+        <tr><td>ケミカル面戸</td><td></td><td class="num">16.00</td><td class="center">個</td><td class="num">143</td><td class="num">2,294</td><td></td></tr>
+        <tr class="blank"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="blank"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="blank"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="page">
+    <div class="detail-title">工　事　費　内　訳　書</div>
+    <table class="detail spread-page">
+      <thead>
+        <tr>
+          <th class="name">名　称</th>
+          <th class="summary">概　要</th>
+          <th class="qty">数　量</th>
+          <th class="unit">単位</th>
+          <th class="price">単価</th>
+          <th class="amount">金　額</th>
+          <th class="remarks">備　考</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="section"><td>施工費</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>工場加工費</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">133,262</td><td class="num">133,262</td><td></td></tr>
+        <tr><td>ドブ漬け</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">83,591</td><td class="num">83,591</td><td></td></tr>
+        <tr><td>組み立て</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">57,359</td><td class="num">57,359</td><td></td></tr>
+        <tr><td>トタン張り</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">35,602</td><td class="num">35,602</td><td></td></tr>
+        <tr><td>水上・水切りコーキング</td><td></td><td class="num">10.90</td><td class="center">m</td><td class="num">2,967</td><td class="num">32,339</td><td></td></tr>
+        <tr><td>ケバラ包み</td><td></td><td class="num">3.60</td><td class="center">m</td><td class="num">2,473</td><td class="num">8,901</td><td></td></tr>
+        <tr><td>諸経費</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">49,451</td><td class="num">49,451</td><td></td></tr>
+        <tr class="subtotal"><td></td><td></td><td></td><td></td><td></td><td></td><td>屋根工事小計<br><span class="num">560,000</span></td></tr>
+        <tr class="section"><td>その他工事</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>階段型枠</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">30,000</td><td class="num">30,000</td><td></td></tr>
+        <tr><td>副資材費</td><td>鉄筋など</td><td class="num">1.00</td><td class="center">式</td><td class="num">5,000</td><td class="num">5,000</td><td></td></tr>
+        <tr><td>生コン</td><td>現場練り</td><td class="num">1.00</td><td class="center">式</td><td class="num">20,000</td><td class="num">20,000</td><td></td></tr>
+        <tr><td>運搬費</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">10,000</td><td class="num">10,000</td><td></td></tr>
+        <tr class="subtotal"><td></td><td></td><td></td><td></td><td></td><td></td><td>その他工事小計<br><span class="num">65,000</span></td></tr>
+        <tr><td>現場管理費</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">52,192</td><td class="num">52,192</td><td></td></tr>
+        <tr><td>一般管理費</td><td></td><td class="num">1.00</td><td class="center">式</td><td class="num">45,668</td><td class="num">45,668</td><td></td></tr>
+        <tr><td>消費税</td><td></td><td class="num">10.00</td><td class="center">%</td><td></td><td class="num">75,025</td><td></td></tr>
+        <tr class="final"><td class="center">小計</td><td></td><td></td><td></td><td></td><td class="num">797,885</td><td></td></tr>
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>
+

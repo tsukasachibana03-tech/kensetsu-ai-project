@@ -1,0 +1,3267 @@
+(function () {
+  const storageKey = "construction-estimate-v3";
+  const bookStorageKey = "construction-estimate-book-v1";
+  const legacyKeys = ["construction-estimate-v2", "construction-estimate-v1"];
+  const today = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  const todayText = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
+  const tradePresets = [
+    { name: "仮設工事", keys: ["仮設", "足場", "養生", "清掃", "墨出", "水盛", "シート", "安全", "現場管理"] },
+    { name: "土工事", keys: ["土工", "掘削", "埋戻", "残土", "砕石", "転圧", "床付", "床掘", "根切", "整地"] },
+    { name: "鉄筋工事", keys: ["鉄筋", "D10", "D13", "D16", "D19", "配筋", "メッシュ", "ワイヤーメッシュ"] },
+    { name: "コンクリートブロック工事", keys: ["コンクリートブロック", "ブロック", "CB", "4in", "6in"] },
+    { name: "コンクリート工事", keys: ["コンクリート", "生コン", "打設", "均し", "土間", "基礎", "スラブ", "Fc", "m3"] },
+    { name: "型枠工事", keys: ["型枠", "型わく", "せき板", "フォーム", "支保", "脱型"] },
+    { name: "左官工事", keys: ["左官", "モルタル", "塗り", "金鏝", "刷毛", "補修", "下地調整"] },
+    { name: "金属工事", keys: ["金属", "アルミ", "ステン", "スチール", "手摺", "笠木", "金物", "アンカー", "鉄骨"] }
+  ];
+
+  const noteKeywords = [
+    "備考", "注意", "特記", "条件", "別途", "除く", "含む", "含まない", "支給", "貸与", "有効期限",
+    "工期", "納期", "支払", "支払い", "振込", "見積条件", "施工条件", "追加", "変更", "協議",
+    "現場確認", "図面", "仕様", "単価", "概算", "運搬", "処分", "諸経費"
+  ];
+
+  const ignoreKeywords = [
+    "御見積書", "見積書", "請求書", "納品書", "ページ", "page", "tel", "fax", "email", "e-mail",
+    "〒", "住所", "会社名", "株式会社", "有限会社", "担当", "発行日", "見積番号", "登録番号",
+    "宛先", "様", "御中", "小計", "合計", "消費税", "税込", "税抜", "net", "total"
+  ];
+
+  const columnAliases = {
+    name: ["品名", "名目", "名称", "項目", "工事項目", "工種", "作業名", "商品名", "明細", "内容"],
+    summary: ["摘要", "概要", "仕様", "規格", "寸法", "内訳", "説明"],
+    qty: ["数量", "数", "員数", "数量計", "qty"],
+    unit: ["単位", "単位名", "unit"],
+    price: ["単価", "見積単価", "原価", "金額単価"],
+    amount: ["金額", "見積金額", "合計", "計", "amount"],
+    remarks: ["備考", "メモ", "摘要備考", "注意事項", "条件"]
+  };
+
+  const defaultItems = [
+    { type: "section", category: "材料費", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "材料費", name: "角パイプ", summary: "60x60x2.3x6", qty: 3, unit: "本", price: 7086, remarks: "" },
+    { type: "section", category: "施工費", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "施工費", name: "組み立て", summary: "", qty: 1, unit: "式", price: 57359, remarks: "" }
+  ];
+
+  const defaults = {
+    quoteNo: `Q-${today.getFullYear()}${pad(today.getMonth() + 1)}${pad(today.getDate())}-001`,
+    issueDate: todayText,
+    clientName: "",
+    projectName: "新築工事",
+    siteAddress: "",
+    siteArea: "",
+    buildingArea: "",
+    totalFloorArea: "",
+    period: "打合せによる",
+    validUntil: "発行日より30日",
+    companyName: "株式会社知花工務店",
+    companyAddress: "沖縄県うるま市宮里790-2（1F）",
+    companyPhone: "098-960-4712",
+    companyPerson: "",
+    paymentTerms: "完了後請求",
+    taxRate: 10,
+    siteManagementRate: 0,
+    generalManagementRate: 0,
+    discount: 0,
+    floorAreaTsubo: "",
+    netAmount: "",
+    notes: "見積り有効期限は提出日より1ヶ月間と致します。",
+    useStamp: true,
+    estimateMode: "simple",
+    activeSheetIndex: 0,
+    sheets: [{ name: "簡易見積", items: defaultItems }]
+  };
+
+  const ueharaEstimateItems = [
+    { type: "section", category: "取り込み", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "取り込み", name: "D10", summary: "", qty: 4.75, unit: "t", price: 119000, remarks: "棚原工務店 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "D13", summary: "", qty: 6.5, unit: "t", price: 117000, remarks: "棚原工務店 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "D16", summary: "", qty: 2.7, unit: "t", price: 115000, remarks: "棚原工務店 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "D19", summary: "", qty: 1.68, unit: "t", price: 119000, remarks: "棚原工務店 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "加工組立", summary: "", qty: 15.67, unit: "t", price: 60000, remarks: "棚原工務店 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "結線及びスペンサー", summary: "", qty: 15.6, unit: "t", price: 4000, remarks: "棚原工務店 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "運送費", summary: "", qty: 15.6, unit: "t", price: 6000, remarks: "棚原工務店 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "法定福利費", summary: "", qty: 1, unit: "式", price: 14100, remarks: "棚原工務店 上原邸PDF" }
+  ];
+
+  const ueharaTemporaryItems = [
+    { type: "section", category: "取り込み", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "取り込み", name: "外部足場", summary: "組立解体", qty: 240, unit: "㎡", price: 1000, remarks: "普久原工業 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "水盛り　遣り方", summary: "", qty: 113.51, unit: "㎡", price: 500, remarks: "見積書20260619 PDF" },
+    { type: "item", category: "取り込み", name: "墨出し", summary: "", qty: 158.8, unit: "㎡", price: 350, remarks: "見積書20260619 PDF" },
+    { type: "item", category: "取り込み", name: "足場インサート取付", summary: "TB型", qty: 440, unit: "㎡", price: 100, remarks: "見積書20260619 PDF" },
+    { type: "item", category: "取り込み", name: "内部足場", summary: "", qty: 158.8, unit: "㎡", price: 100, remarks: "見積書20260619 PDF" },
+    { type: "item", category: "取り込み", name: "階段仕上げ足場", summary: "", qty: 1, unit: "式", price: 70000, remarks: "見積書20260619 PDF" },
+    { type: "item", category: "取り込み", name: "構内片付け・清掃", summary: "", qty: 148.96, unit: "㎡", price: 500, remarks: "見積書20260619 PDF" },
+    { type: "item", category: "取り込み", name: "養生", summary: "", qty: 158.8, unit: "㎡", price: 500, remarks: "見積書20260619 PDF" },
+    { type: "item", category: "取り込み", name: "竣工クリーニング", summary: "", qty: 158.8, unit: "㎡", price: 1000, remarks: "見積書20260619 PDF" },
+    { type: "item", category: "取り込み", name: "調整", summary: "", qty: 1, unit: "式", price: -895, remarks: "見積書20260619 PDF" }
+  ];
+
+  const concreteTemplateItems = [
+    { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "基本明細", name: "均しコンクリート", summary: "FC18/Nmm3 S=18cm", qty: 0, unit: "㎥", price: 19700, remarks: "" },
+    { type: "item", category: "基本明細", name: "土間コンクリート", summary: "FC30/Nmm3 S=15cm", qty: 0, unit: "㎥", price: 21500, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "土間コンクリート", summary: "FC18/Nmm3 S=15cm", qty: 0, unit: "㎥", price: 19600, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "有筋コンクリート基礎", summary: "FC30/Nmm3 S=15cm", qty: 0, unit: "㎥", price: 21400, remarks: "Excel最下層項目" },
+    { type: "item", category: "基本明細", name: "有筋コンクリート躯体", summary: "FC30/Nmm3 S=18cm", qty: 0, unit: "㎥", price: 21500, remarks: "Excelその他項目" },
+    { type: "item", category: "基本明細", name: "ポンプ車セット", summary: "10m未満", qty: 0, unit: "回", price: 43000, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "ポンプ車セット", summary: "10m以上", qty: 0, unit: "回", price: 35000, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "コンクリート圧送費", summary: "", qty: 0, unit: "㎥", price: 1000, remarks: "コンクリート数量合計" },
+    { type: "item", category: "基本明細", name: "コンクリート打設費", summary: "", qty: 0, unit: "㎥", price: 1500, remarks: "コンクリート数量合計" },
+    { type: "item", category: "基本明細", name: "バイブレーター損料", summary: "", qty: 0, unit: "式", price: 10000, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "圧送用セメント", summary: "", qty: 0, unit: "袋", price: 500, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "コンクリート圧縮試験費", summary: "1週、4週", qty: 0, unit: "回", price: 12000, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "打設前清掃", summary: "", qty: 0, unit: "回", price: 5000, remarks: "直接入力" },
+    { type: "section", category: "※構造体を品質基準強度+6Nにて積算しております。", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" }
+  ];
+
+  const concreteBlockTemplateItems = [
+    { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "基本明細", name: "ブロック丁張り", summary: "", qty: 0, unit: "式", price: 60000, remarks: "" },
+    { type: "item", category: "基本明細", name: "普通コンクリートブロック", summary: "4in 6in", qty: 0, unit: "㎡", price: 4500, remarks: "" }
+  ];
+
+  const earthworkTemplateItems = [
+    { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "基本明細", name: "床掘り", summary: "大型使用不可", qty: 0, unit: "㎥", price: 2500, remarks: "" },
+    { type: "item", category: "基本明細", name: "残土運搬処分", summary: "", qty: 0, unit: "㎥", price: 3000, remarks: "" },
+    { type: "item", category: "基本明細", name: "砕石地業", summary: "RC-40", qty: 0, unit: "㎥", price: 7000, remarks: "" },
+    { type: "item", category: "基本明細", name: "埋戻し", summary: "大型使用不可", qty: 0, unit: "㎥", price: 2500, remarks: "" },
+    { type: "item", category: "基本明細", name: "重機回送費", summary: "", qty: 0, unit: "回", price: 15000, remarks: "" },
+    { type: "item", category: "基本明細", name: "防湿シート", summary: "厚 0.15mm", qty: 0, unit: "㎡", price: 300, remarks: "" }
+  ];
+
+  const formworkTemplateItems = [
+    { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "基本明細", name: "普通型枠合板", summary: "基礎部", qty: 0, unit: "㎡", price: 3500, remarks: "C種型枠合板" },
+    { type: "item", category: "基本明細", name: "普通型枠合板", summary: "地上軸部", qty: 0, unit: "㎡", price: 3800, remarks: "B種型枠合板" },
+    { type: "item", category: "基本明細", name: "天井断熱材", summary: "B種 厚25mmスタイロフォーム", qty: 0, unit: "枚", price: 2060, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "インサート金物", summary: "", qty: 0, unit: "㎡", price: 100, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "運搬費", summary: "", qty: 0, unit: "㎡", price: 300, remarks: "型枠数量合計" },
+    { type: "item", category: "基本明細", name: "荷上費", summary: "", qty: 0, unit: "㎡", price: 100, remarks: "型枠数量合計" },
+    { type: "item", category: "基本明細", name: "土間型枠", summary: "", qty: 1, unit: "式", price: 100000, remarks: "直接入力" }
+  ];
+
+  const plasterTemplateItems = [
+    { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "基本明細", name: "左官コンクリート仕上げ", summary: "", qty: 0, unit: "㎡", price: 870, remarks: "" },
+    { type: "item", category: "基本明細", name: "立ち上がり押さえ", summary: "", qty: 0, unit: "m", price: 800, remarks: "" },
+    { type: "item", category: "基本明細", name: "壁塗装下地補修", summary: "", qty: 0, unit: "㎡", price: 1550, remarks: "" },
+    { type: "item", category: "基本明細", name: "階段モルタル仕上げ", summary: "", qty: 0, unit: "㎡", price: 7730, remarks: "" },
+    { type: "item", category: "基本明細", name: "サッシモルタル詰め", summary: "", qty: 0, unit: "m", price: 1650, remarks: "" },
+    { type: "item", category: "基本明細", name: "内部Pコン処理", summary: "", qty: 0, unit: "式", price: 28970, remarks: "" },
+    { type: "item", category: "基本明細", name: "諸経費", summary: "", qty: 0, unit: "式", price: 67590, remarks: "" },
+    { type: "item", category: "基本明細", name: "ノンスリップタイル", summary: "", qty: 0, unit: "個", price: 100, remarks: "" }
+  ];
+
+  const metalTemplateItems = [
+    { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "基本明細", name: "換気口", summary: "セラミック製フード無 φ75", qty: 0, unit: "ヶ所", price: 1200, remarks: "" },
+    { type: "item", category: "基本明細", name: "物干し金物", summary: "", qty: 0, unit: "set", price: 14000, remarks: "" },
+    { type: "item", category: "基本明細", name: "副資材費", summary: "セメント、取付金物等", qty: 0, unit: "式", price: 5000, remarks: "" },
+    { type: "item", category: "基本明細", name: "施工費", summary: "", qty: 0, unit: "式", price: 30000, remarks: "" }
+  ];
+
+  const ueharaAreas = {
+    siteArea: 229.03,
+    buildingArea: 113.51,
+    totalFloorArea: 158.8
+  };
+
+  function createAdjustmentItem() {
+    return {
+      type: "item",
+      category: "調整",
+      name: "調整",
+      summary: "",
+      qty: 1,
+      unit: "式",
+      price: 0,
+      remarks: "下三桁切り捨て",
+      hidden: false
+    };
+  }
+
+  function isAdjustmentItem(item) {
+    return item.type === "item" && String(item.name || "").trim() === "調整";
+  }
+
+  function ensureAdjustmentRows(sheets) {
+    sheets.forEach((sheet) => {
+      const adjustments = sheet.items.filter(isAdjustmentItem);
+      sheet.items = sheet.items.filter((item) => !isAdjustmentItem(item));
+      const adjustment = adjustments[0] || createAdjustmentItem();
+      if (adjustments.length > 1) {
+        adjustment.qty = 1;
+        adjustment.price = adjustments.reduce((sum, item) => sum + amount(item), 0);
+      }
+      adjustment.category = adjustment.category || "調整";
+      adjustment.qty = adjustment.qty === "" || adjustment.qty === undefined ? 1 : adjustment.qty;
+      adjustment.unit = adjustment.unit || "式";
+      adjustment.price = adjustment.price === "" || adjustment.price === undefined ? 0 : adjustment.price;
+      adjustment.remarks = adjustment.remarks || "下三桁切り捨て";
+      adjustment.hidden = false;
+      sheet.items.push(adjustment);
+    });
+  }
+
+  function isConcreteBlockSheet(sheetOrName) {
+    const name = typeof sheetOrName === "string" ? sheetOrName : sheetOrName?.name;
+    return /コンクリートブロック|ブロック工事/.test(String(name || ""));
+  }
+
+  function isConcreteSheet(sheetOrName) {
+    const name = typeof sheetOrName === "string" ? sheetOrName : sheetOrName?.name;
+    return String(name || "").includes("コンクリート") && !isConcreteBlockSheet(sheetOrName);
+  }
+
+  function isFormworkSheet(sheetOrName) {
+    const name = typeof sheetOrName === "string" ? sheetOrName : sheetOrName?.name;
+    return String(name || "").includes("型枠");
+  }
+
+  function isPlasterSheet(sheetOrName) {
+    const name = typeof sheetOrName === "string" ? sheetOrName : sheetOrName?.name;
+    return String(name || "").includes("左官");
+  }
+
+  function isMetalSheet(sheetOrName) {
+    const name = typeof sheetOrName === "string" ? sheetOrName : sheetOrName?.name;
+    return String(name || "").includes("金属");
+  }
+
+  function concreteTemplateKey(item) {
+    return [item.type, item.category, item.name, item.summary].map((value) => String(value || "").replace(/\s+/g, "")).join("|");
+  }
+
+  function concreteBlockTemplateKey(item) {
+    return [item.type, item.category, item.name, item.summary].map((value) => String(value || "").replace(/\s+/g, "")).join("|");
+  }
+
+  function earthworkTemplateKey(item) {
+    return [item.type, item.category, item.name, item.summary].map((value) => String(value || "").replace(/\s+/g, "")).join("|");
+  }
+
+  function formworkTemplateKey(item) {
+    return [item.type, item.category, item.name, item.summary].map((value) => String(value || "").replace(/\s+/g, "")).join("|");
+  }
+
+  function plasterTemplateKey(item) {
+    return [item.type, item.category, item.name, item.summary].map((value) => String(value || "").replace(/\s+/g, "")).join("|");
+  }
+
+  function metalTemplateKey(item) {
+    return [item.type, item.category, item.name, item.summary].map((value) => String(value || "").replace(/\s+/g, "")).join("|");
+  }
+
+  function ensureConcreteTemplateRows(sheets) {
+    sheets.filter(isConcreteSheet).forEach((sheet) => {
+      if (sheet.suppressConcreteTemplate) {
+        ensureConcreteUsableTemplateRows(sheet);
+        return;
+      }
+      concreteTemplateItems.forEach((template) => {
+        const key = concreteTemplateKey(template);
+        const exists = sheet.items.some((item) => concreteTemplateKey(item) === key);
+        if (!exists) sheet.items.push(clone(template));
+      });
+      orderConcreteTemplateRows(sheet);
+    });
+  }
+
+  function ensureConcreteBlockTemplateRows(sheets) {
+    sheets.filter(isConcreteBlockSheet).forEach((sheet) => {
+      concreteBlockTemplateItems.forEach((template) => {
+        const key = concreteBlockTemplateKey(template);
+        const exists = sheet.items.some((item) => concreteBlockTemplateKey(item) === key);
+        if (!exists) sheet.items.push(clone(template));
+      });
+      orderConcreteBlockTemplateRows(sheet);
+    });
+  }
+
+  function orderConcreteTemplateRows(sheet) {
+    if (sheet.manualRowOrder) return;
+    const templateKeys = new Set(concreteTemplateItems.map(concreteTemplateKey));
+    const templateRows = [];
+    const otherRows = [];
+    sheet.items.forEach((item) => {
+      if (templateKeys.has(concreteTemplateKey(item))) {
+        return;
+      }
+      otherRows.push(item);
+    });
+    concreteTemplateItems.forEach((template) => {
+      const existing = sheet.items.find((item) => concreteTemplateKey(item) === concreteTemplateKey(template));
+      templateRows.push(existing || clone(template));
+    });
+    sheet.items = [...templateRows, ...otherRows];
+  }
+
+  function orderConcreteBlockTemplateRows(sheet) {
+    if (sheet.manualRowOrder) return;
+    const templateKeys = new Set(concreteBlockTemplateItems.map(concreteBlockTemplateKey));
+    const templateRows = [];
+    const otherRows = [];
+    sheet.items.forEach((item) => {
+      if (templateKeys.has(concreteBlockTemplateKey(item))) return;
+      otherRows.push(item);
+    });
+    concreteBlockTemplateItems.forEach((template) => {
+      const existing = sheet.items.find((item) => concreteBlockTemplateKey(item) === concreteBlockTemplateKey(template));
+      templateRows.push(existing || clone(template));
+    });
+    sheet.items = [...templateRows, ...otherRows];
+  }
+
+  function ensureConcreteUsableTemplateRows(sheet) {
+    concreteTemplateItems
+      .filter(isConcreteUsableTemplateRow)
+      .forEach((template) => {
+        const key = concreteTemplateKey(template);
+        const exists = sheet.items.some((item) => concreteTemplateKey(item) === key);
+        if (!exists) insertBeforeAdjustment(sheet, clone(template));
+      });
+    orderExistingConcreteTemplateRows(sheet);
+  }
+
+  function isConcreteUsableTemplateRow(item) {
+    if (item.type === "section" && item.category === "基本明細") return true;
+    if (item.type !== "item") return false;
+    const remarks = String(item.remarks || "");
+    return remarks.includes("直接入力") || remarks.includes("コンクリート数量合計");
+  }
+
+  function orderExistingConcreteTemplateRows(sheet) {
+    if (sheet.manualRowOrder) return;
+    const templateKeys = new Set(concreteTemplateItems.map(concreteTemplateKey));
+    const existingTemplateRows = [];
+    const otherRows = [];
+    sheet.items.forEach((item) => {
+      if (templateKeys.has(concreteTemplateKey(item))) return;
+      otherRows.push(item);
+    });
+    concreteTemplateItems.forEach((template) => {
+      const existing = sheet.items.find((item) => concreteTemplateKey(item) === concreteTemplateKey(template));
+      if (existing) existingTemplateRows.push(existing);
+    });
+    sheet.items = [...existingTemplateRows, ...otherRows];
+  }
+
+  function insertBeforeAdjustment(sheet, item) {
+    const adjustmentIndex = sheet.items.findIndex(isAdjustmentItem);
+    const insertIndex = adjustmentIndex >= 0 ? adjustmentIndex : sheet.items.length;
+    sheet.items.splice(insertIndex, 0, item);
+  }
+
+  function ensureEarthworkTemplateRows(sheets) {
+    sheets.filter(isEarthworkSheet).forEach((sheet) => {
+      earthworkTemplateItems.forEach((template) => {
+        const key = earthworkTemplateKey(template);
+        const exists = sheet.items.some((item) => earthworkTemplateKey(item) === key);
+        if (!exists) sheet.items.push(clone(template));
+      });
+      consolidateEarthworkSubbaseRows(sheet);
+      orderEarthworkTemplateRows(sheet);
+    });
+  }
+
+  function ensureFormworkTemplateRows(sheets) {
+    sheets.filter(isFormworkSheet).forEach((sheet) => {
+      formworkTemplateItems.forEach((template) => {
+        const key = formworkTemplateKey(template);
+        const exists = sheet.items.some((item) => formworkTemplateKey(item) === key);
+        if (!exists) sheet.items.push(clone(template));
+      });
+      orderFormworkTemplateRows(sheet);
+      cleanupZeroInsertRows(sheet);
+    });
+  }
+
+  function ensurePlasterTemplateRows(sheets) {
+    sheets.filter(isPlasterSheet).forEach((sheet) => {
+      plasterTemplateItems.forEach((template) => {
+        const key = plasterTemplateKey(template);
+        const exists = sheet.items.some((item) => plasterTemplateKey(item) === key);
+        if (!exists) sheet.items.push(clone(template));
+      });
+      orderPlasterTemplateRows(sheet);
+    });
+  }
+
+  function ensureMetalTemplateRows(sheets) {
+    sheets.filter(isMetalSheet).forEach((sheet) => {
+      metalTemplateItems.forEach((template) => {
+        const key = metalTemplateKey(template);
+        const exists = sheet.items.some((item) => metalTemplateKey(item) === key);
+        if (!exists) sheet.items.push(clone(template));
+      });
+      orderMetalTemplateRows(sheet);
+    });
+  }
+
+  function orderFormworkTemplateRows(sheet) {
+    if (sheet.manualRowOrder) return;
+    const templateKeys = new Set(formworkTemplateItems.map(formworkTemplateKey));
+    const templateRows = [];
+    const otherRows = [];
+    sheet.items.forEach((item) => {
+      if (templateKeys.has(formworkTemplateKey(item))) return;
+      otherRows.push(item);
+    });
+    formworkTemplateItems.forEach((template) => {
+      const existing = sheet.items.find((item) => formworkTemplateKey(item) === formworkTemplateKey(template));
+      templateRows.push(existing || clone(template));
+    });
+    sheet.items = [...templateRows, ...otherRows];
+  }
+
+  function orderPlasterTemplateRows(sheet) {
+    if (sheet.manualRowOrder) return;
+    const templateKeys = new Set(plasterTemplateItems.map(plasterTemplateKey));
+    const templateRows = [];
+    const otherRows = [];
+    sheet.items.forEach((item) => {
+      if (templateKeys.has(plasterTemplateKey(item))) return;
+      otherRows.push(item);
+    });
+    plasterTemplateItems.forEach((template) => {
+      const existing = sheet.items.find((item) => plasterTemplateKey(item) === plasterTemplateKey(template));
+      templateRows.push(existing || clone(template));
+    });
+    sheet.items = [...templateRows, ...otherRows];
+  }
+
+  function orderMetalTemplateRows(sheet) {
+    if (sheet.manualRowOrder) return;
+    const templateKeys = new Set(metalTemplateItems.map(metalTemplateKey));
+    const templateRows = [];
+    const otherRows = [];
+    sheet.items.forEach((item) => {
+      if (templateKeys.has(metalTemplateKey(item))) return;
+      otherRows.push(item);
+    });
+    metalTemplateItems.forEach((template) => {
+      const existing = sheet.items.find((item) => metalTemplateKey(item) === metalTemplateKey(template));
+      templateRows.push(existing || clone(template));
+    });
+    sheet.items = [...templateRows, ...otherRows];
+  }
+
+  function consolidateEarthworkSubbaseRows(sheet) {
+    let target = sheet.items.find((item) => item.type === "item" && normalizedText(item.name) === "砕石地業");
+    if (!target) {
+      target = clone(earthworkTemplateItems.find((item) => normalizedText(item.name) === "砕石地業"));
+      sheet.items.push(target);
+    }
+    const obsoleteRows = [];
+    sheet.items.forEach((item) => {
+      if (item === target || item.type !== "item" || isAdjustmentItem(item)) return;
+      if (!isEarthworkSubbaseName(item.name)) return;
+      const qty = toNumber(item.qty);
+      if (qty > 0) target.qty = Number((toNumber(target.qty) + qty).toFixed(2));
+      if (!target.remarks && item.remarks) target.remarks = item.remarks;
+      obsoleteRows.push(item);
+    });
+    target.name = "砕石地業";
+    target.summary = "RC-40";
+    target.unit = target.unit || "㎥";
+    sheet.items = sheet.items.filter((item) => !obsoleteRows.includes(item));
+  }
+
+  function isEarthworkSubbaseName(name) {
+    const text = normalizedText(name);
+    return text.includes("下地業") || text.includes("砕石");
+  }
+
+  function orderEarthworkTemplateRows(sheet) {
+    if (sheet.manualRowOrder) return;
+    const templateKeys = new Set(earthworkTemplateItems.map(earthworkTemplateKey));
+    const templateRows = [];
+    const otherRows = [];
+    sheet.items.forEach((item) => {
+      if (templateKeys.has(earthworkTemplateKey(item))) return;
+      otherRows.push(item);
+    });
+    earthworkTemplateItems.forEach((template) => {
+      const existing = sheet.items.find((item) => earthworkTemplateKey(item) === earthworkTemplateKey(template));
+      templateRows.push(existing || clone(template));
+    });
+    sheet.items = [...templateRows, ...otherRows];
+  }
+
+  function isSettingOutItem(item) {
+    const name = String(item.name || "").replace(/\s+/g, "");
+    return item.type === "item" && (/水盛り?(遣り方|やり方)/.test(name) || name.includes("防湿シート"));
+  }
+
+  function normalizedItemName(item) {
+    return String(item.name || "").replace(/\s+/g, "");
+  }
+
+  function isFloorAreaLinkedItem(item) {
+    const name = normalizedItemName(item);
+    return item.type === "item" && (
+      name.includes("墨出し") ||
+      name.includes("構内片付け") ||
+      name.includes("内部足場") ||
+      name.includes("養生") ||
+      name.includes("竣工クリーニング")
+    );
+  }
+
+  function isExternalScaffoldItem(item) {
+    return item.type === "item" && normalizedItemName(item).includes("外部足場");
+  }
+
+  function isScaffoldInsertItem(item) {
+    return item.type === "item" && normalizedItemName(item).includes("足場インサート");
+  }
+
+  function isPlasterConcreteFinishItem(item) {
+    return item.type === "item" && normalizedText(item.name) === "左官コンクリート仕上げ";
+  }
+
+  function isConcreteQuantityItem(item) {
+    const name = normalizedItemName(item);
+    const summary = String(item.summary || "");
+    if (item.type !== "item") return false;
+    if (name.includes("圧送") || name.includes("打設") || name.includes("試験") || name.includes("ポンプ") || name.includes("セメント")) return false;
+    return name.includes("コンクリート") || /FC\d+/i.test(summary);
+  }
+
+  function isConcretePumpOrPlacementItem(item) {
+    const name = normalizedItemName(item);
+    return item.type === "item" && (name.includes("コンクリート圧送費") || name.includes("コンクリート打設費"));
+  }
+
+  function syncConcreteTotals(estimateState) {
+    if (!Array.isArray(estimateState.sheets)) return;
+    estimateState.sheets.filter(isConcreteSheet).forEach((sheet) => {
+      const concreteTotal = sheet.items
+        .filter(isRowVisible)
+        .filter(isConcreteQuantityItem)
+        .reduce((sum, item) => sum + toNumber(item.qty), 0);
+      sheet.items.forEach((item) => {
+        if (!isConcretePumpOrPlacementItem(item)) return;
+        if (item.manualQty) return;
+        item.qty = Number(concreteTotal.toFixed(2));
+        item.unit = item.unit || "㎥";
+      });
+    });
+  }
+
+  function isFormworkBaseQuantityItem(item) {
+    if (item.type !== "item" || isAdjustmentItem(item) || isFormworkTotalLinkedItem(item)) return false;
+    const name = normalizedText(item.name);
+    const unit = normalizedText(item.unit);
+    if (name === "土間型枠") return false;
+    return name.includes("型枠") && (unit === "㎡" || /^m2$/i.test(unit));
+  }
+
+  function isFormworkTotalLinkedItem(item) {
+    const name = normalizedText(item.name);
+    return item.type === "item" && (name === "運搬費" || name === "荷上費" || name === "荷揚げ費");
+  }
+
+  function isSlabFormworkItem(item) {
+    return item.type === "item" && normalizedText(item.name) === "土間型枠";
+  }
+
+  function isCeilingInsertItem(item) {
+    const name = normalizedText(item.name);
+    const summary = normalizedText(item.summary);
+    return item.type === "item" && name.includes("インサート") && summary.includes("天井");
+  }
+
+  function cleanupZeroInsertRows(sheet) {
+    const hasCeilingInsert = sheet.items.some((item) => isCeilingInsertItem(item) && toNumber(item.qty) > 0);
+    if (!hasCeilingInsert) return;
+    sheet.items = sheet.items.filter((item) => {
+      const name = normalizedText(item.name);
+      const summary = normalizedText(item.summary);
+      if (!name.includes("インサート")) return true;
+      if (summary.includes("天井")) return true;
+      return toNumber(item.qty) !== 0;
+    });
+  }
+
+  function insulationAreaFromFormworkSheet(sheet) {
+    const insulationRows = sheet.items.filter((item) => item.type === "item" && normalizedText(item.name).includes("断熱材"));
+    for (const item of insulationRows) {
+      const text = `${item.summary || ""} ${item.remarks || ""}`;
+      const normalized = text.replace(/[０-９．]/g, (char) => {
+        if (char === "．") return ".";
+        return String.fromCharCode(char.charCodeAt(0) - 0xfee0);
+      });
+      const match = normalized.match(/断熱材面積\s*([0-9]+(?:\.[0-9]+)?)/) ||
+        normalized.match(/面積\s*([0-9]+(?:\.[0-9]+)?)\s*㎡/);
+      if (match) return Number(match[1]) || 0;
+    }
+    return 0;
+  }
+
+  function syncFormworkTotals(estimateState) {
+    if (!Array.isArray(estimateState.sheets)) return;
+    estimateState.sheets.filter(isFormworkSheet).forEach((sheet) => {
+      const insulationArea = insulationAreaFromFormworkSheet(sheet);
+      const formworkTotal = sheet.items
+        .filter(isRowVisible)
+        .filter(isFormworkBaseQuantityItem)
+        .reduce((sum, item) => sum + toNumber(item.qty), 0);
+      sheet.items.forEach((item) => {
+        if (isSlabFormworkItem(item)) {
+          item.qty = 1;
+          item.unit = "式";
+          return;
+        }
+        if (insulationArea > 0 && isCeilingInsertItem(item)) {
+          item.qty = Number(insulationArea.toFixed(2));
+          item.unit = "㎡";
+          if (String(item.remarks || "").includes("断熱材数量連動")) {
+            item.remarks = "Excel取込:断熱材面積換算";
+          }
+          return;
+        }
+        if (isFormworkTotalLinkedItem(item)) {
+          item.qty = Number(formworkTotal.toFixed(2));
+          item.unit = "㎡";
+        }
+      });
+      cleanupZeroInsertRows(sheet);
+    });
+  }
+
+  function syncQuantityLinks(estimateState) {
+    const siteArea = toNumber(estimateState.siteArea);
+    const buildingArea = toNumber(estimateState.buildingArea);
+    const totalFloorArea = toNumber(estimateState.totalFloorArea);
+    const plasterConcreteFinishQty = siteArea + buildingArea;
+    if (!Array.isArray(estimateState.sheets)) return;
+    estimateState.sheets.forEach((sheet) => {
+      const externalScaffold = sheet.items.find(isExternalScaffoldItem);
+      const externalScaffoldQty = externalScaffold ? toNumber(externalScaffold.qty) : 0;
+      sheet.items.forEach((item) => {
+        if (buildingArea > 0 && isSettingOutItem(item)) {
+          item.qty = Number(buildingArea.toFixed(2));
+          item.unit = item.unit || "㎡";
+        }
+        if (!item.manualQty && totalFloorArea > 0 && isFloorAreaLinkedItem(item)) {
+          item.qty = Number(totalFloorArea.toFixed(2));
+          item.unit = item.unit || "㎡";
+        }
+        if (!item.manualQty && externalScaffoldQty > 0 && isScaffoldInsertItem(item)) {
+          item.qty = Number(externalScaffoldQty.toFixed(2));
+          item.unit = item.unit || "㎡";
+        }
+        if (plasterConcreteFinishQty > 0 && isPlasterConcreteFinishItem(item)) {
+          item.qty = Number(plasterConcreteFinishQty.toFixed(2));
+          item.unit = "㎡";
+        }
+      });
+    });
+    syncConcreteTotals(estimateState);
+    syncFormworkTotals(estimateState);
+    syncAdjustmentRows(estimateState);
+  }
+
+  function createUeharaEstimateState() {
+    const next = clone(defaults);
+    next.clientName = "上原 様";
+    next.projectName = "上原邸新築工事";
+    next.siteAddress = "豊見城市字我那覇蔵無地原436-21";
+    next.siteArea = ueharaAreas.siteArea;
+    next.buildingArea = ueharaAreas.buildingArea;
+    next.totalFloorArea = ueharaAreas.totalFloorArea;
+    next.estimateMode = "byTrade";
+    next.notes = [
+      "棚原工務店 上原邸PDFより鉄筋工事を取り込み。",
+      "普久原工業PDFより仮設工事を取り込み。",
+      "台風時、台風対策は別途常用となります。",
+      "見積り外の足場等は、相談のうえ別途となります。"
+    ].join("\n");
+    next.sheets = tradePresets.map((trade) => ({
+      name: trade.name,
+      items: trade.name === "仮設工事"
+        ? clone(ueharaTemporaryItems)
+        : trade.name === "鉄筋工事"
+          ? clone(ueharaEstimateItems)
+          : []
+    }));
+    next.activeSheetIndex = Math.max(0, next.sheets.findIndex((sheet) => sheet.name === "仮設工事"));
+    return next;
+  }
+
+  function mergeUeharaTemporaryItems(sheet) {
+    if (!sheet.items.some((item) => item.type === "section" && item.category === "取り込み")) {
+      sheet.items.unshift(clone(ueharaTemporaryItems[0]));
+    }
+    ueharaTemporaryItems
+      .filter((item) => item.type === "item")
+      .forEach((item) => {
+        const existing = sheet.items.find((current) => (
+          current.type === "item" &&
+          current.name === item.name &&
+          current.summary === item.summary
+        ));
+        if (existing && isAdjustmentItem(item)) {
+          if (amount(existing) === 0 && existing.remarks === "工種ごとの金額調整") {
+            Object.assign(existing, clone(item), { hidden: false });
+          }
+          return;
+        }
+        if (!existing) sheet.items.push(clone(item));
+      });
+  }
+
+  function restoreUeharaTemporaryContent(estimateState) {
+    if (!(estimateState.projectName || "").includes("上原")) return normalizeState(estimateState);
+    const next = normalizeState(estimateState);
+    if (!next.clientName || next.clientName.includes("知花") || next.clientName.includes("御中")) {
+      next.clientName = "上原 様";
+    }
+    next.siteAddress = next.siteAddress || "豊見城市字我那覇蔵無地原436-21";
+    next.siteArea = next.siteArea || ueharaAreas.siteArea;
+    next.buildingArea = next.buildingArea || ueharaAreas.buildingArea;
+    next.totalFloorArea = next.totalFloorArea || ueharaAreas.totalFloorArea;
+    next.estimateMode = "byTrade";
+    tradePresets.forEach((trade) => {
+      if (!next.sheets.some((sheet) => sheet.name === trade.name)) {
+        next.sheets.push({ name: trade.name, items: [] });
+      }
+    });
+    const temporarySheet = next.sheets.find((sheet) => sheet.name === "仮設工事");
+    mergeUeharaTemporaryItems(temporarySheet);
+    const noteAdditions = [
+      "普久原工業PDFより仮設工事を取り込み。",
+      "見積書20260619 PDFより外部足場以外の仮設工事明細を取り込み。",
+      "台風時、台風対策は別途常用となります。",
+      "見積り外の足場等は、相談のうえ別途となります。"
+    ];
+    const currentNotes = next.notes || "";
+    next.notes = [currentNotes, ...noteAdditions.filter((line) => !currentNotes.includes(line))].filter(Boolean).join("\n");
+    next.activeSheetIndex = Math.max(0, next.sheets.findIndex((sheet) => sheet.name === "仮設工事"));
+    return next;
+  }
+
+  const fields = [
+    "quoteNo", "issueDate", "clientName", "projectName", "siteAddress", "siteArea", "buildingArea", "totalFloorArea", "period", "validUntil",
+    "companyName", "companyAddress", "companyPhone", "companyPerson", "paymentTerms",
+    "taxRate", "siteManagementRate", "generalManagementRate", "discount", "netAmount", "notes"
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  let estimateBook = loadEstimateBook();
+  let state = activeEstimateRecord().state;
+  let dataFileHandle = null;
+  let dataFileName = "";
+  let dataSaveTimer = null;
+  let isWritingDataFile = false;
+  let pendingImportTradeName = "";
+  let lastConcreteReadSummary = [];
+  let pendingItemFocus = null;
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function loadState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey));
+      if (saved) return normalizeState(saved);
+      for (const key of legacyKeys) {
+        const legacy = JSON.parse(localStorage.getItem(key));
+        if (legacy) return normalizeState(legacy);
+      }
+    } catch (error) {
+      return clone(defaults);
+    }
+    return clone(defaults);
+  }
+
+  function makeEstimateId() {
+    return `site-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  }
+
+  function estimateLabel(estimateState) {
+    const name = (estimateState.projectName || estimateState.clientName || estimateState.quoteNo || "").trim();
+    return name || "新規現場";
+  }
+
+  function createEstimateRecord(estimateState) {
+    const normalized = normalizeState(estimateState || clone(defaults));
+    return {
+      id: makeEstimateId(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      state: normalized
+    };
+  }
+
+  function loadEstimateBook() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(bookStorageKey));
+      if (saved && Array.isArray(saved.estimates) && saved.estimates.length) {
+        const estimates = saved.estimates.map((record) => ({
+          id: record.id || makeEstimateId(),
+          createdAt: record.createdAt || new Date().toISOString(),
+          updatedAt: record.updatedAt || new Date().toISOString(),
+          state: restoreUeharaTemporaryContent(record.state || defaults)
+        }));
+        const hasUehara = estimates.some((record) => (record.state.projectName || "").includes("上原"));
+        let restoredUeharaId = "";
+        if (!hasUehara) {
+          const ueharaRecord = createEstimateRecord(createUeharaEstimateState());
+          estimates.push(ueharaRecord);
+          restoredUeharaId = ueharaRecord.id;
+        }
+        const activeId = restoredUeharaId || (estimates.some((record) => record.id === saved.activeId) ? saved.activeId : estimates[0].id);
+        return { activeId, estimates };
+      }
+    } catch (error) {
+      // Fall back to the single-estimate storage below.
+    }
+    const first = createEstimateRecord(loadState());
+    const ueharaRecord = createEstimateRecord(createUeharaEstimateState());
+    return { activeId: ueharaRecord.id, estimates: [first, ueharaRecord] };
+  }
+
+  function normalizeState(value) {
+    const next = { ...clone(defaults), ...value };
+    if (!Array.isArray(next.sheets) || next.sheets.length === 0) {
+      next.sheets = [{ name: "簡易見積", items: Array.isArray(value.items) ? value.items : clone(defaultItems) }];
+    }
+    next.sheets = next.sheets.map((sheet, index) => ({
+      name: sheet.name || (index === 0 ? "簡易見積" : `工種${index + 1}`),
+      suppressConcreteTemplate: Boolean(sheet.suppressConcreteTemplate),
+      manualRowOrder: Boolean(sheet.manualRowOrder),
+      items: Array.isArray(sheet.items) ? sheet.items.map((item) => ({ ...item, hidden: Boolean(item.hidden) })) : []
+    }));
+    ensureConcreteTemplateRows(next.sheets);
+    ensureConcreteBlockTemplateRows(next.sheets);
+    ensureEarthworkTemplateRows(next.sheets);
+    ensureFormworkTemplateRows(next.sheets);
+    ensurePlasterTemplateRows(next.sheets);
+    ensureMetalTemplateRows(next.sheets);
+    ensureAdjustmentRows(next.sheets);
+    syncQuantityLinks(next);
+    next.activeSheetIndex = Math.min(Math.max(Number(next.activeSheetIndex) || 0, 0), next.sheets.length - 1);
+    next.estimateMode = next.estimateMode === "byTrade" ? "byTrade" : "simple";
+    delete next.items;
+    return next;
+  }
+
+  function saveState() {
+    const record = activeEstimateRecord();
+    record.state = state;
+    record.updatedAt = new Date().toISOString();
+    localStorage.setItem(bookStorageKey, JSON.stringify(estimateBook));
+    localStorage.setItem(storageKey, JSON.stringify(state));
+    scheduleDataFileAutosave();
+  }
+
+  function dataFilePayload() {
+    const record = activeEstimateRecord();
+    record.state = state;
+    record.updatedAt = new Date().toISOString();
+    return {
+      app: "mitsumori_app",
+      version: 1,
+      savedAt: new Date().toISOString(),
+      book: {
+        activeId: estimateBook.activeId,
+        estimates: estimateBook.estimates.map((item) => ({
+          id: item.id || makeEstimateId(),
+          createdAt: item.createdAt || new Date().toISOString(),
+          updatedAt: item.updatedAt || new Date().toISOString(),
+          state: normalizeState(item.state || defaults)
+        }))
+      }
+    };
+  }
+
+  function setDataFileStatus(message) {
+    const status = $("dataFileStatus");
+    if (status) status.textContent = message;
+  }
+
+  function scheduleDataFileAutosave() {
+    if (!dataFileHandle || isWritingDataFile) return;
+    clearTimeout(dataSaveTimer);
+    dataSaveTimer = setTimeout(() => {
+      saveDataFile({ silent: true }).catch(() => {
+        setDataFileStatus("Dropbox共有データ: 自動保存できませんでした。手動保存してください。");
+      });
+    }, 900);
+  }
+
+  async function ensureFilePermission(handle, mode = "readwrite") {
+    if (!handle || !handle.queryPermission || !handle.requestPermission) return true;
+    const options = { mode };
+    if (await handle.queryPermission(options) === "granted") return true;
+    return await handle.requestPermission(options) === "granted";
+  }
+
+  async function loadDataFile() {
+    if (window.showOpenFilePicker) {
+      const [handle] = await window.showOpenFilePicker({
+        multiple: false,
+        types: [{
+          description: "見積データ",
+          accept: { "application/json": [".json"] }
+        }]
+      });
+      await loadDataFileHandle(handle);
+      return;
+    }
+    $("dataFileInput").click();
+  }
+
+  async function loadDataFileHandle(handle) {
+    const file = await handle.getFile();
+    await loadDataFileText(await file.text(), file.name);
+    dataFileHandle = handle;
+    dataFileName = file.name;
+    setDataFileStatus(`Dropbox共有データ: ${dataFileName} を使用中（変更時に自動保存）`);
+    await ensureFilePermission(handle, "readwrite");
+  }
+
+  async function loadDataFileText(text, fileName = "見積データ.json") {
+    const payload = JSON.parse(text);
+    const book = payload.book || payload;
+    if (!Array.isArray(book.estimates) || !book.estimates.length) {
+      throw new Error("見積データが見つかりません。");
+    }
+    estimateBook = {
+      activeId: book.activeId || book.estimates[0].id,
+      estimates: book.estimates.map((item) => ({
+        id: item.id || makeEstimateId(),
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
+        state: normalizeState(item.state || defaults)
+      }))
+    };
+    if (!estimateBook.estimates.some((item) => item.id === estimateBook.activeId)) {
+      estimateBook.activeId = estimateBook.estimates[0].id;
+    }
+    state = activeEstimateRecord().state;
+    saveState();
+    render();
+    setDataFileStatus(`Dropbox共有データ: ${fileName} を読み込みました`);
+  }
+
+  async function saveDataFile(options = {}) {
+    const { saveAs = false, silent = false } = options;
+    const content = JSON.stringify(dataFilePayload(), null, 2);
+    if (window.showSaveFilePicker) {
+      if (saveAs || !dataFileHandle) {
+        dataFileHandle = await window.showSaveFilePicker({
+          suggestedName: dataFileName || "mitsumori_data.json",
+          types: [{
+            description: "見積データ",
+            accept: { "application/json": [".json"] }
+          }]
+        });
+        dataFileName = dataFileHandle.name || "mitsumori_data.json";
+      }
+      if (!(await ensureFilePermission(dataFileHandle, "readwrite"))) {
+        throw new Error("保存の許可がありません。");
+      }
+      isWritingDataFile = true;
+      try {
+        const writable = await dataFileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+      } finally {
+        isWritingDataFile = false;
+      }
+      if (!silent) setDataFileStatus(`Dropbox共有データ: ${dataFileName || "見積データ"} に保存しました`);
+      return;
+    }
+    downloadFile(content, dataFileName || "mitsumori_data.json", "application/json;charset=utf-8");
+    if (!silent) setDataFileStatus("Dropbox共有データ: JSONを保存しました。DropboxのOPENAIフォルダへ入れてください。");
+  }
+
+  function activeEstimateRecord() {
+    let record = estimateBook.estimates.find((item) => item.id === estimateBook.activeId);
+    if (!record) {
+      record = estimateBook.estimates[0] || createEstimateRecord(defaults);
+      if (!estimateBook.estimates.length) estimateBook.estimates.push(record);
+      estimateBook.activeId = record.id;
+    }
+    return record;
+  }
+
+  function yen(value) {
+    return `${Math.round(Number(value) || 0).toLocaleString("ja-JP")}円`;
+  }
+
+  function formatNumber(value) {
+    return Number(value || 0).toLocaleString("ja-JP", { maximumFractionDigits: 2 });
+  }
+
+  function toNumber(value) {
+    return Number(normalizeNumericInput(value)) || 0;
+  }
+
+  function amount(item) {
+    return toNumber(item.qty) * toNumber(item.price);
+  }
+
+  function lineAmount(item) {
+    return Math.round(amount(item));
+  }
+
+  function tsuboFromSquareMeters(value) {
+    const squareMeters = toNumber(value);
+    return squareMeters > 0 ? squareMeters / 3.305785 : 0;
+  }
+
+  function isRowVisible(item) {
+    return item.hidden !== true;
+  }
+
+  function visibleItems(sheet) {
+    return sheet.items.filter(isRowVisible);
+  }
+
+  function billableItems(sheet) {
+    return visibleItems(sheet).filter((item) => item.type === "item");
+  }
+
+  function activeSheet() {
+    return state.sheets[state.activeSheetIndex] || state.sheets[0];
+  }
+
+  function visibleSheets() {
+    return state.estimateMode === "simple" ? [state.sheets[0]] : state.sheets;
+  }
+
+  function subtotalForSheet(sheet) {
+    return billableItems(sheet).reduce((sum, item) => sum + lineAmount(item), 0);
+  }
+
+  function subtotalBeforeAdjustment(sheet) {
+    return billableItems(sheet)
+      .filter((item) => !isAdjustmentItem(item))
+      .reduce((sum, item) => sum + lineAmount(item), 0);
+  }
+
+  function syncAdjustmentRows(estimateState) {
+    if (!Array.isArray(estimateState.sheets)) return;
+    estimateState.sheets.forEach((sheet) => {
+      const adjustment = sheet.items.find(isAdjustmentItem);
+      if (!adjustment) return;
+      const base = subtotalBeforeAdjustment(sheet);
+      const roundedDown = Math.floor(base / 1000) * 1000;
+      adjustment.category = "調整";
+      adjustment.name = "調整";
+      adjustment.summary = "";
+      adjustment.qty = 1;
+      adjustment.unit = "式";
+      adjustment.price = roundedDown - base;
+      adjustment.remarks = "下三桁切り捨て";
+      adjustment.hidden = false;
+    });
+  }
+
+  function totals() {
+    const subtotal = visibleSheets().reduce((sum, sheet) => sum + subtotalForSheet(sheet), 0);
+    const siteManagementRate = toNumber(state.siteManagementRate);
+    const generalManagementRate = toNumber(state.generalManagementRate);
+    const siteManagement = Math.round(subtotal * (siteManagementRate / 100));
+    const cost = subtotal + siteManagement;
+    const generalManagement = Math.round(cost * (generalManagementRate / 100));
+    const beforeDiscount = subtotal + siteManagement + generalManagement;
+    const discount = Math.min(toNumber(state.discount), beforeDiscount);
+    const taxable = Math.max(beforeDiscount - discount, 0);
+    const tax = Math.round(taxable * (toNumber(state.taxRate) / 100));
+    const total = taxable + tax;
+    const net = state.netAmount === "" ? total : toNumber(state.netAmount);
+    const floorAreaTsubo = tsuboFromSquareMeters(state.totalFloorArea);
+    const tsuboUnitPrice = floorAreaTsubo > 0 ? Math.round(total / floorAreaTsubo) : 0;
+    return {
+      subtotal,
+      siteManagementRate,
+      siteManagement,
+      cost,
+      generalManagementRate,
+      generalManagement,
+      beforeDiscount,
+      discount,
+      taxable,
+      tax,
+      total,
+      net,
+      floorAreaTsubo,
+      tsuboUnitPrice
+    };
+  }
+
+  function bindFields() {
+    fields.forEach((id) => {
+      const input = $(id);
+      input.value = state[id] ?? "";
+      input.addEventListener("input", () => {
+        state[id] = input.value;
+        render();
+      });
+    });
+
+    $("useStamp").checked = Boolean(state.useStamp);
+    $("useStamp").addEventListener("change", () => {
+      state.useStamp = $("useStamp").checked;
+      render();
+    });
+
+    $("modeSimple").addEventListener("change", () => setMode("simple"));
+    $("modeByTrade").addEventListener("change", () => setMode("byTrade"));
+    $("sheetName").addEventListener("input", () => {
+      activeSheet().name = $("sheetName").value;
+      render();
+    });
+    $("projectSelect").addEventListener("change", () => switchEstimate($("projectSelect").value));
+    $("newProjectButton").addEventListener("click", addEstimate);
+    $("duplicateProjectButton").addEventListener("click", duplicateEstimate);
+    $("deleteProjectButton").addEventListener("click", deleteEstimate);
+  }
+
+  function switchEstimate(id) {
+    if (!id || id === estimateBook.activeId) return;
+    saveState();
+    estimateBook.activeId = id;
+    state = activeEstimateRecord().state;
+    render();
+    $("projectStatus").textContent = "現場を切り替えました。";
+  }
+
+  function addEstimate() {
+    saveState();
+    const next = clone(defaults);
+    next.projectName = "新規現場";
+    next.clientName = "";
+    next.quoteNo = `Q-${today.getFullYear()}${pad(today.getMonth() + 1)}${pad(today.getDate())}-${String(estimateBook.estimates.length + 1).padStart(3, "0")}`;
+    const record = createEstimateRecord(next);
+    estimateBook.estimates.push(record);
+    estimateBook.activeId = record.id;
+    state = record.state;
+    render();
+    $("projectStatus").textContent = "新しい現場見積を作成しました。";
+  }
+
+  function duplicateEstimate() {
+    saveState();
+    const next = clone(state);
+    next.projectName = `${estimateLabel(state)} コピー`;
+    const record = createEstimateRecord(next);
+    estimateBook.estimates.push(record);
+    estimateBook.activeId = record.id;
+    state = record.state;
+    render();
+    $("projectStatus").textContent = "現在の現場見積を複製しました。";
+  }
+
+  function deleteEstimate() {
+    if (estimateBook.estimates.length <= 1) {
+      $("projectStatus").textContent = "最後の現場見積は削除できません。";
+      return;
+    }
+    if (!confirm("現在の現場見積を削除しますか？")) return;
+    const index = estimateBook.estimates.findIndex((record) => record.id === estimateBook.activeId);
+    estimateBook.estimates.splice(index, 1);
+    const next = estimateBook.estimates[Math.max(0, index - 1)] || estimateBook.estimates[0];
+    estimateBook.activeId = next.id;
+    state = next.state;
+    render();
+    $("projectStatus").textContent = "現場見積を削除しました。";
+  }
+
+  function renderEstimateSwitcher() {
+    const select = $("projectSelect");
+    const current = select.value || estimateBook.activeId;
+    select.innerHTML = estimateBook.estimates.map((record, index) => {
+      const label = `${index + 1}. ${estimateLabel(record.state)}`;
+      return `<option value="${escapeAttr(record.id)}">${escapeHtml(label)}</option>`;
+    }).join("");
+    select.value = estimateBook.estimates.some((record) => record.id === current) ? current : estimateBook.activeId;
+    $("deleteProjectButton").disabled = estimateBook.estimates.length <= 1;
+    $("projectStatus").textContent = `現場見積 ${estimateBook.estimates.length}件を保存中です。`;
+  }
+
+  function setMode(mode) {
+    state.estimateMode = mode;
+    if (mode === "simple") state.activeSheetIndex = 0;
+    render();
+  }
+
+  function renderMode() {
+    $("modeSimple").checked = state.estimateMode === "simple";
+    $("modeByTrade").checked = state.estimateMode === "byTrade";
+    $("sheetTools").style.display = state.estimateMode === "byTrade" ? "grid" : "none";
+    $("addSheetButton").style.display = state.estimateMode === "byTrade" ? "inline-block" : "none";
+    $("resetConcreteTemplateButton").style.display = isConcreteSheet(activeSheet()) ? "inline-block" : "none";
+    $("resetConcreteBlockTemplateButton").style.display = isConcreteBlockSheet(activeSheet()) ? "inline-block" : "none";
+    $("resetEarthworkTemplateButton").style.display = isEarthworkSheet(activeSheet()) ? "inline-block" : "none";
+    $("resetFormworkTemplateButton").style.display = isFormworkSheet(activeSheet()) ? "inline-block" : "none";
+    $("resetPlasterTemplateButton").style.display = isPlasterSheet(activeSheet()) ? "inline-block" : "none";
+    $("resetMetalTemplateButton").style.display = isMetalSheet(activeSheet()) ? "inline-block" : "none";
+  }
+
+  function renderSheetTabs() {
+    const tabs = $("sheetTabs");
+    tabs.innerHTML = "";
+    state.sheets.forEach((sheet, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = sheet.name || `工種${index + 1}`;
+      button.className = index === state.activeSheetIndex ? "active" : "";
+      button.addEventListener("click", () => {
+        state.activeSheetIndex = index;
+        render();
+      });
+      tabs.appendChild(button);
+    });
+    $("sheetName").value = activeSheet().name;
+    $("deleteSheetButton").disabled = state.sheets.length <= 1;
+    renderImportTargetOptions();
+  }
+
+  function renderImportTargetOptions() {
+    const select = $("importTargetTrade");
+    const current = select.value;
+    const names = Array.from(new Set([...tradePresets.map((trade) => trade.name), ...state.sheets.map((sheet) => sheet.name), "未分類"]));
+    select.innerHTML = '<option value="">自動判定</option>' + names.map((name) => `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join("");
+    select.value = names.includes(current) ? current : "";
+  }
+
+  function renderItems() {
+    const body = $("itemsBody");
+    body.innerHTML = "";
+    activeSheet().items.forEach((item, index) => {
+      const tr = document.createElement("tr");
+      tr.dataset.index = String(index);
+      const rowVisible = isRowVisible(item);
+      tr.className = [item.type === "section" ? "section-row" : "", rowVisible ? "" : "is-hidden"].filter(Boolean).join(" ");
+      tr.innerHTML = `
+        <td><input data-key="category" value="${escapeAttr(item.category)}" aria-label="区分"></td>
+        <td><input data-key="name" value="${escapeAttr(item.name)}" aria-label="名称"></td>
+        <td><input data-key="summary" value="${escapeAttr(item.summary)}" aria-label="概要"></td>
+        <td><input class="small" data-key="qty" type="text" inputmode="decimal" value="${escapeAttr(item.qty)}" aria-label="数量"></td>
+        <td><input class="small" data-key="unit" value="${escapeAttr(item.unit)}" aria-label="単位"></td>
+        <td><input class="money" data-key="price" type="text" inputmode="numeric" value="${escapeAttr(item.price)}" aria-label="単価"></td>
+        <td class="line-amount">${item.type === "item" ? (rowVisible ? yen(lineAmount(item)) : "対象外") : ""}</td>
+        <td><input data-key="remarks" value="${escapeAttr(item.remarks)}" aria-label="備考"></td>
+        <td class="row-actions">
+          <button type="button" class="move-button move-up" title="上へ" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button type="button" class="move-button move-down" title="下へ" ${index === activeSheet().items.length - 1 ? "disabled" : ""}>↓</button>
+          <button type="button" class="visibility-button" title="${rowVisible ? "計算から外して隠す" : "表示して計算に入れる"}">${rowVisible ? "隠す" : "表示"}</button>
+          <button type="button" class="remove-button" title="削除">x</button>
+        </td>
+      `;
+      if (isAdjustmentItem(item)) {
+        ["qty", "unit", "price", "remarks"].forEach((key) => {
+          const adjustmentInput = tr.querySelector(`[data-key="${key}"]`);
+          if (!adjustmentInput) return;
+          adjustmentInput.readOnly = true;
+          adjustmentInput.title = "自動計算";
+        });
+      }
+      tr.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("input", () => {
+          commitDetailInput(input);
+          refreshDetailRowTotals(tr);
+        });
+        input.addEventListener("change", () => {
+          commitDetailInput(input);
+          refreshDetailRowTotals(tr);
+          saveState();
+        });
+        input.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          commitDetailInput(input);
+          refreshDetailRowTotals(tr);
+          saveState();
+          focusNextDetailInput(input);
+        });
+      });
+      tr.querySelector(".remove-button").addEventListener("click", () => {
+        activeSheet().items.splice(index, 1);
+        render();
+      });
+      tr.querySelector(".visibility-button").addEventListener("click", () => {
+        item.hidden = rowVisible;
+        render();
+      });
+      tr.querySelector(".move-up").addEventListener("click", () => moveItem(index, -1));
+      tr.querySelector(".move-down").addEventListener("click", () => moveItem(index, 1));
+      body.appendChild(tr);
+    });
+    const subtotalRow = document.createElement("tr");
+    subtotalRow.className = "sheet-subtotal-row";
+    subtotalRow.innerHTML = `
+      <td colspan="6"></td>
+      <td class="subtotal-label">小計</td>
+      <td class="subtotal-value">${yen(subtotalForSheet(activeSheet()))}</td>
+      <td></td>
+    `;
+    body.appendChild(subtotalRow);
+  }
+
+  function commitDetailInput(input) {
+    const row = input.closest("tr[data-index]");
+    const item = activeSheet().items[Number(row?.dataset.index)];
+    if (!item) return;
+    const key = input.dataset.key;
+    let value = input.value;
+    if (["qty", "price"].includes(key)) {
+      value = normalizeNumericInput(value);
+    }
+    if (key === "qty") item.manualQty = true;
+    item[key] = value;
+  }
+
+  function normalizeNumericInput(value) {
+    return String(value || "")
+      .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+      .replace(/[，、]/g, ",")
+      .replace(/[．。]/g, ".")
+      .replace(/[－−ー]/g, "-")
+      .replace(/,/g, "")
+      .replace(/[^\d.-]/g, "");
+  }
+
+  function refreshDetailRowTotals(row) {
+    syncAdjustmentRows(state);
+    const rows = Array.from($("itemsBody")?.querySelectorAll("tr[data-index]") || []);
+    rows.forEach((detailRowElement) => {
+      const item = activeSheet().items[Number(detailRowElement.dataset.index)];
+      if (!item) return;
+      if (isAdjustmentItem(item)) {
+        detailRowElement.querySelector('[data-key="qty"]').value = item.qty;
+        detailRowElement.querySelector('[data-key="unit"]').value = item.unit;
+        detailRowElement.querySelector('[data-key="price"]').value = item.price;
+        detailRowElement.querySelector('[data-key="remarks"]').value = item.remarks;
+      }
+      const rowVisible = isRowVisible(item);
+      const lineAmountCell = detailRowElement.querySelector(".line-amount");
+      if (lineAmountCell) {
+        lineAmountCell.textContent = item.type === "item" ? (rowVisible ? yen(lineAmount(item)) : "対象外") : "";
+      }
+    });
+    const subtotalValue = $("itemsBody")?.querySelector(".subtotal-value");
+    if (subtotalValue) subtotalValue.textContent = yen(subtotalForSheet(activeSheet()));
+    renderSummary();
+  }
+
+  function focusNextDetailInput(currentInput) {
+    const inputs = Array.from($("itemsBody")?.querySelectorAll("input[data-key]") || []);
+    const currentIndex = inputs.indexOf(currentInput);
+    const nextInput = inputs[currentIndex + 1];
+    if (nextInput) {
+      nextInput.focus();
+      nextInput.select?.();
+    } else {
+      currentInput.blur();
+    }
+  }
+
+  function moveItem(index, direction) {
+    const sheet = activeSheet();
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= sheet.items.length) return;
+    const [item] = sheet.items.splice(index, 1);
+    sheet.items.splice(nextIndex, 0, item);
+    sheet.manualRowOrder = true;
+    render();
+  }
+
+  function resetSheetQuantitiesOnly(sheet) {
+    sheet.items.forEach((item) => {
+      if (item.type !== "item") return;
+      item.qty = 0;
+      item.manualQty = true;
+    });
+  }
+
+  function resetActiveConcreteTemplate() {
+    const sheet = activeSheet();
+    if (!isConcreteSheet(sheet)) return;
+    if (!confirm("コンクリート工事の数量を0に戻しますか？項目・単価・備考は残します。")) return;
+    sheet.suppressConcreteTemplate = false;
+    sheet.manualRowOrder = true;
+    ensureConcreteTemplateRows([sheet]);
+    ensureAdjustmentRows([sheet]);
+    resetSheetQuantitiesOnly(sheet);
+    render();
+    $("importResult").textContent = "コンクリート工事の項目は残し、数量だけ0に戻しました。";
+  }
+
+  function resetActiveConcreteBlockTemplate() {
+    const sheet = activeSheet();
+    if (!isConcreteBlockSheet(sheet)) return;
+    if (!confirm("コンクリートブロック工事の数量を0に戻しますか？項目・単価・備考は残します。")) return;
+    sheet.manualRowOrder = true;
+    ensureConcreteBlockTemplateRows([sheet]);
+    ensureAdjustmentRows([sheet]);
+    resetSheetQuantitiesOnly(sheet);
+    render();
+    $("importResult").textContent = "コンクリートブロック工事の項目は残し、数量だけ0に戻しました。";
+  }
+
+  function resetActiveEarthworkTemplate() {
+    const sheet = activeSheet();
+    if (!isEarthworkSheet(sheet)) return;
+    if (!confirm("土工事の数量を0に戻しますか？項目・単価・備考は残します。")) return;
+    sheet.manualRowOrder = true;
+    ensureEarthworkTemplateRows([sheet]);
+    ensureAdjustmentRows([sheet]);
+    resetSheetQuantitiesOnly(sheet);
+    render();
+    $("importResult").textContent = "土工事の項目は残し、数量だけ0に戻しました。";
+  }
+
+  function resetActiveFormworkTemplate() {
+    const sheet = activeSheet();
+    if (!isFormworkSheet(sheet)) return;
+    if (!confirm("型枠工事の数量を0に戻しますか？項目・単価・備考は残します。")) return;
+    sheet.manualRowOrder = true;
+    ensureFormworkTemplateRows([sheet]);
+    ensureAdjustmentRows([sheet]);
+    resetSheetQuantitiesOnly(sheet);
+    render();
+    $("importResult").textContent = "型枠工事の項目は残し、数量だけ0に戻しました。";
+  }
+
+  function resetActivePlasterTemplate() {
+    const sheet = activeSheet();
+    if (!isPlasterSheet(sheet)) return;
+    if (!confirm("左官工事の数量を0に戻しますか？項目・単価・備考は残します。")) return;
+    sheet.manualRowOrder = true;
+    ensurePlasterTemplateRows([sheet]);
+    ensureAdjustmentRows([sheet]);
+    resetSheetQuantitiesOnly(sheet);
+    render();
+    $("importResult").textContent = "左官工事の項目は残し、数量だけ0に戻しました。";
+  }
+
+  function resetActiveMetalTemplate() {
+    const sheet = activeSheet();
+    if (!isMetalSheet(sheet)) return;
+    if (!confirm("金属工事の数量を0に戻しますか？項目・単価・備考は残します。")) return;
+    sheet.manualRowOrder = true;
+    ensureMetalTemplateRows([sheet]);
+    ensureAdjustmentRows([sheet]);
+    resetSheetQuantitiesOnly(sheet);
+    render();
+    $("importResult").textContent = "金属工事の項目は残し、数量だけ0に戻しました。";
+  }
+
+  function ensurePresetTrades() {
+    state.estimateMode = "byTrade";
+    tradePresets.forEach((trade) => ensureSheet(trade.name));
+    state.activeSheetIndex = Math.max(0, state.sheets.findIndex((sheet) => sheet.name === tradePresets[0].name));
+    render();
+    $("importResult").textContent = "指定工種を作成しました。貼り付け取り込みができます。";
+  }
+
+  function loadUeharaEstimate() {
+    saveState();
+    let record = estimateBook.estimates.find((item) => (item.state.projectName || "").includes("上原"));
+    if (!record) {
+      record = createEstimateRecord(createUeharaEstimateState());
+      estimateBook.estimates.push(record);
+    } else {
+      record.state = createUeharaEstimateState();
+      record.updatedAt = new Date().toISOString();
+    }
+    estimateBook.activeId = record.id;
+    state = record.state;
+    saveState();
+    render();
+    $("importResult").textContent = "上原邸の入力内容を復旧しました。鉄筋工事 8件が入っています。";
+  }
+
+  function ensureSheet(name) {
+    let sheet = state.sheets.find((item) => item.name === name);
+    if (!sheet) {
+      sheet = { name, items: [] };
+      state.sheets.push(sheet);
+    }
+    return sheet;
+  }
+
+  function importText() {
+    const raw = $("importText").value.trim();
+    if (!raw) {
+      $("importResult").textContent = "取り込むテキストを貼り付けてください。";
+      return;
+    }
+
+    state.estimateMode = "byTrade";
+    tradePresets.forEach((trade) => ensureSheet(trade.name));
+
+    const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const forcedTradeName = selectedImportTrade() || pendingImportTradeName;
+    let imported = 0;
+    let notesAdded = 0;
+    let skipped = 0;
+    const counts = {};
+    const noteLines = [];
+    const concreteImports = {};
+    const preparedImportSheets = new Set();
+    const importBatchKeys = new Set();
+
+    lines.forEach((line) => {
+      const routedItem = parseRoutedImportLine(line);
+      const earthworkItem = routedItem || parseEarthworkImportLine(line);
+      if (isNoteLine(line)) {
+        noteLines.push(cleanNoteLine(line));
+        notesAdded += 1;
+        return;
+      }
+      if (!earthworkItem && isNonEstimateLine(line)) {
+        skipped += 1;
+        return;
+      }
+      const item = earthworkItem || parseImportLine(line, {
+        forceEstimate: Boolean(forcedTradeName),
+        quantityOnly: isConcreteSheet(forcedTradeName)
+      });
+      if (!item) {
+        skipped += 1;
+        return;
+      }
+      const tradeName = item._tradeName || forcedTradeName || classifyTrade(line);
+      delete item._tradeName;
+      if (isEarthworkSheet(tradeName)) normalizeEarthworkImportedItem(item);
+      if (isConcreteSheet(tradeName)) {
+        (concreteImports[tradeName] ||= []).push(item);
+        counts[tradeName] = (counts[tradeName] || 0) + 1;
+        imported += 1;
+        return;
+      }
+      delete item._partialImport;
+      const sheet = ensureSheet(tradeName);
+      if (isEarthworkSheet(tradeName) && !preparedImportSheets.has(tradeName)) {
+        ensureEarthworkTemplateRows([sheet]);
+        ensureAdjustmentRows([sheet]);
+        preparedImportSheets.add(tradeName);
+      }
+      item.category = "取り込み";
+      item.remarks = item.remarks || "自動取り込み";
+      upsertImportedItem(sheet, item, importBatchKeys);
+      counts[tradeName] = (counts[tradeName] || 0) + 1;
+      imported += 1;
+    });
+
+    Object.entries(concreteImports).forEach(([tradeName, items]) => {
+      applyConcreteImports(ensureSheet(tradeName), items);
+    });
+    appendImportedNotes(noteLines);
+    const firstTrade = Object.keys(counts)[0];
+    if (firstTrade) state.activeSheetIndex = state.sheets.findIndex((sheet) => sheet.name === firstTrade);
+    render();
+    const countText = Object.entries(counts).map(([name, count]) => `${name}:${count}`).join(" / ");
+    const modeText = forcedTradeName ? `指定工種「${forcedTradeName}」へ反映。` : "自動判定で反映。";
+    const emptyHint = imported === 0 ? " 明細候補が見つかりませんでした。取り込み欄の内容を確認してください。" : "";
+    $("importResult").textContent = `${modeText} 明細 ${imported}件、備考 ${notesAdded}件、除外 ${skipped}行。${countText}${emptyHint}`;
+  }
+
+  function clearImportedRows(sheet) {
+    sheet.items = sheet.items.filter((item) => {
+      if (item.type === "section" && item.category === "取り込み") return false;
+      if (item.category === "取り込み") return false;
+      if (String(item.remarks || "").includes("自動取り込み")) return false;
+      if (String(item.remarks || "").includes("Excel取込")) return false;
+      return true;
+    });
+  }
+
+  function upsertImportedItem(sheet, item, importBatchKeys = null) {
+    const target = findImportTargetRow(sheet, item);
+    const sumIntoTarget = Boolean(item._sumImport);
+    if (target) {
+      const batchKey = importBatchKey(sheet, item);
+      const firstInBatch = !importBatchKeys || !importBatchKeys.has(batchKey);
+      target.type = "item";
+      target.category = target.category || "取り込み";
+      target.name = item.name || target.name;
+      target.summary = item.summary || target.summary || "";
+      target.qty = sumIntoTarget && !firstInBatch
+        ? Number((toNumber(target.qty) + toNumber(item.qty)).toFixed(2))
+        : item.qty;
+      target.unit = item.unit || target.unit || "式";
+      target.price = toNumber(item.price) > 0 ? item.price : (target.price || item.price || 0);
+      target.remarks = item.remarks || target.remarks || "自動取り込み";
+      target.hidden = false;
+      target.manualQty = true;
+      if (sumIntoTarget && importBatchKeys) importBatchKeys.add(batchKey);
+      return target;
+    }
+
+    if (!sheet.items.some((row) => row.type === "section" && row.category === "取り込み")) {
+      sheet.items.push({ type: "section", category: "取り込み", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" });
+    }
+    item.hidden = false;
+    item.manualQty = true;
+    if (sumIntoTarget && importBatchKeys) importBatchKeys.add(importBatchKey(sheet, item));
+    delete item._sumImport;
+    delete item._partialImport;
+    sheet.items.push(item);
+    return item;
+  }
+
+  function importBatchKey(sheet, item) {
+    return `${sheet.name}|${normalizedText(item.name)}|${normalizedText(item.summary)}`;
+  }
+
+  function findImportTargetRow(sheet, item) {
+    const wanted = normalizedText(item.name);
+    if (!wanted) return null;
+    let sameNameRows = sheet.items.filter((row) => (
+      row.type === "item" &&
+      !isAdjustmentItem(row) &&
+      normalizedText(row.name) === wanted
+    ));
+    if (!sameNameRows.length && wanted.includes("断熱材")) {
+      sameNameRows = sheet.items.filter((row) => (
+        row.type === "item" &&
+        !isAdjustmentItem(row) &&
+        normalizedText(row.name).includes("断熱材")
+      ));
+    }
+    const wantedSummary = normalizedText(item.summary);
+    if (wantedSummary) {
+      const sameSummary = sameNameRows.find((row) => normalizedText(row.summary) === wantedSummary);
+      if (sameSummary) return sameSummary;
+      const wantedThickness = summaryThicknessMm(item.summary);
+      if (wantedThickness) {
+        const sameThickness = sameNameRows.find((row) => summaryThicknessMm(row.summary) === wantedThickness);
+        if (sameThickness) return sameThickness;
+      }
+    }
+    if (sameNameRows.length) return sameNameRows[0];
+    return sheet.items.find((row) => (
+      row.type === "item" &&
+      !isAdjustmentItem(row) &&
+      !String(row.name || "").trim() &&
+      !String(row.qty || "").trim() &&
+      !String(row.price || "").trim()
+    )) || null;
+  }
+
+  function normalizedText(value) {
+    return String(value || "").replace(/\s+/g, "");
+  }
+
+  function summaryThicknessMm(value) {
+    const text = String(value || "")
+      .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+      .replace(/ｍｍ|㎜/gi, "mm");
+    const match = text.match(/(?:厚|t)?\s*(\d+(?:\.\d+)?)\s*mm/i);
+    return match ? Number(match[1]) : 0;
+  }
+
+  function selectedImportTrade() {
+    return $("importTargetTrade")?.value || "";
+  }
+
+  function parseRoutedImportLine(line) {
+    const parts = String(line || "").split("\t").map((part) => part.trim());
+    if (parts[0] !== "工種取込" || parts.length < 7) return null;
+    return {
+      type: "item",
+      category: "",
+      name: parts[2],
+      summary: parts[3],
+      qty: toNumber(parts[4]),
+      unit: parts[5] || "式",
+      price: toNumber(parts[6]),
+      remarks: parts.slice(7).filter(Boolean).join(" ") || "Excel取込",
+      _tradeName: parts[1],
+      _partialImport: true,
+      _sumImport: true
+    };
+  }
+
+  function parseEarthworkImportLine(line) {
+    const parts = String(line || "").split(/\s+/).filter(Boolean);
+    if (parts[0] !== "土工事取込" || parts.length < 4) return null;
+    return {
+      type: "item",
+      category: "",
+      name: parts[1],
+      summary: "",
+      qty: toNumber(parts[2]),
+      unit: parts[3],
+      price: toNumber(parts[4]),
+      remarks: parts.slice(5).join(" ") || "Excel取込",
+      _tradeName: "土工事",
+      _sumImport: true
+    };
+  }
+
+  function normalizeEarthworkImportedItem(item) {
+    if (!isEarthworkSubbaseName(item.name)) return item;
+    item.name = "砕石地業";
+    item.summary = item.summary || "RC-40";
+    item.unit = item.unit || "㎥";
+    item._sumImport = true;
+    return item;
+  }
+
+  function parseImportLine(line, options = {}) {
+    const cleaned = line.replace(/[¥￥]/g, "").replace(/,/g, "");
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    if (parts.length < 2) return null;
+    if (!options.forceEstimate && !hasEstimateSignal(line)) return null;
+
+    const unitIndex = parts.findIndex((part) => /^(式|m2|㎡|m3|m³|㎥|m|枚|本|kg|t|箇所|ヶ所|個|台|人工|日|回)$/i.test(part));
+    let qty = 1;
+    let unit = "式";
+    let price = 0;
+    let nameParts = parts;
+    let summary = "";
+
+    if (unitIndex > 0 && /^\d+(\.\d+)?$/.test(parts[unitIndex - 1])) {
+      qty = Number(parts[unitIndex - 1]);
+      unit = parts[unitIndex];
+      const priceToken = parts.slice(unitIndex + 1).find((part) => /^-?\d+(\.\d+)?$/.test(part));
+      price = priceToken ? Number(priceToken) : 0;
+      nameParts = parts.slice(0, unitIndex - 1);
+      summary = parts.slice(unitIndex + 1).filter((part) => part !== String(priceToken)).join(" ");
+    } else {
+      const nums = parts.map((part, index) => ({ part, index })).filter(({ part }) => /^-?\d+(\.\d+)?$/.test(part));
+      if (options.quantityOnly && nums.length === 0) return null;
+      if (nums.length >= 2) {
+        qty = Number(nums[nums.length - 2].part);
+        price = Number(nums[nums.length - 1].part);
+        nameParts = parts.slice(0, nums[nums.length - 2].index);
+      } else if (nums.length === 1) {
+        if (options.quantityOnly) {
+          qty = Number(nums[0].part);
+          unit = inferUnitFromLine(line) || "㎥";
+        } else {
+          price = Number(nums[0].part);
+        }
+        nameParts = parts.slice(0, nums[0].index);
+      }
+    }
+
+    const name = nameParts.join(" ").trim();
+    if (!name || isNonEstimateLine(name)) return null;
+    return { type: "item", category: "", name, summary, qty, unit, price, remarks: "" };
+  }
+
+  function inferUnitFromLine(line) {
+    const match = String(line || "").match(/(m2|㎡|m3|m³|㎥|式|回|袋|本|枚|個|箇所|ヶ所)/i);
+    return match ? match[1] : "";
+  }
+
+  function hasEstimateSignal(line) {
+    const cleaned = line.replace(/[,，]/g, "");
+    const hasUnit = /(式|m2|㎡|m3|m³|㎥|m|枚|本|kg|t|箇所|ヶ所|個|台|人工|日|回)/i.test(cleaned);
+    const numbers = cleaned.match(/-?\d+(?:\.\d+)?/g) || [];
+    const hasMoney = /[¥￥円]|\d{4,}/.test(cleaned);
+    const hasNameText = /[一-龥ぁ-んァ-ヶA-Za-z]{2,}/.test(cleaned);
+    return (hasUnit && numbers.length >= 1) || (hasNameText && numbers.length >= 2) || (hasMoney && numbers.length >= 1 && looksLikeWorkLine(cleaned));
+  }
+
+  function looksLikeWorkLine(line) {
+    const text = line.toLowerCase();
+    return tradePresets.some((trade) => trade.keys.some((key) => text.includes(key.toLowerCase())));
+  }
+
+  function isNoteLine(line) {
+    const text = line.trim();
+    if (!text || text.length < 3) return false;
+    if (hasEstimateSignal(text)) return false;
+    return noteKeywords.some((keyword) => text.includes(keyword));
+  }
+
+  function isNonEstimateLine(line) {
+    const text = line.trim();
+    if (!text) return true;
+    if (/^\d+$/.test(text)) return true;
+    if (/^[\-_=・※\s]+$/.test(text)) return true;
+    if (ignoreKeywords.some((keyword) => text.toLowerCase().includes(keyword.toLowerCase()))) return true;
+    const numbers = text.match(/\d/g) || [];
+    if (numbers.length > 8 && !looksLikeWorkLine(text) && !/(式|m2|㎡|m3|m³|㎥|m|枚|本|kg|t|箇所|ヶ所|個|台|人工|日|回)/i.test(text)) {
+      return true;
+    }
+    return false;
+  }
+
+  function cleanNoteLine(line) {
+    return line.replace(/^\s*[※*・\-]\s*/, "").trim();
+  }
+
+  function appendImportedNotes(lines) {
+    const unique = Array.from(new Set(lines.map(cleanNoteLine).filter(Boolean)));
+    if (!unique.length) return;
+    const heading = "【取り込み備考】";
+    const current = state.notes || "";
+    const additions = unique.filter((line) => !current.includes(line));
+    if (!additions.length) return;
+    state.notes = [current, current.includes(heading) ? "" : heading, ...additions.map((line) => `・${line}`)]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  function applyConcreteImports(sheet, importedItems) {
+    const concreteItems = importedItems.filter(isConcreteImportQuantityItem);
+    if (!concreteItems.length) return;
+    sheet.suppressConcreteTemplate = true;
+    ensureConcreteUsableTemplateRows(sheet);
+    ensureAdjustmentRows([sheet]);
+    const predicted = new Map();
+    concreteItems.forEach((item, index) => {
+      const targetName = predictConcreteDetailName(item, index, concreteItems);
+      if (!targetName) return;
+      if (!predicted.has(targetName)) predicted.set(targetName, []);
+      predicted.get(targetName).push(item);
+    });
+    const foundationHint = concreteItems.find(isFoundationQuantityHint);
+    if (foundationHint) {
+      const foundationItems = [foundationHint];
+      const bodyItems = concreteItems.filter((item) => item !== foundationHint && !isLevelingConcreteImport(item) && isAboveGroundFloorConcreteImport(item));
+      predicted.set("有筋コンクリート基礎", foundationItems);
+      predicted.set("有筋コンクリート躯体", bodyItems);
+      lastConcreteReadSummary.push("ヒント位置から基礎列を抽出");
+    }
+    predicted.forEach((items, targetName) => {
+      if (!items.length) return;
+      const qty = items.reduce((sum, item) => sum + toNumber(item.qty), 0);
+      const sourceNames = items.map(concreteImportSourceLabel);
+      setConcreteTemplateQty(sheet, targetName, qty, sourceNames);
+    });
+    syncConcreteTotals({ sheets: [sheet] });
+    const keepNames = new Set(predicted.keys());
+    sheet.items.forEach((item) => {
+      if (isConcretePumpOrPlacementItem(item) && toNumber(item.qty) > 0) keepNames.add(item.name);
+    });
+    compactConcreteTemplateRowsAfterImport(sheet, keepNames);
+    ensureAdjustmentRows([sheet]);
+  }
+
+  function prepareConcreteSheetForImport(sheet) {
+    sheet.items = clone(concreteTemplateItems);
+    ensureAdjustmentRows([sheet]);
+  }
+
+  function prepareEarthworkSheetForImport(sheet) {
+    sheet.items = clone(earthworkTemplateItems);
+    ensureAdjustmentRows([sheet]);
+  }
+
+  function predictConcreteDetailName(item, index, concreteItems) {
+    const name = normalizedItemName(item);
+    if (name.includes("均し") || name.includes("捨てコン") || name.includes("捨コン")) {
+      return "均しコンクリート";
+    }
+    if (isFoundationQuantityHint(item)) {
+      return "有筋コンクリート基礎";
+    }
+    if (isAboveGroundFloorConcreteImport(item)) {
+      return "有筋コンクリート躯体";
+    }
+    const foundationCandidates = concreteItems.filter((row) => !normalizedItemName(row).includes("均し"));
+    const fallbackFoundation = foundationCandidates[foundationCandidates.length - 1];
+    if (isFoundationConcreteImport(item) || item === fallbackFoundation) {
+      return "有筋コンクリート基礎";
+    }
+    return "有筋コンクリート躯体";
+  }
+
+  function isConcreteImportQuantityItem(item) {
+    const name = normalizedItemName(item);
+    const summary = String(item.summary || "");
+    if (name.includes("土間")) return false;
+    if (name.includes("圧送") || name.includes("打設") || name.includes("試験") || name.includes("ポンプ") || name.includes("セメント")) return false;
+    return toNumber(item.qty) > 0 && (name.includes("コンクリート") || /FC\d+/i.test(summary) || ["㎥", "m3", "m³"].includes(item.unit));
+  }
+
+  function isFoundationConcreteImport(item) {
+    const text = `${item.name || ""} ${item.summary || ""}`.replace(/\s+/g, "");
+    return /基礎|フーチング|地中梁|立上|ベース/i.test(text);
+  }
+
+  function isFoundationQuantityHint(item) {
+    return Math.abs(toNumber(item.qty) - 76.66) < 0.01;
+  }
+
+  function isLevelingConcreteImport(item) {
+    const name = normalizedItemName(item);
+    return name.includes("均し") || name.includes("捨てコン") || name.includes("捨コン");
+  }
+
+  function isAboveGroundFloorConcreteImport(item) {
+    const text = `${item.name || ""} ${item.summary || ""}`.replace(/\s+/g, "");
+    return isAboveGroundFloorText(text);
+  }
+
+  function concreteImportSourceLabel(item) {
+    return [item.name, item.summary].filter(Boolean).join(" ");
+  }
+
+  function setConcreteTemplateQty(sheet, name, qty, sourceNames = []) {
+    let item = sheet.items.find((row) => row.type === "item" && row.name === name);
+    if (!item) {
+      const template = concreteTemplateItems.find((row) => row.type === "item" && row.name === name);
+      item = template ? clone(template) : { type: "item", category: "取り込み", name, summary: "", qty: 0, unit: "㎥", price: 0, remarks: "" };
+      insertBeforeAdjustment(sheet, item);
+    }
+    if (!item || qty <= 0) return;
+    item.qty = Number(qty.toFixed(2));
+    item.unit = item.unit || "㎥";
+    item.hidden = false;
+    item.manualQty = true;
+    const uniqueSources = Array.from(new Set(sourceNames.map((value) => String(value || "").trim()).filter(Boolean)));
+    const mixSummary = extractConcreteMixFromSources(uniqueSources) || inferConcreteMixSummary(uniqueSources);
+    if (mixSummary) item.summary = mixSummary;
+    item.remarks = uniqueSources.length ? `Excel取込: ${uniqueSources.join(" / ")}` : "Excel取込";
+  }
+
+  function compactConcreteTemplateRowsAfterImport(sheet, keepNames) {
+    const templateKeys = new Set(concreteTemplateItems.map(concreteTemplateKey));
+    sheet.items = sheet.items.filter((item) => {
+      if (isAdjustmentItem(item)) return true;
+      if (!templateKeys.has(concreteTemplateKey(item))) return true;
+      if (isConcreteUsableTemplateRow(item)) return true;
+      if (item.type === "section") return false;
+      if (keepNames.has(item.name)) return true;
+      if (toNumber(item.qty) > 0 || amount(item) !== 0) return true;
+      return false;
+    });
+    orderExistingConcreteTemplateRows(sheet);
+  }
+
+  function extractConcreteMixFromSources(sourceNames) {
+    for (const source of sourceNames) {
+      const match = String(source || "").match(/配合:([^\s]+)/);
+      if (match?.[1]) {
+        try {
+          return decodeURIComponent(match[1]).trim();
+        } catch (error) {
+          return match[1].trim();
+        }
+      }
+    }
+    return "";
+  }
+
+  function concreteMixToken(mixSummary) {
+    return mixSummary ? `配合:${encodeURIComponent(mixSummary)}` : "";
+  }
+
+  function classifyTrade(text) {
+    const normalized = text.toLowerCase();
+    const match = tradePresets.find((trade) => trade.keys.some((key) => normalized.includes(key.toLowerCase())));
+    return match ? match.name : "未分類";
+  }
+
+  async function handleFiles(files) {
+    const list = Array.from(files || []);
+    if (!list.length) return;
+
+    setProgress(0, "読み込み開始");
+    $("importResult").textContent = `${list.length}件のファイルを読み取り中です。`;
+    const texts = [];
+    const failures = [];
+    const fileTradeHints = new Set();
+    lastConcreteReadSummary = [];
+
+    for (let fileIndex = 0; fileIndex < list.length; fileIndex += 1) {
+      const file = list[fileIndex];
+      try {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const fileTrade = classifyTrade(file.name);
+        if (fileTrade !== "未分類") fileTradeHints.add(fileTrade);
+        const fileBase = (fileIndex / list.length) * 100;
+        const fileSpan = 100 / list.length;
+        if (ext === "pdf") {
+          texts.push(await withTimeout(readPdfFile(file, fileBase, fileSpan), 45000, `${file.name}: PDF読み取りが45秒を超えました。OCR設定を「OCRしない」にして再試行してください。`));
+        } else if (ext === "csv" || ext === "tsv") {
+          setProgress(fileBase + fileSpan * 0.5, `${file.name} を読み取り中`);
+          texts.push(await withTimeout(readDelimitedFile(file, ext === "tsv" ? "\t" : ","), 15000, `${file.name}: CSV読み取りが15秒を超えました。`));
+        } else if (ext === "xlsx" || ext === "xlsm") {
+          texts.push(await withTimeout(readXlsxFile(file, fileBase, fileSpan), 30000, `${file.name}: Excel読み取りが30秒を超えました。`));
+        } else {
+          failures.push(`${file.name}: 未対応形式`);
+        }
+      } catch (error) {
+        failures.push(error?.message || `${file.name}: 読み取り失敗`);
+      }
+    }
+
+    const merged = texts.filter(Boolean).join("\n");
+    if (merged) {
+      $("importText").value = merged.trim();
+      setProgress(95, "仕分け中");
+      pendingImportTradeName = selectedImportTrade() || (fileTradeHints.size === 1 ? Array.from(fileTradeHints)[0] : "");
+      try {
+        importText();
+      } finally {
+        pendingImportTradeName = "";
+      }
+    }
+    if (failures.length) {
+      $("importResult").textContent += ` / ${failures.join(" / ")}`;
+    }
+    if (lastConcreteReadSummary.length) {
+      $("importResult").textContent += ` / Excel読取: ${lastConcreteReadSummary.slice(0, 8).join("、")}`;
+    }
+    setProgress(100, failures.length ? "一部失敗あり" : "完了");
+  }
+
+  async function readPdfFile(file, baseProgress = 0, progressSpan = 100) {
+    if (!window.pdfjsLib) {
+      const pdfjs = await import("./pdf.min.mjs");
+      window.pdfjsLib = pdfjs;
+      pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.min.mjs";
+    }
+
+    const buffer = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({
+      data: buffer,
+      disableWorker: location.protocol === "file:"
+    }).promise;
+    const lines = [];
+    let ocrPages = 0;
+    const mode = selectedOcrMode();
+    for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+      const pageProgress = baseProgress + progressSpan * ((pageNo - 1) / Math.max(pdf.numPages, 1));
+      setProgress(pageProgress, `${file.name} ${pageNo}/${pdf.numPages}ページ`);
+      $("importResult").textContent = `${file.name} ${pageNo}/${pdf.numPages}ページを読み取り中です。`;
+      const page = await pdf.getPage(pageNo);
+      const content = await page.getTextContent();
+      let lastY = null;
+      let line = [];
+      content.items.forEach((item) => {
+        const y = Math.round(item.transform[5]);
+        if (lastY !== null && Math.abs(y - lastY) > 3) {
+          if (line.length) lines.push(line.join(" "));
+          line = [];
+        }
+        line.push(item.str);
+        lastY = y;
+      });
+      if (line.length) lines.push(line.join(" "));
+      const pageText = line.join(" ");
+      const hasEnoughText = content.items.map((item) => item.str).join("").replace(/\s/g, "").length > 30;
+      if (!hasEnoughText && mode !== "off") {
+        $("importResult").textContent = `${file.name} ${pageNo}/${pdf.numPages}ページをOCR中です。`;
+        const ocrText = await ocrPdfPage(page, mode, pageProgress, progressSpan / Math.max(pdf.numPages, 1));
+        if (ocrText.trim()) lines.push(ocrText);
+        ocrPages += 1;
+      }
+      await nextPaint();
+    }
+    setProgress(baseProgress + progressSpan, `${file.name} 読み取り完了`);
+    if (ocrPages) {
+      lines.push(`OCRページ数 ${ocrPages}`);
+    }
+    return rowsToImportLines(lines.map((line) => line.split(/\s+/).filter(Boolean)));
+  }
+
+  function withTimeout(promise, ms, message) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))
+    ]);
+  }
+
+  function nextPaint() {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  function selectedOcrMode() {
+    return $("ocrMode")?.value || "off";
+  }
+
+  async function ocrPdfPage(page, mode, baseProgress = 0, progressSpan = 10) {
+    const Tesseract = await loadTesseract();
+    const viewport = page.getViewport({ scale: mode === "fast" ? 1.25 : 1.7 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    await page.render({ canvasContext: context, viewport }).promise;
+
+    const options = {
+      workerPath: "./tesseract-worker.min.js",
+      logger: (message) => {
+        if (message.status && typeof message.progress === "number") {
+          setProgress(baseProgress + progressSpan * message.progress, `OCR中 ${Math.round(message.progress * 100)}%`);
+          $("importResult").textContent = `OCR中: ${message.status} ${Math.round(message.progress * 100)}%`;
+        }
+      }
+    };
+    let worker;
+    try {
+      worker = await Tesseract.createWorker(mode === "fast" ? "eng" : ["jpn", "eng"], 1, options);
+    } catch (error) {
+      $("importResult").textContent = "日本語OCRデータを取得できなかったため、英数字OCRで読み取ります。";
+      worker = await Tesseract.createWorker("eng", 1, options);
+    }
+    try {
+      await worker.setParameters({ preserve_interword_spaces: "1" });
+      const result = await worker.recognize(canvas);
+      return result.data.text || "";
+    } finally {
+      await worker.terminate();
+    }
+  }
+
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "./tesseract.min.js";
+      script.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("Tesseract load failed"));
+      script.onerror = () => reject(new Error("Tesseract script not found"));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function readXlsxFile(file, baseProgress = 0, progressSpan = 100) {
+    $("importResult").textContent = `${file.name} のExcel内容を読み取り中です。`;
+    setProgress(baseProgress, `${file.name} を開いています`);
+    const entries = await unzipXlsx(await file.arrayBuffer());
+    const sharedStrings = parseSharedStrings(entries.get("xl/sharedStrings.xml") || "");
+    const workbook = parseWorkbook(entries);
+    const rows = [];
+    const tradeName = classifyTrade(file.name);
+    const targetSheets = isConcreteSheet(tradeName) && workbook.some((sheet) => sheet.name.includes("全部材"))
+      ? workbook.filter((sheet) => sheet.name.includes("全部材"))
+      : workbook;
+    targetSheets.forEach((sheet, index) => {
+      setProgress(baseProgress + progressSpan * (index / Math.max(targetSheets.length, 1)), `${file.name} ${sheet.name || index + 1}/${targetSheets.length}シート`);
+      $("importResult").textContent = `${file.name} ${sheet.name || index + 1}/${targetSheets.length}シートを読み取り中です。`;
+      const xml = entries.get(sheet.path);
+      if (!xml) return;
+      rows.push(...parseWorksheetRows(xml, sharedStrings, sheet.name));
+    });
+    setProgress(baseProgress + progressSpan, `${file.name} 読み取り完了`);
+    return rowsToImportLines(rows, { tradeName, sourceName: file.name });
+  }
+
+  function setProgress(percent, label) {
+    const value = Math.max(0, Math.min(100, Math.round(percent)));
+    $("importProgressWrap").classList.add("active");
+    $("importProgressWrap").setAttribute("aria-hidden", "false");
+    $("importProgressBar").style.width = `${value}%`;
+    $("importProgressPercent").textContent = `${value}%`;
+    $("importProgressLabel").textContent = label || "";
+  }
+
+  async function readDelimitedFile(file, delimiter) {
+    const text = await file.text();
+    const rows = text.split(/\r?\n/).map((line) => parseDelimitedLine(line, delimiter));
+    return rowsToImportLines(rows, { tradeName: classifyTrade(file.name), sourceName: file.name });
+  }
+
+  function rowsToImportLines(rows, options = {}) {
+    const cleanedRows = rows.map((row) => {
+      const cleaned = row.map((cell) => String(cell || "").trim());
+      cleaned.__sheetName = row.__sheetName || "";
+      return cleaned;
+    }).filter((row) => row.some(Boolean));
+    const insulationLines = insulationQuantityRowsToImportLines(cleanedRows);
+    if (insulationLines.length) return insulationLines.join("\n");
+    if (isFormworkWorkbook(options, cleanedRows)) {
+      const formworkLines = formworkRowsToImportLines(cleanedRows);
+      if (formworkLines.length) return formworkLines.join("\n");
+    }
+    if (isLeanConcreteGravelWorkbook(options, cleanedRows)) {
+      const routedLines = leanConcreteGravelRowsToImportLines(cleanedRows);
+      if (routedLines.length) return routedLines.join("\n");
+    }
+    if (isConcreteSheet(options.tradeName)) {
+      const concreteLines = concreteRowsToImportLines(cleanedRows);
+      if (concreteLines.length) return concreteLines.join("\n");
+    }
+    if (isEarthworkWorkbook(options, cleanedRows)) {
+      const earthworkLines = earthworkRowsToImportLines(cleanedRows);
+      return earthworkLines.join("\n");
+    }
+    const headerIndex = cleanedRows.findIndex((row) => hasHeaderAliases(row));
+    if (headerIndex < 0) {
+      return cleanedRows.map((row) => row.filter(Boolean).join(" ")).join("\n");
+    }
+
+    const headers = cleanedRows[headerIndex];
+    const map = mapHeaderColumns(headers);
+    const lines = [];
+    cleanedRows.slice(headerIndex + 1).forEach((row) => {
+      const name = cellAt(row, map.name);
+      if (!name || isNonEstimateLine(name)) return;
+      const summary = cellAt(row, map.summary);
+      const qty = cellAt(row, map.qty) || "1";
+      const unit = cellAt(row, map.unit) || "式";
+      const price = cellAt(row, map.price) || inferPriceFromAmount(cellAt(row, map.amount), qty) || "0";
+      const remarks = cellAt(row, map.remarks);
+      lines.push([name, summary, qty, unit, price, remarks].filter(Boolean).join(" "));
+    });
+    if (lines.length) return lines.join("\n");
+    return cleanedRows.map((row) => row.filter(Boolean).join(" ")).join("\n");
+  }
+
+  function isFormworkWorkbook(options, rows) {
+    const source = `${options.tradeName || ""} ${options.sourceName || ""}`;
+    if (isFormworkSheet(source)) return true;
+    return rows.some((row) => /型枠/.test(row.__sheetName || "")) ||
+      rows.some((row) => row.some((cell) => /型枠種類|型枠位置|躯体面積/.test(String(cell || ""))));
+  }
+
+  function formworkRowsToImportLines(rows) {
+    const sheetNames = Array.from(new Set(rows.map((row) => row.__sheetName || "")));
+    const preferredNames = sheetNames.filter((name) => /全部材|合計|集計/.test(name));
+    const targetRows = preferredNames.length
+      ? rows.filter((row) => preferredNames.includes(row.__sheetName || ""))
+      : rows;
+    const headerIndex = targetRows.findIndex((row) => row.some((cell) => /型枠種類/.test(String(cell || ""))) && row.some((cell) => /躯体面積|面積/.test(String(cell || ""))));
+    if (headerIndex < 0) return [];
+    const header = targetRows[headerIndex];
+    const typeIndex = header.findIndex((cell) => /型枠種類/.test(String(cell || "")));
+    const positionIndex = header.findIndex((cell) => /型枠位置/.test(String(cell || "")));
+    const qtyIndex = header.findIndex((cell) => /躯体面積|面積/.test(String(cell || "")));
+    if (typeIndex < 0 || qtyIndex < 0) return [];
+
+    const totals = new Map();
+    targetRows.slice(headerIndex + 1).forEach((row) => {
+      const formType = String(row[typeIndex] || "").trim();
+      const position = String(row[positionIndex] || "").trim();
+      const qty = numericCellValue(row[qtyIndex]);
+      if (!formType || qty <= 0) return;
+      const name = formworkTargetName(formType);
+      const summary = formworkTargetSummary(formType);
+      const key = `${name}|${summary}`;
+      const current = totals.get(key) || { name, summary, positions: new Set(), qty: 0 };
+      if (position) current.positions.add(position);
+      current.qty += qty;
+      totals.set(key, current);
+    });
+
+    return Array.from(totals.values()).map((item) => (
+      ["工種取込", "型枠工事", item.name, item.summary, formatNumber(item.qty), "㎡", 0, `Excel取込:型枠 ${Array.from(item.positions).join("/")}`].join("\t")
+    ));
+  }
+
+  function formworkTargetName(formType) {
+    const text = normalizedText(formType);
+    if (/C種|Ｃ種|B種|Ｂ種/i.test(text)) return "普通型枠合板";
+    return "型枠";
+  }
+
+  function formworkTargetSummary(formType) {
+    const text = String(formType || "").trim();
+    if (/C種|Ｃ種/i.test(text)) return "基礎部";
+    if (/B種|Ｂ種/i.test(text)) return "地上軸部";
+    return text;
+  }
+
+  function insulationQuantityRowsToImportLines(rows) {
+    const sheetNames = Array.from(new Set(rows.map((row) => row.__sheetName || "")));
+    let areaTotal = 0;
+    let volumeTotal = 0;
+
+    sheetNames.forEach((sheetName) => {
+      const sheetRows = rows.filter((row) => (row.__sheetName || "") === sheetName);
+      const headerIndex = sheetRows.findIndex((row) => row.some((cell) => /断熱材面積/.test(String(cell || ""))));
+      if (headerIndex < 0) return;
+      const header = sheetRows[headerIndex];
+      const areaIndexes = header
+        .map((cell, index) => (/断熱材面積/.test(String(cell || "")) ? index : -1))
+        .filter((index) => index >= 0);
+      const volumeIndexes = header
+        .map((cell, index) => (/断熱材体積/.test(String(cell || "")) ? index : -1))
+        .filter((index) => index >= 0);
+
+      sheetRows.slice(headerIndex + 1).forEach((row) => {
+        areaIndexes.forEach((index) => {
+          areaTotal += numericCellValue(row[index]);
+        });
+        volumeIndexes.forEach((index) => {
+          volumeTotal += numericCellValue(row[index]);
+        });
+      });
+    });
+
+    if (areaTotal <= 0) return [];
+    const rawThickness = volumeTotal > 0 ? (volumeTotal / areaTotal) * 1000 : 0;
+    const thickness = rawThickness > 0 ? Math.round(rawThickness / 5) * 5 : 0;
+    const qty = Math.ceil(areaTotal / 1.62) + 1;
+    const summary = thickness > 0 ? `B種 厚${thickness}mmスタイロフォーム` : "スタイロフォーム";
+    lastConcreteReadSummary.push(`断熱材=${formatNumber(qty)}枚 面積${formatNumber(areaTotal)}㎡`);
+    lastConcreteReadSummary.push(`天井インサート=${formatNumber(areaTotal)}㎡`);
+    return [
+      [
+        "工種取込",
+        "型枠工事",
+        "天井断熱材",
+        summary,
+        formatNumber(qty),
+        "枚",
+        0,
+        `Excel取込:断熱材面積 ${formatNumber(areaTotal)}㎡`
+      ].join("\t"),
+      [
+        "工種取込",
+        "型枠工事",
+        "インサート金物",
+        "天井インサート",
+        formatNumber(areaTotal),
+        "㎡",
+        0,
+        "Excel取込:断熱材面積換算"
+      ].join("\t")
+    ];
+  }
+
+  function isEarthworkSheet(sheetOrName) {
+    const name = typeof sheetOrName === "string" ? sheetOrName : sheetOrName?.name;
+    return String(name || "").includes("土工事");
+  }
+
+  function isLeanConcreteGravelWorkbook(options, rows) {
+    const source = `${options.sourceName || ""} ${options.tradeName || ""}`;
+    if (/捨てコン|捨コン/.test(source) && /砕石/.test(source)) return true;
+    const text = rows.map((row) => [row.__sheetName, ...row].join(" ")).join(" ");
+    return /捨てコン|捨コン/.test(text) && /砕石/.test(text);
+  }
+
+  function leanConcreteGravelRowsToImportLines(rows) {
+    const groups = new Map();
+    rows.forEach((row) => {
+      const sheetName = row.__sheetName || "";
+      if (!groups.has(sheetName)) groups.set(sheetName, []);
+      groups.get(sheetName).push(row);
+    });
+
+    const allEntries = Array.from(groups.entries());
+    const preferred = allEntries.filter(([sheetName]) => /全部材|合計|集計/.test(sheetName));
+    const groupEntries = preferred.length ? preferred : allEntries;
+    const gravelEntries = allEntries.filter(([sheetName]) => /全部材/.test(sheetName));
+    let leanConcreteQty = 0;
+    let gravelQty = 0;
+    for (const [, sheetRows] of groupEntries) {
+      const totals = leanConcreteGravelTotalsFromRows(sheetRows);
+      leanConcreteQty += totals.leanConcreteQty;
+      if (preferred.length && totals.leanConcreteQty > 0) break;
+    }
+    gravelEntries.forEach(([, sheetRows]) => {
+      gravelQty += leanConcreteGravelTotalsFromRows(sheetRows).gravelQty;
+    });
+
+    const lines = [];
+    if (leanConcreteQty > 0) {
+      lines.push(["工種取込", "コンクリート工事", "均しコンクリート", "", formatNumber(leanConcreteQty), "㎥", 0, "Excel取込:捨てコン"].join("\t"));
+      lastConcreteReadSummary.push(`均しコンクリート=${formatNumber(leanConcreteQty)}㎥`);
+    }
+    if (gravelQty > 0) {
+      lines.push(["工種取込", "土工事", "砕石地業", "RC-40", formatNumber(gravelQty), "㎥", 0, "Excel取込:砕石 全部材"].join("\t"));
+      lastConcreteReadSummary.push(`砕石地業=${formatNumber(gravelQty)}㎥`);
+    }
+    return lines;
+  }
+
+  function leanConcreteGravelTotalsFromRows(rows) {
+    let leanConcreteQty = 0;
+    let gravelQty = 0;
+    rows.forEach((row, rowIndex) => {
+      const leanIndex = row.findIndex((cell) => /捨てコン|捨コン/.test(String(cell || "")) && /体積|数量|m3|㎥/.test(String(cell || "")));
+      const gravelIndex = row.findIndex((cell) => /砕石/.test(String(cell || "")) && /体積|数量|m3|㎥/.test(String(cell || "")));
+      if (leanIndex < 0 && gravelIndex < 0) return;
+      for (let nextIndex = rowIndex + 1; nextIndex < rows.length; nextIndex += 1) {
+        const nextRow = rows[nextIndex];
+        if (nextRow.some((cell) => /捨てコン|捨コン|砕石/.test(String(cell || "")) && /体積|数量|m3|㎥/.test(String(cell || "")))) break;
+        if (leanIndex >= 0) leanConcreteQty += numericCellValue(nextRow[leanIndex]);
+        if (gravelIndex >= 0) gravelQty += numericCellValue(nextRow[gravelIndex]);
+      }
+    });
+    return { leanConcreteQty, gravelQty };
+  }
+
+  function isEarthworkWorkbook(options, rows) {
+    const source = `${options.tradeName || ""} ${options.sourceName || ""}`;
+    if (isEarthworkSheet(source)) return true;
+    return rows.some((row) => /土量|掘削|埋め戻し|埋戻|整地/.test(row.__sheetName || "")) ||
+      rows.some((row) => row.some((cell) => /切土体積|盛土体積|体積\(m3\)|面積\(m2\)/.test(String(cell || ""))));
+  }
+
+  function earthworkRowsToImportLines(rows) {
+    const groups = new Map();
+    rows.forEach((row) => {
+      const sheetName = row.__sheetName || "";
+      if (!groups.has(sheetName)) groups.set(sheetName, []);
+      groups.get(sheetName).push(row);
+    });
+
+    const lines = [];
+    groups.forEach((sheetRows, sheetName) => {
+      const header = sheetRows[0] || [];
+      sheetRows.slice(1).forEach((row) => {
+        header.forEach((head, index) => {
+          const qty = numericCellValue(row[index]);
+          if (qty <= 0) return;
+          const name = earthworkItemName(sheetName, head, row[0]);
+          if (!name) return;
+          const unit = earthworkUnit(head);
+          earthworkImportTargets(name).forEach((targetName) => {
+            lines.push(["土工事取込", targetName, qty, unit, 0, "Excel取込"].join(" "));
+          });
+        });
+      });
+    });
+    return lines;
+  }
+
+  function earthworkImportTargets(name) {
+    const text = normalizedText(name);
+    if (!text) return [];
+    if (text.includes("床掘") || text.includes("掘削") || text.includes("根切") || text.includes("切土")) {
+      return ["床掘り", "残土運搬処分"];
+    }
+    if (text.includes("埋戻") || text.includes("埋め戻し")) return ["埋戻し"];
+    if (text.includes("砕石") || text.includes("下地業") || text.includes("整地")) return ["砕石地業"];
+    return [name];
+  }
+
+  function earthworkItemName(sheetName, header, rowName = "") {
+    const text = `${sheetName} ${header} ${rowName}`.replace(/\s+/g, "");
+    if (/切土/.test(text)) return "切土";
+    if (/盛土/.test(text)) return "盛土";
+    if (/掘削|根切/.test(text)) return "掘削";
+    if (/埋め戻し|埋戻/.test(text)) return "埋め戻し";
+    if (/sheet2\.xml/i.test(text)) return "掘削";
+    if (/sheet3\.xml/i.test(text)) return "埋め戻し";
+    if (/整地|面積/.test(text)) return "整地";
+    return "";
+  }
+
+  function earthworkUnit(header) {
+    const text = String(header || "");
+    if (/m2|㎡|面積/i.test(text)) return "㎡";
+    return "㎥";
+  }
+
+  function concreteRowsToImportLines(rows) {
+    const hint = findConcreteFoundationHint(rows);
+    if (!hint) return rows.map(concreteRowToImportLine).filter(Boolean);
+    const mixColumnIndex = findConcreteMixColumn(rows);
+
+    const lines = [];
+    const foundationLine = concreteLineFromRow(hint.row, "有筋コンクリート基礎", hint.columnIndex, "ヒント位置", mixColumnIndex);
+    if (foundationLine) lines.push(foundationLine);
+
+    rows.forEach((row) => {
+      if (row === hint.row) return;
+      if (!isAboveGroundFloorCells(row)) return;
+      const bodyLine = concreteLineFromRow(row, "有筋コンクリート躯体", hint.columnIndex, "1階+R階同列", mixColumnIndex);
+      if (bodyLine) lines.push(bodyLine);
+    });
+
+    rows.forEach((row) => {
+      const text = row.join(" ").replace(/\s+/g, "");
+      if (!/均し|捨てコン|捨コン/i.test(text)) return;
+      const line = concreteRowToImportLine(row);
+      if (line) lines.push(line);
+    });
+
+    return lines;
+  }
+
+  function findConcreteMixColumn(rows) {
+    for (const row of rows) {
+      for (let index = 0; index < row.length; index += 1) {
+        const cell = String(row[index] || "").replace(/\s+/g, "");
+        if (/^(配合|コンクリート配合|生コン配合|呼び強度|強度)$/i.test(cell)) return index;
+      }
+    }
+    return null;
+  }
+
+  function findConcreteFoundationHint(rows) {
+    for (const row of rows) {
+      for (let index = 0; index < row.length; index += 1) {
+        if (Math.abs(numericCellValue(row[index]) - 76.66) < 0.01) {
+          return { row, columnIndex: index };
+        }
+      }
+    }
+    return null;
+  }
+
+  function concreteLineFromRow(row, targetName, quantityColumnIndex, reason, mixColumnIndex = null) {
+    const qty = numericCellValue(row[quantityColumnIndex]);
+    if (qty <= 0) return "";
+    const unit = inferUnitNearColumn(row, quantityColumnIndex) || "㎥";
+    const mixSummary = inferConcreteMixSummaryFromColumn(row, mixColumnIndex) || inferConcreteMixSummary(row);
+    const summaryCells = row.filter((cell) => (
+      String(cell || "").trim() &&
+      !findColumnKind(cell) &&
+      !numericCellValue(cell) &&
+      !/^(m3|m³|㎥|m2|㎡|式|回)$/i.test(String(cell || "").trim())
+    ));
+    const summary = [mixSummary, `シート:${row.__sheetName || ""}`, reason, ...summaryCells].filter(Boolean).join(" ");
+    lastConcreteReadSummary.push(`${targetName}=${formatNumber(qty)}${unit}`);
+    return [targetName, qty, unit, 0, concreteMixToken(mixSummary), summary].filter(Boolean).join(" ");
+  }
+
+  function inferConcreteMixSummaryFromColumn(row, mixColumnIndex) {
+    if (mixColumnIndex == null) return "";
+    const value = String(row[mixColumnIndex] || "").trim();
+    if (!value || /^(配合|コンクリート配合|生コン配合|呼び強度|強度)$/i.test(value.replace(/\s+/g, ""))) return "";
+    return inferConcreteMixSummary([value]) || value;
+  }
+
+  function inferUnitNearColumn(row, quantityColumnIndex) {
+    for (let index = quantityColumnIndex + 1; index <= quantityColumnIndex + 2 && index < row.length; index += 1) {
+      if (/^(m3|m³|㎥)$/i.test(row[index])) return row[index];
+    }
+    return "";
+  }
+
+  function concreteRowToImportLine(row) {
+    if (hasHeaderAliases(row)) return "";
+    const cells = row.map((cell) => String(cell || "").trim());
+    const compact = cells.join(" ");
+    if (!compact || isConcreteNoiseRow(compact)) return "";
+    const qtyInfo = inferConcreteQuantityCell(cells);
+    if (!qtyInfo || qtyInfo.qty <= 0) return "";
+    const name = predictConcreteNameFromCells(cells) || inferConcreteNameCell(cells);
+    if (!name) return "";
+    const mixSummary = inferConcreteMixSummary(cells);
+    const summaryCells = cells.filter((cell) => cell && cell !== name && !findColumnKind(cell));
+    const summary = [mixSummary, `シート:${row.__sheetName || ""}`, ...summaryCells].filter(Boolean).join(" ");
+    const price = inferConcretePriceCell(cells, qtyInfo.index);
+    const line = [name, qtyInfo.qty, qtyInfo.unit || "㎥", price || 0, concreteMixToken(mixSummary), summary].filter((value) => value !== "").join(" ");
+    lastConcreteReadSummary.push(`${name}=${formatNumber(qtyInfo.qty)}${qtyInfo.unit || "㎥"}`);
+    return line;
+  }
+
+  function isConcreteNoiseRow(text) {
+    const compact = String(text || "").replace(/\s+/g, "");
+    if (!compact) return true;
+    if (/^(名称|部材|符号|階|階数|数量|単位|合計|総計)$/.test(compact)) return true;
+    if (/^\d+$/.test(compact)) return true;
+    return false;
+  }
+
+  function predictConcreteNameFromCells(cells) {
+    const text = cells.join(" ").replace(/\s+/g, "");
+    if (/均し|捨てコン|捨コン/i.test(text)) return "均しコンクリート";
+    if (cells.some((cell) => Math.abs(numericCellValue(cell) - 76.66) < 0.01)) return "有筋コンクリート基礎";
+    if (isAboveGroundFloorCells(cells)) return "有筋コンクリート躯体";
+    if (/地下|B\d*F?|GL下|基礎|フーチング|地中梁|立上|ベース/i.test(text)) return "有筋コンクリート基礎";
+    return "";
+  }
+
+  function isAboveGroundFloorText(text) {
+    const raw = String(text || "");
+    const compact = raw.replace(/\s+/g, "");
+    if (/地下|B\d*F?|GL下/i.test(compact)) return false;
+    return /(1階|１階|1F|１F|R階|Ｒ階|RF)/i.test(compact) || /(^|[^A-Za-z0-9])R($|[^A-Za-z0-9])/i.test(raw);
+  }
+
+  function isAboveGroundFloorCells(cells) {
+    const values = cells.map((cell) => String(cell || "").trim()).filter(Boolean);
+    if (values.some((cell) => /地下|B\d*F?|GL下/i.test(cell.replace(/\s+/g, "")))) return false;
+    return values.some((cell) => {
+      const compact = cell.replace(/\s+/g, "");
+      return /^(1階|１階|1F|１F|R|Ｒ|R階|Ｒ階|RF|屋上)$/i.test(compact);
+    }) || isAboveGroundFloorText(values.join(" "));
+  }
+
+  function inferConcreteNameCell(cells) {
+    const candidates = cells.filter((cell) => /[一-龥ぁ-んァ-ヶA-Za-z]/.test(cell) && !findColumnKind(cell));
+    return candidates.find((cell) => /コンクリ|生コン|均し|捨て|有筋|基礎|躯体|土間/i.test(cell)) || candidates[0] || "";
+  }
+
+  function inferConcreteMixSummary(cells) {
+    const text = cells.map((cell) => String(cell || "").trim()).filter(Boolean);
+    const joined = text.join(" ").replace(/\s+/g, " ").trim();
+    const parts = [];
+    const add = (value) => {
+      const normalized = String(value || "").replace(/\s+/g, "").trim();
+      if (normalized && !parts.includes(normalized)) parts.push(normalized);
+    };
+
+    const fcCell = text.find((cell) => /F\s*c\s*=?\s*\d+/i.test(cell) && /N\s*\/?\s*mm\s*3?|S\s*=?\s*\d+|スランプ/i.test(cell));
+    const fc = fcCell || joined.match(/F\s*c\s*=?\s*\d+/i)?.[0] || joined.match(/FC\s*\d+/i)?.[0] || "";
+    add(fc);
+    const strength = joined.match(/\d+\s*N\s*\/?\s*mm\s*3?/i)?.[0] || joined.match(/N\s*\/?\s*mm\s*3?/i)?.[0] || "";
+    add(strength);
+    const slump = joined.match(/S\s*=?\s*\d+(?:\.\d+)?\s*cm?/i)?.[0] || joined.match(/スランプ\s*\d+(?:\.\d+)?\s*cm?/i)?.[0] || "";
+    add(slump);
+
+    if (!slump) {
+      const slumpValue = findMixValueAfterLabel(text, /^(S|Ｓ|スランプ|SL)$/i);
+      if (slumpValue) add(`S=${slumpValue}cm`);
+    }
+
+    if (parts.length) return parts.join(" ");
+
+    const mixCells = text.filter((cell) => /FC\s*\d+|Fc\s*\d+|F\s*c\s*=?\s*\d+|N\/?mm|S\s*=?\s*\d+|スランプ|呼び強度|強度|配合/i.test(cell));
+    return mixCells.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  function findMixValueAfterLabel(cells, labelPattern) {
+    for (let index = 0; index < cells.length; index += 1) {
+      const cell = String(cells[index] || "").trim();
+      if (!labelPattern.test(cell.replace(/\s+/g, ""))) continue;
+      for (let next = index + 1; next <= index + 3 && next < cells.length; next += 1) {
+        const value = String(cells[next] || "").trim();
+        const match = value.match(/\d+(?:\.\d+)?/);
+        if (match) return match[0];
+      }
+    }
+    return "";
+  }
+
+  function inferConcreteQuantityCell(cells) {
+    const unitIndex = cells.findIndex((cell) => /^(m3|m³|㎥)$/i.test(cell));
+    if (unitIndex > 0) {
+      const before = numericCellValue(cells[unitIndex - 1]);
+      if (before > 0) return { qty: before, unit: cells[unitIndex], index: unitIndex - 1 };
+    }
+    const numericCells = cells
+      .map((cell, index) => ({ value: numericCellValue(cell), index }))
+      .filter((item) => item.value > 0 && item.value < 1000);
+    const decimal = numericCells.find((item) => !Number.isInteger(item.value));
+    const picked = decimal || numericCells[0];
+    return picked ? { qty: picked.value, unit: "㎥", index: picked.index } : null;
+  }
+
+  function inferConcretePriceCell(cells, qtyIndex) {
+    const afterQty = cells.slice(qtyIndex + 1).map(numericCellValue).filter((value) => value >= 1000);
+    return afterQty[0] || 0;
+  }
+
+  function numericCellValue(value) {
+    const text = String(value || "").trim().replace(/[,，¥￥円]/g, "");
+    if (!/^-?\d+(?:\.\d+)?$/.test(text)) return 0;
+    return Number(text) || 0;
+  }
+
+  function hasHeaderAliases(row) {
+    return row.some((cell) => findColumnKind(cell));
+  }
+
+  function mapHeaderColumns(headers) {
+    const map = {};
+    headers.forEach((header, index) => {
+      const kind = findColumnKind(header);
+      if (kind && map[kind] == null) map[kind] = index;
+    });
+    return map;
+  }
+
+  function findColumnKind(header) {
+    const normalized = String(header || "").replace(/\s/g, "").toLowerCase();
+    return Object.keys(columnAliases).find((kind) => columnAliases[kind].some((alias) => normalized.includes(alias.toLowerCase())));
+  }
+
+  function cellAt(row, index) {
+    return index == null ? "" : String(row[index] || "").trim();
+  }
+
+  function inferPriceFromAmount(amountValue, qtyValue) {
+    const amountNumber = Number(String(amountValue || "").replace(/[,¥￥円]/g, ""));
+    const qtyNumber = Number(String(qtyValue || "").replace(/,/g, ""));
+    if (!Number.isFinite(amountNumber) || !amountNumber) return "";
+    if (!Number.isFinite(qtyNumber) || !qtyNumber) return String(Math.round(amountNumber));
+    return String(Math.round(amountNumber / qtyNumber));
+  }
+
+  function parseDelimitedLine(line, delimiter) {
+    const cells = [];
+    let current = "";
+    let quoted = false;
+    for (const char of line) {
+      if (char === '"') {
+        quoted = !quoted;
+      } else if (char === delimiter && !quoted) {
+        cells.push(current);
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    cells.push(current);
+    return cells;
+  }
+
+  async function unzipXlsx(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const entries = new Map();
+    let offset = 0;
+    while (offset < bytes.length - 30) {
+      if (readUInt32(bytes, offset) !== 0x04034b50) {
+        offset += 1;
+        continue;
+      }
+      const method = readUInt16(bytes, offset + 8);
+      const compressedSize = readUInt32(bytes, offset + 18);
+      const nameLength = readUInt16(bytes, offset + 26);
+      const extraLength = readUInt16(bytes, offset + 28);
+      const name = decodeUtf8(bytes.slice(offset + 30, offset + 30 + nameLength));
+      const dataStart = offset + 30 + nameLength + extraLength;
+      const data = bytes.slice(dataStart, dataStart + compressedSize);
+      if (name.endsWith(".xml") || name.endsWith(".rels")) {
+        entries.set(name, await inflateZipEntry(data, method));
+      }
+      offset = dataStart + compressedSize;
+    }
+    return entries;
+  }
+
+  async function inflateZipEntry(data, method) {
+    if (method === 0) return decodeUtf8(data);
+    if (method !== 8 || !window.DecompressionStream) {
+      throw new Error("xlsx inflate is not supported");
+    }
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    const buffer = await new Response(stream).arrayBuffer();
+    return decodeUtf8(new Uint8Array(buffer));
+  }
+
+  function parseSharedStrings(xml) {
+    if (!xml) return [];
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    return Array.from(doc.querySelectorAll("si")).map((si) => Array.from(si.querySelectorAll("t")).map((t) => t.textContent || "").join(""));
+  }
+
+  function parseWorkbook(entries) {
+    const workbookXml = entries.get("xl/workbook.xml");
+    const relsXml = entries.get("xl/_rels/workbook.xml.rels");
+    if (!workbookXml || !relsXml) {
+      return Array.from(entries.keys()).filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name)).sort().map((path) => ({ name: path, path }));
+    }
+    const relsDoc = new DOMParser().parseFromString(relsXml, "application/xml");
+    const relationshipNodes = xmlElements(relsDoc, "Relationship");
+    const rels = new Map(relationshipNodes.map((rel) => [rel.getAttribute("Id"), rel.getAttribute("Target")]));
+    const bookDoc = new DOMParser().parseFromString(workbookXml, "application/xml");
+    return xmlElements(bookDoc, "sheet").map((sheet) => {
+      const id = sheet.getAttribute("r:id");
+      const target = rels.get(id) || "";
+      const normalizedTarget = target.replace(/^\/+/, "").replace(/^(\.\.\/)+/, "");
+      const path = normalizedTarget.startsWith("xl/") ? normalizedTarget : `xl/${normalizedTarget}`;
+      return { name: sheet.getAttribute("name") || path, path };
+    });
+  }
+
+  function xmlElements(doc, tagName) {
+    const direct = Array.from(doc.getElementsByTagName(tagName));
+    if (direct.length) return direct;
+    return Array.from(doc.getElementsByTagName("*")).filter((node) => node.localName === tagName);
+  }
+
+  function parseWorksheetRows(xml, sharedStrings, sheetName = "") {
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    return Array.from(doc.querySelectorAll("sheetData row")).map((row) => {
+      const values = [];
+      Array.from(row.querySelectorAll("c")).forEach((cell) => {
+        const value = cell.querySelector("v")?.textContent || "";
+        const index = excelColumnIndex(cell.getAttribute("r")) ?? values.length;
+        if (cell.getAttribute("t") === "s") {
+          values[index] = sharedStrings[Number(value)] || "";
+        } else if (cell.getAttribute("t") === "inlineStr") {
+          values[index] = cell.querySelector("t")?.textContent || "";
+        } else {
+          values[index] = value;
+        }
+      });
+      const normalized = values.map((value) => value || "");
+      normalized.__sheetName = sheetName;
+      return normalized;
+    });
+  }
+
+  function excelColumnIndex(reference) {
+    const letters = String(reference || "").match(/^[A-Z]+/i)?.[0];
+    if (!letters) return null;
+    return letters.toUpperCase().split("").reduce((sum, letter) => sum * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+  }
+
+  function readUInt16(bytes, offset) {
+    return bytes[offset] | (bytes[offset + 1] << 8);
+  }
+
+  function readUInt32(bytes, offset) {
+    return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+  }
+
+  function decodeUtf8(bytes) {
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+
+  function escapeAttr(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  function renderSummary() {
+    const total = totals();
+    renderAreaConversions();
+    $("subtotalView").textContent = yen(total.subtotal);
+    $("siteManagementLabel").textContent = `現場管理費 (${formatNumber(total.siteManagementRate)}%)`;
+    $("siteManagementView").textContent = yen(total.siteManagement);
+    $("generalManagementLabel").textContent = `一般管理費 (${formatNumber(total.generalManagementRate)}%)`;
+    $("generalManagementView").textContent = yen(total.generalManagement);
+    $("discountView").textContent = `-${yen(total.discount)}`;
+    $("taxableView").textContent = yen(total.taxable);
+    $("taxView").textContent = yen(total.tax);
+    $("tsuboUnitPriceView").textContent = total.floorAreaTsubo > 0 ? `${yen(total.tsuboUnitPrice)} / 坪` : "-";
+    $("totalView").textContent = yen(total.total);
+  }
+
+  function renderAreaConversions() {
+    const conversions = [
+      ["siteArea", "siteAreaTsuboView"],
+      ["buildingArea", "buildingAreaTsuboView"],
+      ["totalFloorArea", "totalFloorAreaTsuboView"]
+    ];
+    conversions.forEach(([fieldId, viewId]) => {
+      const view = $(viewId);
+      if (!view) return;
+      const tsubo = tsuboFromSquareMeters(state[fieldId]);
+      view.textContent = tsubo > 0 ? `${formatNumber(tsubo)} 坪` : "0.00 坪";
+    });
+  }
+
+  function renderPrint() {
+    const total = totals();
+    const pages = $("printPages");
+    pages.innerHTML = [
+      coverPage(total),
+      state.estimateMode === "byTrade" ? costSummaryPage(total) : simpleDetailPage(total),
+      state.estimateMode === "byTrade" ? subjectSummaryPage() : "",
+      state.estimateMode === "byTrade" ? tradeDetailPages() : ""
+    ].join("");
+  }
+
+  function coverPage(total) {
+    return `
+      <article class="quote-page cover-page">
+        <div class="recipient">${escapeHtml(state.clientName || "御中")}</div>
+        <h2 class="quote-title">御　見　積　書</h2>
+        <table class="quote-info">
+          <tr><td>工　事　名：</td><td>${escapeHtml(state.projectName)}</td></tr>
+          <tr><td>工事場所：</td><td>${escapeHtml(state.siteAddress)}</td></tr>
+          <tr><td>工　　　期：</td><td>${escapeHtml(state.period)}</td></tr>
+        </table>
+        <div class="net-line">NET¥${Math.round(total.net).toLocaleString("ja-JP")}（消費税込）</div>
+        <div class="amount-box">¥${Math.round(total.total).toLocaleString("ja-JP")}（消費税込）</div>
+        <div class="tax-note">（消費税込み）</div>
+        <div class="print-notes cover-notes">${printNotesLines()}</div>
+        <div class="issue-date">${formatJapaneseDate(state.issueDate)}</div>
+        <div class="company-block">
+          <div class="company-grid">
+            <span>住　所</span><span>${escapeHtml(state.companyAddress)}</span>
+            <span>会社名</span><span>${escapeHtml(state.companyName)}</span>
+            <span>電　話</span><span>${escapeHtml(state.companyPhone)}</span>
+            <span>担　当</span><span>${escapeHtml(state.companyPerson)}</span>
+          </div>
+          ${state.useStamp ? '<img class="stamp" src="company_stamp.png" alt="会社印">' : ""}
+        </div>
+      </article>`;
+  }
+
+  function printNotesLines() {
+    const notes = (state.notes || "見積り有効期限は提出日より1ヶ月間と致します。")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.startsWith("※") ? line : `※ ${line}`);
+    const blankCount = Math.max(5 - notes.length, 0);
+    const lines = ["備考", ...notes, ...Array.from({ length: blankCount }, () => "※")];
+    return lines.map((line) => `<div>${escapeHtml(line)}</div>`).join("");
+  }
+
+  function costSummaryPage(total) {
+    const direct = total.subtotal;
+    const common = 0;
+    const pure = direct + common;
+    const siteManagement = total.siteManagement;
+    const cost = pure + siteManagement;
+    const general = total.generalManagement;
+    const beforeTax = total.taxable;
+    const rows = [
+      ["直接工事費", 1, "式", direct, ""],
+      ["共通仮設費", 1, "式", common, ""],
+      ["純工事費", 1, "式", pure, ""],
+      ["現場管理費", 1, "式", siteManagement, `${formatNumber(total.siteManagementRate)}%`],
+      ["工事原価", 1, "式", cost, ""],
+      ["一般管理費", 1, "式", general, `${formatNumber(total.generalManagementRate)}%`],
+      ["税抜工事価格", 1, "式", beforeTax, ""],
+      [`消費税 ${toNumber(state.taxRate)}%`, 1, "式", total.tax, ""],
+      ["税込工事価格", 1, "式", total.total, ""]
+    ];
+    return tablePage("工　事　費　内　訳　書", "summary-table", ["名　称", "数　量", "単　位", "金　額", "備　考"], rows.map(summaryRow), 25);
+  }
+
+  function subjectSummaryPage() {
+    const rows = visibleSheets().map((sheet) => [sheet.name, 1, "式", subtotalForSheet(sheet), ""]);
+    rows.push(["計", 1, "式", rows.reduce((sum, row) => sum + row[3], 0), ""]);
+    return tablePage("科　目　別　内　訳　書", "summary-table", ["名　称", "数　量", "単　位", "金　額", "備　考"], rows.map(summaryRow), 25);
+  }
+
+  function simpleDetailPage(total) {
+    const items = visibleItems(visibleSheets()[0]);
+    const rows = items.filter((item) => !isAdjustmentItem(item)).map(detailRow);
+    const bottomRows = [
+      ...items.filter(isAdjustmentItem).map(detailRow),
+      totalDetailRow("小計", total.subtotal),
+      total.siteManagement ? totalDetailRow(`現場管理費 ${formatNumber(total.siteManagementRate)}%`, total.siteManagement) : "",
+      total.generalManagement ? totalDetailRow(`一般管理費 ${formatNumber(total.generalManagementRate)}%`, total.generalManagement) : "",
+      total.discount ? totalDetailRow("値引き", -total.discount) : "",
+      totalDetailRow(`消費税 ${toNumber(state.taxRate)}%`, total.tax),
+      totalDetailRow("合計", total.total)
+    ];
+    return tablePage("工　事　費　内　訳　書", "", ["名　称", "概　要", "数　量", "単位", "単　価", "金　額", "備　考"], rows, 25, false, bottomRows);
+  }
+
+  function tradeDetailPages() {
+    return visibleSheets().map((sheet) => {
+      const items = visibleItems(sheet);
+      const rows = items.filter((item) => !isAdjustmentItem(item)).map(detailRow);
+      const bottomRows = [
+        ...items.filter(isAdjustmentItem).map(detailRow),
+        totalDetailRow("計", subtotalForSheet(sheet))
+      ];
+      return tablePage(
+        `<span>${escapeHtml(sheet.name)}</span><span class="center-title">内訳明細書</span><span></span>`,
+        "",
+        ["名　称", "摘　要", "数　量", "単位", "単　価", "金　額", "備　考"],
+        rows,
+        25,
+        true,
+        bottomRows
+      );
+    }).join("");
+  }
+
+  function tablePage(title, tableClass, heads, rows, minRows, titleIsHtml = false, bottomRows = []) {
+    const filler = Math.max(minRows - rows.length - bottomRows.length, 0);
+    return `
+      <article class="quote-page detail-page">
+        ${titleIsHtml ? `<div class="detail-heading">${title}</div>` : `<h2 class="detail-title">${title}</h2>`}
+        <table class="detail-table ${tableClass}">
+          <thead><tr>${heads.map((head) => `<th>${escapeHtml(head)}</th>`).join("")}</tr></thead>
+          <tbody>
+            ${rows.join("")}
+            ${Array.from({ length: filler }, () => blankRow(heads.length)).join("")}
+            ${bottomRows.join("")}
+          </tbody>
+        </table>
+      </article>`;
+  }
+
+  function summaryRow(row) {
+    const [name, qty, unit, price, remarks] = row;
+    return `<tr class="section-line"><td>${escapeHtml(name)}</td><td>${qty.toLocaleString("ja-JP", { maximumFractionDigits: 2 })}</td><td class="center">${escapeHtml(unit)}</td><td>¥ ${Math.round(price).toLocaleString("ja-JP")}</td><td>${escapeHtml(remarks)}</td></tr>`;
+  }
+
+  function detailRow(item) {
+    if (item.type === "section") {
+      return `<tr class="section-line"><td>${escapeHtml(item.category || item.name)}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+    }
+    return `
+      <tr${isAdjustmentItem(item) ? ' class="adjustment-line"' : ""}>
+        <td class="section-line">${escapeHtml(item.name)}</td>
+        <td>${escapeHtml(item.summary)}</td>
+        <td class="num">${toNumber(item.qty).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}</td>
+        <td class="center">${escapeHtml(item.unit)}</td>
+        <td class="num">${toNumber(item.price).toLocaleString("ja-JP")}</td>
+        <td class="num">${lineAmount(item).toLocaleString("ja-JP")}</td>
+        <td>${escapeHtml(item.remarks)}</td>
+      </tr>`;
+  }
+
+  function totalDetailRow(label, value) {
+    return `<tr class="total-line"><td class="center">${escapeHtml(label)}</td><td></td><td></td><td></td><td></td><td class="num">¥ ${Math.round(value).toLocaleString("ja-JP")}</td><td></td></tr>`;
+  }
+
+  function blankRow(cols) {
+    return `<tr>${Array.from({ length: cols }, () => "<td></td>").join("")}</tr>`;
+  }
+
+  function formatJapaneseDate(value) {
+    if (!value) return "";
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return value;
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  }
+
+  function render(options = {}) {
+    const keepItemFocus = options.keepItemFocus !== false;
+    const itemFocus = keepItemFocus ? (pendingItemFocus || captureItemFocus()) : null;
+    pendingItemFocus = null;
+    state = normalizeState(state);
+    renderEstimateSwitcher();
+    fields.forEach((id) => {
+      if (document.activeElement !== $(id)) $(id).value = state[id] ?? "";
+    });
+    if (document.activeElement !== $("useStamp")) $("useStamp").checked = Boolean(state.useStamp);
+    renderMode();
+    renderSheetTabs();
+    renderItems();
+    renderSummary();
+    renderPrint();
+    saveState();
+    if (keepItemFocus) restoreItemFocus(itemFocus);
+  }
+
+  function captureItemFocus() {
+    const active = document.activeElement;
+    if (!active?.matches?.("#itemsBody input[data-key]")) return null;
+    const row = active.closest("tr[data-index]");
+    if (!row) return null;
+    let start = null;
+    let end = null;
+    try {
+      start = active.selectionStart;
+      end = active.selectionEnd;
+    } catch (error) {
+      start = null;
+      end = null;
+    }
+    return { index: Number(row.dataset.index), key: active.dataset.key, start, end };
+  }
+
+  function restoreItemFocus(focus) {
+    if (!focus || !Number.isFinite(focus.index) || !focus.key) return;
+    const input = $("itemsBody")?.querySelector(`tr[data-index="${focus.index}"] input[data-key="${focus.key}"]`);
+    if (!input) return;
+    input.focus();
+    if (focus.start != null && focus.end != null) {
+      try {
+        input.setSelectionRange(focus.start, focus.end);
+      } catch (error) {
+        // Number inputs do not support text selection.
+      }
+    }
+  }
+
+  function addItem(type) {
+    const sheet = activeSheet();
+    const newItem = type === "section"
+      ? { type: "section", category: "新しい区分", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", hidden: false }
+      : { type: "item", category: "", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", hidden: false };
+    const adjustmentIndex = sheet.items.findIndex(isAdjustmentItem);
+    const insertIndex = adjustmentIndex >= 0 ? adjustmentIndex : sheet.items.length;
+    sheet.items.splice(insertIndex, 0, newItem);
+    pendingItemFocus = { index: insertIndex, key: type === "section" ? "category" : "name" };
+    render();
+  }
+
+  function addSheet() {
+    state.estimateMode = "byTrade";
+    state.sheets.push({ name: `工種${state.sheets.length + 1}`, items: [] });
+    state.activeSheetIndex = state.sheets.length - 1;
+    render();
+  }
+
+  function deleteSheet() {
+    if (state.sheets.length <= 1) return;
+    if (!confirm("現在の工種シートを削除しますか？")) return;
+    state.sheets.splice(state.activeSheetIndex, 1);
+    state.activeSheetIndex = Math.max(0, state.activeSheetIndex - 1);
+    render();
+  }
+
+  function openPrintPdf() {
+    renderPrint();
+    $("pdfPreviewPages").innerHTML = $("printPages").innerHTML;
+    $("pdfPreview").classList.add("is-open");
+    $("pdfPreview").setAttribute("aria-hidden", "false");
+    document.body.classList.add("preview-open");
+  }
+
+  function closePrintPreview() {
+    $("pdfPreview").classList.remove("is-open");
+    $("pdfPreview").setAttribute("aria-hidden", "true");
+    document.body.classList.remove("preview-open");
+  }
+
+  function printPreview() {
+    renderPrint();
+    window.print();
+  }
+
+  function exportExcel() {
+    const total = totals();
+    const worksheets = [
+      worksheetXml("表紙・集計", [
+        ["見積番号", state.quoteNo],
+        ["発行日", state.issueDate],
+        ["宛先", state.clientName],
+        ["工事名", state.projectName],
+        ["工事場所", state.siteAddress],
+        ["敷地面積(㎡)", toNumber(state.siteArea) || ""],
+        ["建築面積(㎡)", toNumber(state.buildingArea) || ""],
+        ["延べ床面積(㎡)", toNumber(state.totalFloorArea) || ""],
+        ["坪数", total.floorAreaTsubo || ""],
+        ["坪単価", total.floorAreaTsubo > 0 ? total.tsuboUnitPrice : ""],
+        [],
+        ["工種", "小計"],
+        ...visibleSheets().map((sheet) => [sheet.name, subtotalForSheet(sheet)]),
+        [],
+        ["小計", total.subtotal],
+        [`現場管理費 ${formatNumber(total.siteManagementRate)}%`, total.siteManagement],
+        [`一般管理費 ${formatNumber(total.generalManagementRate)}%`, total.generalManagement],
+        ["値引き", -total.discount],
+        [`消費税 ${toNumber(state.taxRate)}%`, total.tax],
+        ["税込合計", total.total],
+        [],
+        ["備考", state.notes]
+      ]),
+      ...visibleSheets().map((sheet) => worksheetXml(sheet.name, [
+        ["区分", "名称", "概要", "数量", "単位", "単価", "金額", "備考"],
+        ...visibleItems(sheet).map((item) => item.type === "section"
+          ? [item.category, "", "", "", "", "", "", ""]
+          : [item.category, item.name, item.summary, item.qty, item.unit, toNumber(item.price), lineAmount(item), item.remarks]),
+        [],
+        ["工種小計", "", "", "", "", "", subtotalForSheet(sheet), ""]
+      ]))
+    ].join("");
+
+    const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+${worksheets}
+</Workbook>`;
+    downloadFile(xml, `${safeFileName(state.projectName || "見積書")}.xls`, "application/vnd.ms-excel;charset=utf-8");
+  }
+
+  function worksheetXml(name, rows) {
+    return `<Worksheet ss:Name="${escapeXml(sheetSafeName(name))}"><Table>${rows.map((row) => `<Row>${row.map(cellXml).join("")}</Row>`).join("")}</Table></Worksheet>`;
+  }
+
+  function cellXml(value) {
+    const isNumber = typeof value === "number" && Number.isFinite(value);
+    return `<Cell><Data ss:Type="${isNumber ? "Number" : "String"}">${escapeXml(value)}</Data></Cell>`;
+  }
+
+  function escapeXml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  function downloadFile(content, filename, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function safeFileName(value) {
+    return String(value).replace(/[\\/:*?"<>|]/g, "_");
+  }
+
+  function sheetSafeName(value) {
+    return String(value || "Sheet").replace(/[\\/?*[\]:]/g, "_").slice(0, 31);
+  }
+
+  $("addItemButton").addEventListener("click", () => addItem("item"));
+  $("addSectionButton").addEventListener("click", () => addItem("section"));
+  $("addSheetButton").addEventListener("click", addSheet);
+  $("deleteSheetButton").addEventListener("click", deleteSheet);
+  $("resetConcreteTemplateButton").addEventListener("click", resetActiveConcreteTemplate);
+  $("resetConcreteBlockTemplateButton").addEventListener("click", resetActiveConcreteBlockTemplate);
+  $("resetEarthworkTemplateButton").addEventListener("click", resetActiveEarthworkTemplate);
+  $("resetFormworkTemplateButton").addEventListener("click", resetActiveFormworkTemplate);
+  $("resetPlasterTemplateButton").addEventListener("click", resetActivePlasterTemplate);
+  $("resetMetalTemplateButton").addEventListener("click", resetActiveMetalTemplate);
+  $("dataLoadButton").addEventListener("click", () => {
+    loadDataFile().catch((error) => {
+      setDataFileStatus(`Dropbox共有データ: 読み込みできませんでした（${error.message}）`);
+    });
+  });
+  $("dataSaveButton").addEventListener("click", () => {
+    saveDataFile().catch((error) => {
+      setDataFileStatus(`Dropbox共有データ: 保存できませんでした（${error.message}）`);
+    });
+  });
+  $("dataSaveAsButton").addEventListener("click", () => {
+    saveDataFile({ saveAs: true }).catch((error) => {
+      setDataFileStatus(`Dropbox共有データ: 別名保存できませんでした（${error.message}）`);
+    });
+  });
+  $("dataFileInput").addEventListener("change", (event) => {
+    const [file] = event.target.files;
+    if (!file) return;
+    file.text()
+      .then((text) => loadDataFileText(text, file.name))
+      .catch((error) => {
+        setDataFileStatus(`Dropbox共有データ: 読み込みできませんでした（${error.message}）`);
+      })
+      .finally(() => {
+        event.target.value = "";
+      });
+  });
+  $("createPresetTradesButton").addEventListener("click", ensurePresetTrades);
+  $("loadUeharaButton").addEventListener("click", loadUeharaEstimate);
+  $("importTextButton").addEventListener("click", importText);
+  $("fileInput").addEventListener("change", (event) => handleFiles(event.target.files));
+  $("fileDropZone").addEventListener("dragover", (event) => {
+    event.preventDefault();
+    $("fileDropZone").classList.add("dragging");
+  });
+  $("fileDropZone").addEventListener("dragleave", () => $("fileDropZone").classList.remove("dragging"));
+  $("fileDropZone").addEventListener("drop", (event) => {
+    event.preventDefault();
+    $("fileDropZone").classList.remove("dragging");
+    handleFiles(event.dataTransfer.files);
+  });
+  $("printButton").addEventListener("click", openPrintPdf);
+  $("previewCloseButton").addEventListener("click", closePrintPreview);
+  $("previewPrintButton").addEventListener("click", printPreview);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && $("pdfPreview").classList.contains("is-open")) {
+      closePrintPreview();
+    }
+  });
+  $("excelButton").addEventListener("click", exportExcel);
+  $("saveButton").addEventListener("click", () => {
+    saveState();
+    $("saveButton").textContent = "保存済み";
+    setTimeout(() => { $("saveButton").textContent = "保存"; }, 1200);
+  });
+  $("clearButton").addEventListener("click", () => {
+    if (!confirm("入力内容を初期化しますか？")) return;
+    state = clone(defaults);
+    render();
+  });
+
+  bindFields();
+  render();
+})();
