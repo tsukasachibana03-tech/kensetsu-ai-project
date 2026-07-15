@@ -121,8 +121,11 @@
 
   const concreteBlockTemplateItems = [
     { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
-    { type: "item", category: "基本明細", name: "ブロック丁張り", summary: "", qty: 0, unit: "式", price: 60000, remarks: "" },
-    { type: "item", category: "基本明細", name: "普通コンクリートブロック", summary: "4in 6in", qty: 0, unit: "㎡", price: 4500, remarks: "" }
+    { type: "item", category: "基本明細", name: "ブロック丁張り", summary: "", qty: 0, unit: "式", price: 120000, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "花ブロック", summary: "4inx400x400 化粧目地仕上げ", qty: 0, unit: "㎡", price: 12000, remarks: "" },
+    { type: "item", category: "基本明細", name: "花ブロック差し筋", summary: "ステンレス丸棒 6φ", qty: 0, unit: "m", price: 600, remarks: "" },
+    { type: "item", category: "基本明細", name: "耐水コンクリートブロック", summary: "4in 6in 化粧目地仕上げ", qty: 0, unit: "㎡", price: 7000, remarks: "納期1ヶ月" },
+    { type: "item", category: "基本明細", name: "運搬費", summary: "", qty: 0, unit: "式", price: 60000, remarks: "直接入力" }
   ];
 
   const earthworkTemplateItems = [
@@ -275,12 +278,25 @@
 
   function ensureConcreteBlockTemplateRows(sheets) {
     sheets.filter(isConcreteBlockSheet).forEach((sheet) => {
+      removeObsoleteConcreteBlockTemplateRows(sheet);
       concreteBlockTemplateItems.forEach((template) => {
         const key = concreteBlockTemplateKey(template);
         const exists = sheet.items.some((item) => concreteBlockTemplateKey(item) === key);
         if (!exists) sheet.items.push(clone(template));
       });
       orderConcreteBlockTemplateRows(sheet);
+    });
+  }
+
+  function removeObsoleteConcreteBlockTemplateRows(sheet) {
+    sheet.items = sheet.items.filter((item) => {
+      const isOldBlankTemplate = item.type === "item"
+        && String(item.name || "").trim() === "普通コンクリートブロック"
+        && normalizedText(item.summary) === normalizedText("4in 6in")
+        && toNumber(item.qty) === 0
+        && toNumber(item.price) === 4500
+        && !String(item.remarks || "").trim();
+      return !isOldBlankTemplate;
     });
   }
 
