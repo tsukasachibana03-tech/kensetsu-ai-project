@@ -119,6 +119,48 @@
     { type: "section", category: "※構造体を品質基準強度+6Nにて積算しております。", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" }
   ];
 
+  const concreteUnitPriceTableR8_4_1 = {
+    source: "単価表R8_4_1",
+    normal: {
+      20: {
+        18: { 8: 22400, 12: 22500, 15: 22600, 18: 22700 },
+        21: { 8: 22700, 12: 22800, 15: 22900, 18: 23000, 21: 23150 },
+        24: { 8: 23200, 12: 23300, 15: 23400, 18: 23500, 21: 23650 },
+        27: { 8: 23700, 12: 23800, 15: 23900, 18: 24000, 21: 24150 },
+        30: { 8: 24100, 12: 24300, 15: 24400, 18: 24500, 21: 24700 },
+        33: { 8: 24750, 12: 25800, 15: 25950, 18: 26100, 21: 26350 },
+        36: { 8: 25250, 12: 26350, 15: 26500, 18: 26750, 21: 27000 },
+        40: { 8: 25950, 12: 27400, 15: 27550, 18: 27800, 21: 28150 },
+        42: { 12: 28250, 15: 28400, 18: 28600, 21: 28900 },
+        45: { 12: 28950, 15: 29100, 18: 29300, 21: 29600 }
+      },
+      40: {
+        18: { 8: 22700, 12: 22800, 15: 22850 },
+        21: { 8: 23000, 12: 23100, 15: 23150 },
+        24: { 8: 23450, 12: 23550, 15: 23650 },
+        27: { 8: 24000, 12: 24150, 15: 24250 },
+        30: { 8: 24500, 12: 24700, 15: 24800 }
+      }
+    },
+    discounts: [
+      {
+        label: "沖縄市・うるま市・北谷・読谷・嘉手納・北中城",
+        amount: 6500,
+        keywords: ["沖縄市", "うるま", "北谷", "読谷", "嘉手納", "北中城"]
+      },
+      {
+        label: "宜野湾・中城・平安座・伊計・恩納村・金武・宜野座",
+        amount: 4000,
+        keywords: ["宜野湾", "中城", "平安座", "伊計", "恩納", "金武", "宜野座"]
+      },
+      {
+        label: "浦添・西原・那覇・南部",
+        amount: 3000,
+        keywords: ["豊見城", "南風原", "与那原", "八重瀬", "浦添", "西原", "那覇市", "糸満", "南城", "島尻", "南部"]
+      }
+    ]
+  };
+
   const concreteBlockTemplateItems = [
     { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
     { type: "item", category: "基本明細", name: "ブロック丁張り", summary: "", qty: 0, unit: "式", price: 120000, remarks: "直接入力" },
@@ -555,6 +597,123 @@
     return item.type === "item" && (name.includes("コンクリート圧送費") || name.includes("コンクリート打設費"));
   }
 
+  function normalizeConcreteSpecText(value) {
+    return String(value || "")
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+      .replace(/[．。]/g, ".")
+      .replace(/[－−ー]/g, "-")
+      .replace(/㎜/g, "mm")
+      .replace(/ｍｍ/gi, "mm")
+      .replace(/㎥/g, "m3")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function formatConcreteNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "";
+    return Number.isInteger(number) ? String(number) : String(number).replace(/\.0$/, "");
+  }
+
+  function parseConcreteMix(item) {
+    const text = normalizeConcreteSpecText([item?.summary, item?.name, item?.remarks].filter(Boolean).join(" "));
+    const compact = text.replace(/\s+/g, "");
+    const mix = { strength: 0, slump: 0, aggregate: 20, aggregateSpecified: false };
+    const jisMatch = compact.match(/(?:^|[^\d])(\d{2})[-/](\d{1,2}(?:\.\d+)?)[-/](\d{2})(?:mm)?(?:[^\d]|$)/i);
+    if (jisMatch) {
+      mix.strength = Number(jisMatch[1]);
+      mix.slump = Number(jisMatch[2]);
+      mix.aggregate = Number(jisMatch[3]);
+      mix.aggregateSpecified = true;
+    }
+    const strengthMatch = compact.match(/F\s*C\s*[:=]?\s*(\d{2})/i) ||
+      compact.match(/呼び強度[:=]?(\d{2})/);
+    if (strengthMatch) mix.strength = Number(strengthMatch[1]);
+    const slumpMatch = compact.match(/S(?:LUMP)?\s*[:=]?\s*(\d{1,2}(?:\.\d+)?)\s*(?:cm)?/i) ||
+      compact.match(/スランプ[:=]?(\d{1,2}(?:\.\d+)?)/);
+    if (slumpMatch) mix.slump = Number(slumpMatch[1]);
+    const aggregateMatch = compact.match(/粗骨材(?:最大寸法)?[:=]?(\d{2})mm/i) ||
+      compact.match(/(?:G|骨材)[:=]?(\d{2})mm/i);
+    if (aggregateMatch) {
+      mix.aggregate = Number(aggregateMatch[1]);
+      mix.aggregateSpecified = true;
+    }
+    if (!mix.strength || !mix.slump) return null;
+    return mix;
+  }
+
+  function findConcreteDiscountRegion(address) {
+    const text = normalizedText(address);
+    if (!text) return null;
+    return concreteUnitPriceTableR8_4_1.discounts.find((rule) => (
+      rule.keywords.some((keyword) => text.includes(keyword))
+    )) || null;
+  }
+
+  function concreteBaseUnitPrice(mix) {
+    const aggregateTable = concreteUnitPriceTableR8_4_1.normal[mix.aggregate] || (mix.aggregateSpecified ? null : concreteUnitPriceTableR8_4_1.normal[20]);
+    const strengthTable = aggregateTable?.[mix.strength];
+    if (!strengthTable) return null;
+    const slumpKey = formatConcreteNumber(mix.slump);
+    const price = strengthTable[slumpKey];
+    return Number.isFinite(price) ? price : null;
+  }
+
+  function isConcreteUnitPriceTarget(item) {
+    if (item.type !== "item" || isAdjustmentItem(item) || isConcretePumpOrPlacementItem(item)) return false;
+    const name = normalizedItemName(item);
+    if (name.includes("圧送") || name.includes("打設") || name.includes("試験") || name.includes("ポンプ") || name.includes("セメント") || name.includes("清掃") || name.includes("バイブレーター")) return false;
+    return Boolean(parseConcreteMix(item));
+  }
+
+  function replaceConcretePriceRemark(remarks, nextRemark) {
+    const parts = String(remarks || "")
+      .split(/\s*\/\s*/)
+      .map((part) => part.trim())
+      .filter((part) => part && !part.startsWith(`${concreteUnitPriceTableR8_4_1.source}:`));
+    parts.push(nextRemark);
+    return parts.join(" / ");
+  }
+
+  function syncConcreteUnitPrices(estimateState, options = {}) {
+    const region = findConcreteDiscountRegion(estimateState.siteAddress);
+    const stats = { applied: 0, unmatched: 0, skipped: 0, region };
+    if (!region) return stats;
+    const sheets = options.sheet ? [options.sheet] : (estimateState.sheets || []);
+    sheets.forEach((sheet) => {
+      if (!sheet?.items?.length) return;
+      const hasConcreteRows = isConcreteSheet(sheet) || sheet.items.some(isConcreteUnitPriceTarget);
+      if (!hasConcreteRows) return;
+      sheet.items.forEach((item) => {
+        if (!isConcreteUnitPriceTarget(item)) return;
+        const mix = parseConcreteMix(item);
+        const basePrice = mix ? concreteBaseUnitPrice(mix) : null;
+        if (!basePrice) {
+          if (mix) {
+            const unmatchedRemark = `${concreteUnitPriceTableR8_4_1.source}: ${mix.aggregate}mm FC${mix.strength} S${formatConcreteNumber(mix.slump)} 表に該当なし`;
+            item.remarks = replaceConcretePriceRemark(item.remarks, unmatchedRemark);
+          }
+          stats.unmatched += 1;
+          return;
+        }
+        const netPrice = Math.max(basePrice - region.amount, 0);
+        item.price = netPrice;
+        const matchedKeyword = region.keywords.find((keyword) => normalizedText(estimateState.siteAddress).includes(keyword)) || region.label;
+        const remark = `${concreteUnitPriceTableR8_4_1.source}: ${matchedKeyword} ${region.amount.toLocaleString("ja-JP")}円引き ${mix.aggregate}mm FC${mix.strength} S${formatConcreteNumber(mix.slump)} 元${basePrice.toLocaleString("ja-JP")}円`;
+        item.remarks = replaceConcretePriceRemark(item.remarks, remark);
+        stats.applied += 1;
+      });
+    });
+    return stats;
+  }
+
+  function concretePriceStatusMessage(stats) {
+    if (!stats.region) return "工事場所から生コン単価の値引き地域を判定できませんでした。住所を確認してください。";
+    if (!stats.applied) return `生コン単価表に一致する配合が見つかりませんでした。地域は「${stats.region.label}」、${stats.region.amount.toLocaleString("ja-JP")}円引きです。`;
+    const extra = stats.unmatched ? ` ${stats.unmatched}行は配合が単価表に一致しませんでした。` : "";
+    return `生コン単価を${stats.applied}行へ反映しました。地域は「${stats.region.label}」、${stats.region.amount.toLocaleString("ja-JP")}円引きです。${extra}`;
+  }
+
   function syncConcreteTotals(estimateState) {
     if (!Array.isArray(estimateState.sheets)) return;
     estimateState.sheets.filter(isConcreteSheet).forEach((sheet) => {
@@ -681,6 +840,7 @@
       });
     });
     syncConcreteTotals(estimateState);
+    syncConcreteUnitPrices(estimateState);
     syncFormworkTotals(estimateState);
     syncAdjustmentRows(estimateState);
   }
@@ -1231,6 +1391,7 @@
     $("sheetTools").style.display = state.estimateMode === "byTrade" ? "grid" : "none";
     $("addSheetButton").style.display = state.estimateMode === "byTrade" ? "inline-block" : "none";
     $("resetConcreteTemplateButton").style.display = isConcreteSheet(activeSheet()) ? "inline-block" : "none";
+    $("applyConcretePriceButton").style.display = isConcreteSheet(activeSheet()) ? "inline-block" : "none";
     $("resetConcreteBlockTemplateButton").style.display = isConcreteBlockSheet(activeSheet()) ? "inline-block" : "none";
     $("resetEarthworkTemplateButton").style.display = isEarthworkSheet(activeSheet()) ? "inline-block" : "none";
     $("resetFormworkTemplateButton").style.display = isFormworkSheet(activeSheet()) ? "inline-block" : "none";
@@ -1426,6 +1587,15 @@
     resetSheetQuantitiesOnly(sheet);
     render();
     $("importResult").textContent = "コンクリート工事の項目は残し、数量だけ0に戻しました。";
+  }
+
+  function applyConcreteUnitPricesToActiveSheet() {
+    const sheet = activeSheet();
+    if (!isConcreteSheet(sheet)) return;
+    const stats = syncConcreteUnitPrices(state, { sheet });
+    syncAdjustmentRows(state);
+    render();
+    $("importResult").textContent = concretePriceStatusMessage(stats);
   }
 
   function resetActiveConcreteBlockTemplate() {
@@ -3223,6 +3393,7 @@ ${worksheets}
   $("addSheetButton").addEventListener("click", addSheet);
   $("deleteSheetButton").addEventListener("click", deleteSheet);
   $("resetConcreteTemplateButton").addEventListener("click", resetActiveConcreteTemplate);
+  $("applyConcretePriceButton").addEventListener("click", applyConcreteUnitPricesToActiveSheet);
   $("resetConcreteBlockTemplateButton").addEventListener("click", resetActiveConcreteBlockTemplate);
   $("resetEarthworkTemplateButton").addEventListener("click", resetActiveEarthworkTemplate);
   $("resetFormworkTemplateButton").addEventListener("click", resetActiveFormworkTemplate);
