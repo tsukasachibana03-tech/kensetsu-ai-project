@@ -133,3 +133,24 @@
 ## GitHubタスク
 
 - [PDF図面の積算機能を追加する](https://github.com/tsukasachibana03-tech/kensetsu-ai-project/issues/1)
+
+## 引き継ぎ履歴
+
+### 2026-07-15 `F:\Dropbox\OPENAI-2` 再読み込み
+
+`F:\Dropbox\OPENAI-2` を確認し、現プロジェクトへ引き継ぎました。
+
+確認結果:
+
+- 見積りアプリ本体は、現プロジェクトに取り込み済みの内容と同一
+- `mitsumori_data.json` も取り込み済み内容と同一
+- 既存の見積作成スクリプトも取り込み済み内容と同一
+- `tmp\pdfs` にPDF画像化サンプルがあったため、`samples/pdf_images` に追加
+
+追加したPDF画像化サンプル:
+
+- `samples/pdf_images/fukuhara_kogyo-1.png`
+- `samples/pdf_images/noborikawa_quote-1.png`
+- `samples/pdf_images/noborikawa_quote-2.png`
+- `samples/pdf_images/noborikawa_quote-3.png`
+- `samples/pdf_images/tanahara_uehara-1.png`
