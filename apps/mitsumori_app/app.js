@@ -970,6 +970,17 @@
     setDataFileStatus(`Dropbox共有データ: ${fileName} を読み込みました`);
   }
 
+  async function loadBundledDataFile() {
+    const response = await fetch("mitsumori_data.json", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("保存済みデータが見つかりません");
+    }
+    await loadDataFileText(await response.text(), "mitsumori_data.json");
+    dataFileHandle = null;
+    dataFileName = "mitsumori_data.json";
+    setDataFileStatus("Dropbox共有データ: 保存済みデータを読み込みました");
+  }
+
   async function saveDataFile(options = {}) {
     const { saveAs = false, silent = false } = options;
     const content = JSON.stringify(dataFilePayload(), null, 2);
@@ -3220,6 +3231,11 @@ ${worksheets}
   $("dataLoadButton").addEventListener("click", () => {
     loadDataFile().catch((error) => {
       setDataFileStatus(`Dropbox共有データ: 読み込みできませんでした（${error.message}）`);
+    });
+  });
+  $("bundledDataLoadButton").addEventListener("click", () => {
+    loadBundledDataFile().catch((error) => {
+      setDataFileStatus(`Dropbox共有データ: 保存済みデータを読み込みできませんでした（${error.message}）`);
     });
   });
   $("dataSaveButton").addEventListener("click", () => {
