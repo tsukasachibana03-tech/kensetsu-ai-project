@@ -1,6 +1,7 @@
 (function () {
   const storageKey = "construction-estimate-v3";
   const bookStorageKey = "construction-estimate-book-v1";
+  const saveBackupKey = "construction-estimate-last-save-backup-v1";
   const legacyKeys = ["construction-estimate-v2", "construction-estimate-v1"];
   const today = new Date();
   const pad = (value) => String(value).padStart(2, "0");
@@ -63,6 +64,7 @@
     companyPerson: "",
     paymentTerms: "完了後請求",
     taxRate: 10,
+    commonTemporaryCost: 0,
     siteManagementRate: 0,
     generalManagementRate: 0,
     discount: 0,
@@ -84,7 +86,9 @@
     { type: "item", category: "取り込み", name: "加工組立", summary: "", qty: 15.67, unit: "t", price: 60000, remarks: "棚原工務店 上原邸PDF" },
     { type: "item", category: "取り込み", name: "結線及びスペンサー", summary: "", qty: 15.6, unit: "t", price: 4000, remarks: "棚原工務店 上原邸PDF" },
     { type: "item", category: "取り込み", name: "運送費", summary: "", qty: 15.6, unit: "t", price: 6000, remarks: "棚原工務店 上原邸PDF" },
-    { type: "item", category: "取り込み", name: "法定福利費", summary: "", qty: 1, unit: "式", price: 14100, remarks: "棚原工務店 上原邸PDF" }
+    { type: "item", category: "取り込み", name: "法定福利費", summary: "", qty: 1, unit: "式", price: 14100, remarks: "棚原工務店 上原邸PDF" },
+    { type: "item", category: "取り込み", name: "ワイヤメッシュ", summary: "φ4×150×150", qty: 31, unit: "枚", price: 4950, remarks: "ワイヤメッシュ敷き手間数量÷7.2" },
+    { type: "item", category: "取り込み", name: "ワイヤメッシュ敷き手間", summary: "", qty: 229.03, unit: "㎡", price: 400, remarks: "棚原工務店 上原邸PDF" }
   ];
 
   const ueharaTemporaryItems = [
@@ -112,15 +116,21 @@
     { type: "item", category: "基本明細", name: "ポンプ車セット", summary: "10m以上", qty: 0, unit: "回", price: 35000, remarks: "直接入力" },
     { type: "item", category: "基本明細", name: "コンクリート圧送費", summary: "", qty: 0, unit: "㎥", price: 1000, remarks: "コンクリート数量合計" },
     { type: "item", category: "基本明細", name: "コンクリート打設費", summary: "", qty: 0, unit: "㎥", price: 1500, remarks: "コンクリート数量合計" },
+    { type: "item", category: "基本明細", name: "ミキサー小型車使用", summary: "", qty: 0, unit: "㎥", price: 3500, remarks: "コンクリート数量合計 / 単価表R8_4_1" },
     { type: "item", category: "基本明細", name: "バイブレーター損料", summary: "", qty: 0, unit: "式", price: 10000, remarks: "直接入力" },
     { type: "item", category: "基本明細", name: "圧送用セメント", summary: "", qty: 0, unit: "袋", price: 500, remarks: "直接入力" },
-    { type: "item", category: "基本明細", name: "コンクリート圧縮試験費", summary: "1週、4週", qty: 0, unit: "回", price: 12000, remarks: "直接入力" },
+    { type: "item", category: "基本明細", name: "コンクリート圧縮試験費", summary: "1週、4週", qty: 2, unit: "回", price: 8500, remarks: "単価表R8_4_1: 昼間 普通コンクリート 8,500円" },
     { type: "item", category: "基本明細", name: "打設前清掃", summary: "", qty: 0, unit: "回", price: 5000, remarks: "直接入力" },
     { type: "section", category: "※構造体を品質基準強度+6Nにて積算しております。", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" }
   ];
 
   const concreteUnitPriceTableR8_4_1 = {
     source: "単価表R8_4_1",
+    surcharges: {
+      smallMixerTruck: 3500,
+      daytimeNormalConcreteTest: 8500,
+      compressionTestCount: 2
+    },
     normal: {
       20: {
         18: { 8: 22400, 12: 22500, 15: 22600, 18: 22700 },
@@ -205,10 +215,53 @@
 
   const metalTemplateItems = [
     { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+    { type: "item", category: "基本明細", name: "タラップ", summary: "SUS製", qty: 8, unit: "ヶ所", price: 2400, remarks: "" },
+    { type: "item", category: "基本明細", name: "屋上点検口", summary: "SUS製", qty: 0, unit: "ヶ所", price: 90000, remarks: "" },
     { type: "item", category: "基本明細", name: "換気口", summary: "セラミック製フード無 φ75", qty: 0, unit: "ヶ所", price: 1200, remarks: "" },
-    { type: "item", category: "基本明細", name: "物干し金物", summary: "", qty: 0, unit: "set", price: 14000, remarks: "" },
-    { type: "item", category: "基本明細", name: "副資材費", summary: "セメント、取付金物等", qty: 0, unit: "式", price: 5000, remarks: "" },
-    { type: "item", category: "基本明細", name: "施工費", summary: "", qty: 0, unit: "式", price: 30000, remarks: "" }
+    { type: "item", category: "基本明細", name: "換気口", summary: "セラミック製フード付 φ75", qty: 0, unit: "ヶ所", price: 1800, remarks: "" },
+    { type: "item", category: "基本明細", name: "換気口", summary: "セラミック製フード無 φ100", qty: 0, unit: "ヶ所", price: 0, remarks: "取消" },
+    { type: "item", category: "基本明細", name: "換気口", summary: "セラミック製フード付 φ100", qty: 0, unit: "ヶ所", price: 0, remarks: "取消" },
+    { type: "item", category: "基本明細", name: "換気口", summary: "AT-75TUGSD5 Φ75", qty: 0, unit: "ヶ所", price: 5040, remarks: "" },
+    { type: "item", category: "基本明細", name: "換気口スリーブ", summary: "Φ75", qty: 0, unit: "ヶ所", price: 260, remarks: "" },
+    { type: "item", category: "基本明細", name: "換気口スリーブ", summary: "Φ100", qty: 0, unit: "ヶ所", price: 0, remarks: "取消" },
+    { type: "item", category: "基本明細", name: "スリーブ補強筋", summary: "Φ100", qty: 0, unit: "ヶ所", price: 0, remarks: "取消" },
+    { type: "item", category: "基本明細", name: "壁面緑化用金物", summary: "アングルタイプ", qty: 0, unit: "㎡", price: 55200, remarks: "" },
+    { type: "item", category: "基本明細", name: "エラスタイト　1mx1m", summary: "10mm、15mm併用", qty: 0, unit: "枚", price: 6360, remarks: "" },
+    { type: "item", category: "基本明細", name: "エラスタイト　1mx1m", summary: "10mm", qty: 0, unit: "枚", price: 2850, remarks: "" },
+    { type: "item", category: "基本明細", name: "エラスタイト　1mx1m", summary: "15mm", qty: 0, unit: "枚", price: 3510, remarks: "" },
+    { type: "item", category: "基本明細", name: "車止めブロック", summary: "200x500", qty: 6, unit: "個", price: 1980, remarks: "" },
+    { type: "item", category: "基本明細", name: "集水マス", summary: "コンクリート製 300x300グレーチング付き", qty: 0, unit: "ヶ所", price: 20000, remarks: "" },
+    { type: "item", category: "基本明細", name: "集水マス", summary: "コンクリート製 600x600グレーチング付き", qty: 0, unit: "ヶ所", price: 40000, remarks: "" },
+    { type: "item", category: "基本明細", name: "グレーチング", summary: "600x600 ステンレス", qty: 0, unit: "個", price: 6000, remarks: "" },
+    { type: "item", category: "基本明細", name: "グレーチング", summary: "300x300 ステンレス", qty: 0, unit: "個", price: 2710, remarks: "" },
+    { type: "item", category: "基本明細", name: "場所打ちU形側溝用蓋", summary: "コンクリート製 C-1-B500", qty: 0, unit: "個", price: 3150, remarks: "6/17確認" },
+    { type: "item", category: "基本明細", name: "マンホール", summary: "Φ600 鋳鉄製 施錠式", qty: 0, unit: "組", price: 35380, remarks: "6/17確認" },
+    { type: "item", category: "基本明細", name: "マンホール", summary: "Φ600 鋳鉄製 施錠式", qty: 0, unit: "組", price: 59560, remarks: "6/18確認 南京錠" },
+    { type: "item", category: "基本明細", name: "ポスト", summary: "CTBR7612", qty: 0, unit: "ヶ所", price: 34200, remarks: "" },
+    { type: "item", category: "基本明細", name: "物干し金物", summary: "SK-550ESLP-SLC", qty: 0, unit: "本", price: 12600, remarks: "" },
+    { type: "item", category: "基本明細", name: "物干し金物", summary: "KS-640AF-M", qty: 0, unit: "本", price: 4800, remarks: "" },
+    { type: "item", category: "基本明細", name: "物干し金物", summary: "B64物干金物 1300", qty: 0, unit: "組", price: 24600, remarks: "" },
+    { type: "item", category: "基本明細", name: "物干し金物", summary: "アルミ自在物干し 900", qty: 0, unit: "組", price: 19200, remarks: "" },
+    { type: "item", category: "基本明細", name: "郵便受け", summary: "NSTA KS-MB33S", qty: 0, unit: "ヶ所", price: 25000, remarks: "" },
+    { type: "item", category: "基本明細", name: "郵便受け", summary: "フェイサス埋込型", qty: 0, unit: "ヶ所", price: 49700, remarks: "" },
+    { type: "item", category: "基本明細", name: "物干し金物", summary: "昇降式 W1800URB-L-W", qty: 0, unit: "set", price: 37200, remarks: "" },
+    { type: "item", category: "基本明細", name: "水抜き穴", summary: "YS-5", qty: 0, unit: "ヶ所", price: 16200, remarks: "" },
+    { type: "item", category: "基本明細", name: "水抜きパイプ", summary: "VP φ50 4m", qty: 0, unit: "本", price: 480, remarks: "" },
+    { type: "item", category: "基本明細", name: "水抜きパイプ", summary: "VP φ75 4m", qty: 0, unit: "本", price: 600, remarks: "" },
+    { type: "item", category: "基本明細", name: "止水板", summary: "20㎡/巻", qty: 0, unit: "巻", price: 10200, remarks: "" },
+    { type: "item", category: "基本明細", name: "ステラシート", summary: "10m巻", qty: 0, unit: "巻", price: 4040, remarks: "" },
+    { type: "item", category: "基本明細", name: "ボイド枠", summary: "Φ150 4m", qty: 0, unit: "本", price: 1490, remarks: "" },
+    { type: "item", category: "基本明細", name: "丸環", summary: "ステンレス", qty: 0, unit: "個", price: 1200, remarks: "" },
+    { type: "item", category: "基本明細", name: "壁掛けテレビ金具", summary: "東芝REGZA 65型対応 角度調整タイプ", qty: 0, unit: "箇所", price: 12000, remarks: "" },
+    { type: "item", category: "基本明細", name: "物干し金物", summary: "SK-550ESLP-SLC", qty: 0, unit: "ヶ所", price: 14000, remarks: "" },
+    { type: "item", category: "基本明細", name: "階段壁付け手摺", summary: "", qty: 0, unit: "ヶ所", price: 106000, remarks: "" },
+    { type: "item", category: "基本明細", name: "郵便ポスト", summary: "panasonic kc型 ctr181s 縦型", qty: 1, unit: "ヶ所", price: 16610, remarks: "" },
+    { type: "item", category: "基本明細", name: "土間Vカット目地切", summary: "W20", qty: 0, unit: "式", price: 45000, remarks: "" },
+    { type: "item", category: "基本明細", name: "ポーチスチール手摺", summary: "FB-9X38/RB-O13溶融亜鉛メッキ処理", qty: 1, unit: "式", price: 112950, remarks: "" },
+    { type: "item", category: "基本明細", name: "手摺取付施工費", summary: "", qty: 1, unit: "式", price: 67060, remarks: "" },
+    { type: "item", category: "基本明細", name: "床下点検口", summary: "450角", qty: 1, unit: "ヶ所", price: 8000, remarks: "" },
+    { type: "item", category: "基本明細", name: "副資材費", summary: "セメント、取付金物等", qty: 1, unit: "式", price: 20000, remarks: "" },
+    { type: "item", category: "基本明細", name: "上記施工費", summary: "", qty: 1, unit: "式", price: 45000, remarks: "" }
   ];
 
   const ueharaAreas = {
@@ -300,11 +353,19 @@
   }
 
   function metalTemplateKey(item) {
-    return [item.type, item.category, item.name, item.summary].map((value) => String(value || "").replace(/\s+/g, "")).join("|");
+    if (item.metalTemplateKey) return item.metalTemplateKey;
+    return [item.type, item.category, item.name, item.summary, item.unit, item.price].map((value) => String(value || "").replace(/\s+/g, "")).join("|");
+  }
+
+  function cloneMetalTemplate(template) {
+    const row = clone(template);
+    row.metalTemplateKey = metalTemplateKey(template);
+    return row;
   }
 
   function ensureConcreteTemplateRows(sheets) {
     sheets.filter(isConcreteSheet).forEach((sheet) => {
+      consolidateSmallMixerTruckRows(sheet);
       if (sheet.suppressConcreteTemplate) {
         ensureConcreteUsableTemplateRows(sheet);
         return;
@@ -316,6 +377,21 @@
       });
       orderConcreteTemplateRows(sheet);
     });
+  }
+
+  function consolidateSmallMixerTruckRows(sheet) {
+    const rows = sheet.items.filter(isSmallMixerTruckItem);
+    if (!rows.length) return;
+    const primary = rows.find((item) => item.category === "基本明細") || rows[0];
+    primary.type = "item";
+    primary.category = "基本明細";
+    primary.name = "ミキサー小型車使用";
+    primary.summary = "";
+    primary.unit = "㎥";
+    primary.price = concreteUnitPriceTableR8_4_1.surcharges.smallMixerTruck;
+    primary.remarks = replaceConcretePriceRemark(primary.remarks, `${concreteUnitPriceTableR8_4_1.source}: 小型車使用料 ${concreteUnitPriceTableR8_4_1.surcharges.smallMixerTruck.toLocaleString("ja-JP")}円`);
+    delete primary.manualQty;
+    sheet.items = sheet.items.filter((item) => item === primary || !isSmallMixerTruckItem(item));
   }
 
   function ensureConcreteBlockTemplateRows(sheets) {
@@ -453,13 +529,75 @@
 
   function ensureMetalTemplateRows(sheets) {
     sheets.filter(isMetalSheet).forEach((sheet) => {
+      removeObsoleteMetalTemplateRows(sheet);
       metalTemplateItems.forEach((template) => {
         const key = metalTemplateKey(template);
-        const exists = sheet.items.some((item) => metalTemplateKey(item) === key);
-        if (!exists) sheet.items.push(clone(template));
+        const existing = sheet.items.find((item) => metalTemplateKey(item) === key);
+        if (existing) {
+          existing.metalTemplateKey = key;
+        } else {
+          sheet.items.push(cloneMetalTemplate(template));
+        }
       });
       orderMetalTemplateRows(sheet);
+      placeMetalFooterRows(sheet);
+      syncZeroQuantityVisibility(sheet);
     });
+  }
+
+  function removeObsoleteMetalTemplateRows(sheet) {
+    sheet.items = sheet.items.filter((item) => !isObsoleteMetalTemplateRow(item));
+  }
+
+  function isObsoleteMetalTemplateRow(item) {
+    if (item.type !== "item" || item.metalTemplateKey || toNumber(item.qty) > 0) return false;
+    const name = normalizedText(item.name);
+    const summary = normalizedText(item.summary);
+    const unit = normalizedText(item.unit);
+    const price = toNumber(item.price);
+    if (name === "物干し金物" && !summary && unit === "set" && price === 14000) return true;
+    if (name === "副資材費" && summary === normalizedText("セメント、取付金物等") && unit === "式" && price === 5000) return true;
+    if (name === "施工費" && !summary && unit === "式" && price === 30000) return true;
+    return false;
+  }
+
+  function syncZeroQuantityVisibility(sheet) {
+    sheet.items.forEach((item) => {
+      if (item.type !== "item" || isAdjustmentItem(item)) return;
+      if (item.manualVisibility) return;
+      item.hidden = toNumber(item.qty) <= 0;
+    });
+  }
+
+  function syncAllZeroQuantityVisibility(sheets) {
+    sheets.forEach(syncZeroQuantityVisibility);
+  }
+
+  function placeMetalFooterRows(sheet) {
+    const footers = [];
+    sheet.items = sheet.items.filter((item) => {
+      if (!isMetalFooterRow(item)) return true;
+      footers.push(item);
+      return false;
+    });
+    if (!footers.length) return;
+    const orderedFooters = ["副資材費", "上記施工費"]
+      .map((name) => footers.find((item) => normalizedText(item.name) === normalizedText(name)))
+      .filter(Boolean);
+    const remainingFooters = footers.filter((item) => !orderedFooters.includes(item));
+    const insertIndex = sheet.items.findIndex(isAdjustmentItem);
+    const footerRows = [...orderedFooters, ...remainingFooters];
+    if (insertIndex >= 0) {
+      sheet.items.splice(insertIndex, 0, ...footerRows);
+    } else {
+      sheet.items.push(...footerRows);
+    }
+  }
+
+  function isMetalFooterRow(item) {
+    if (item.type !== "item") return false;
+    const name = normalizedText(item.name);
+    return name === "副資材費" || name === "上記施工費";
   }
 
   function orderFormworkTemplateRows(sheet) {
@@ -505,7 +643,12 @@
     });
     metalTemplateItems.forEach((template) => {
       const existing = sheet.items.find((item) => metalTemplateKey(item) === metalTemplateKey(template));
-      templateRows.push(existing || clone(template));
+      if (existing) {
+        existing.metalTemplateKey = metalTemplateKey(template);
+        templateRows.push(existing);
+      } else {
+        templateRows.push(cloneMetalTemplate(template));
+      }
     });
     sheet.items = [...templateRows, ...otherRows];
   }
@@ -584,17 +727,102 @@
     return item.type === "item" && normalizedText(item.name) === "左官コンクリート仕上げ";
   }
 
+  function isRebarSheet(sheet) {
+    return normalizedText(sheet?.name).includes("鉄筋");
+  }
+
+  function wireMeshText(item) {
+    return `${item.name || ""} ${item.summary || ""}`
+      .normalize("NFKC")
+      .replace(/\s+/g, "")
+      .replace(/[ｰー－―]/g, "ー")
+      .replace(/ワイヤー/g, "ワイヤ")
+      .toUpperCase();
+  }
+
+  function isWireMeshText(value) {
+    const text = String(value || "").normalize("NFKC").replace(/\s+/g, "").replace(/[ｰー－―]/g, "ー").replace(/ワイヤー/g, "ワイヤ").toUpperCase();
+    if (text.includes("メッシュシート")) return false;
+    return text.includes("ワイヤメッシュ") ||
+      text.includes("Wメッシュ") ||
+      text.includes("溶接金網") ||
+      text.includes("メッシュ筋") ||
+      /^WM/.test(text) ||
+      text.includes("WM-") ||
+      text.includes("WMΦ") ||
+      (text.includes("メッシュ") && !text.includes("シート"));
+  }
+
+  function isWireMeshLaborItem(item) {
+    if (item.type !== "item") return false;
+    const text = wireMeshText(item);
+    return isWireMeshText(text) && (
+      text.includes("敷き手間") ||
+      text.includes("敷き") ||
+      text.includes("敷手間") ||
+      text.includes("敷") ||
+      text.includes("敷込") ||
+      text.includes("敷込手間") ||
+      text.includes("敷込み") ||
+      text.includes("敷込み手間") ||
+      text.includes("敷設") ||
+      (text.includes("敷") && (text.includes("手間") || text.includes("施工")))
+    );
+  }
+
+  function isWireMeshMaterialItem(item) {
+    if (item.type !== "item") return false;
+    const text = wireMeshText(item);
+    if (!isWireMeshText(text) || isWireMeshLaborItem(item)) return false;
+    return !["手間", "施工費", "運搬", "加工費", "取付費"].some((keyword) => text.includes(keyword));
+  }
+
   function isConcreteQuantityItem(item) {
     const name = normalizedItemName(item);
     const summary = String(item.summary || "");
     if (item.type !== "item") return false;
-    if (name.includes("圧送") || name.includes("打設") || name.includes("試験") || name.includes("ポンプ") || name.includes("セメント")) return false;
+    if (name.includes("圧送") || name.includes("打設") || name.includes("試験") || name.includes("ポンプ") || name.includes("セメント") || name.includes("ミキサー") || name.includes("小型車")) return false;
     return name.includes("コンクリート") || /FC\d+/i.test(summary);
   }
 
   function isConcretePumpOrPlacementItem(item) {
     const name = normalizedItemName(item);
     return item.type === "item" && (name.includes("コンクリート圧送費") || name.includes("コンクリート打設費"));
+  }
+
+  function isSmallMixerTruckItem(item) {
+    const name = normalizedItemName(item);
+    return item.type === "item" && name.includes("ミキサー") && name.includes("小型車");
+  }
+
+  function isConcreteCompressionTestItem(item) {
+    const name = normalizedItemName(item);
+    return item.type === "item" && name.includes("コンクリート") && name.includes("圧縮試験");
+  }
+
+  function compressionTestCount(item) {
+    const text = normalizeConcreteSpecText(item?.summary || "");
+    const weeks = Array.from(text.matchAll(/(\d+)\s*[週周]/g), (match) => match[1]);
+    const days = Array.from(text.matchAll(/(\d+)\s*日/g), (match) => match[1]);
+    const uniqueWeeks = new Set(weeks);
+    const uniqueDays = new Set(days);
+    const testCount = uniqueWeeks.size + uniqueDays.size;
+    if (testCount) return testCount;
+    return concreteUnitPriceTableR8_4_1.surcharges.compressionTestCount;
+  }
+
+  function applyConcreteCompressionTestPrice(item) {
+    const perTest = concreteUnitPriceTableR8_4_1.surcharges.daytimeNormalConcreteTest;
+    const testCount = compressionTestCount(item);
+    item.qty = testCount;
+    item.price = perTest;
+    item.summary = item.summary || "1週、4週";
+    item.unit = item.unit || "回";
+    item.remarks = replaceConcretePriceRemark(item.remarks, `${concreteUnitPriceTableR8_4_1.source}: 昼間 普通コンクリート ${perTest.toLocaleString("ja-JP")}円`);
+  }
+
+  function isConcreteTotalLinkedItem(item) {
+    return isConcretePumpOrPlacementItem(item) || isSmallMixerTruckItem(item);
   }
 
   function normalizeConcreteSpecText(value) {
@@ -642,6 +870,21 @@
     return mix;
   }
 
+  function concreteSummaryFromMix(mix) {
+    if (!mix) return "";
+    return `FC${mix.strength}/Nmm3 S=${formatConcreteNumber(mix.slump)}cm`;
+  }
+
+  function normalizeConcreteItemSummary(item) {
+    if (!item || item.type !== "item" || isConcreteTotalLinkedItem(item) || isAdjustmentItem(item)) return false;
+    const mix = parseConcreteMix(item);
+    if (!mix) return false;
+    const nextSummary = concreteSummaryFromMix(mix);
+    if (!nextSummary || item.summary === nextSummary) return false;
+    item.summary = nextSummary;
+    return true;
+  }
+
   function findConcreteDiscountRegion(address) {
     const text = normalizedText(address);
     if (!text) return null;
@@ -660,7 +903,7 @@
   }
 
   function isConcreteUnitPriceTarget(item) {
-    if (item.type !== "item" || isAdjustmentItem(item) || isConcretePumpOrPlacementItem(item)) return false;
+    if (item.type !== "item" || isAdjustmentItem(item) || isConcreteTotalLinkedItem(item)) return false;
     const name = normalizedItemName(item);
     if (name.includes("圧送") || name.includes("打設") || name.includes("試験") || name.includes("ポンプ") || name.includes("セメント") || name.includes("清掃") || name.includes("バイブレーター")) return false;
     return Boolean(parseConcreteMix(item));
@@ -670,20 +913,35 @@
     const parts = String(remarks || "")
       .split(/\s*\/\s*/)
       .map((part) => part.trim())
-      .filter((part) => part && !part.startsWith(`${concreteUnitPriceTableR8_4_1.source}:`));
+      .filter((part) => part && part !== concreteUnitPriceTableR8_4_1.source && !part.startsWith(`${concreteUnitPriceTableR8_4_1.source}:`));
     parts.push(nextRemark);
     return parts.join(" / ");
   }
 
   function syncConcreteUnitPrices(estimateState, options = {}) {
     const region = findConcreteDiscountRegion(estimateState.siteAddress);
-    const stats = { applied: 0, unmatched: 0, skipped: 0, region };
-    if (!region) return stats;
+    const stats = { applied: 0, unmatched: 0, skipped: 0, smallTruckApplied: 0, compressionTestApplied: 0, region };
     const sheets = options.sheet ? [options.sheet] : (estimateState.sheets || []);
     sheets.forEach((sheet) => {
       if (!sheet?.items?.length) return;
-      const hasConcreteRows = isConcreteSheet(sheet) || sheet.items.some(isConcreteUnitPriceTarget);
+      const hasConcreteRows = isConcreteSheet(sheet) || sheet.items.some(isConcreteUnitPriceTarget) || sheet.items.some(isSmallMixerTruckItem) || sheet.items.some(isConcreteCompressionTestItem);
       if (!hasConcreteRows) return;
+      sheet.items.forEach((item) => {
+        if (isConcreteUnitPriceTarget(item)) normalizeConcreteItemSummary(item);
+      });
+      sheet.items.forEach((item) => {
+        if (!isSmallMixerTruckItem(item)) return;
+        item.price = concreteUnitPriceTableR8_4_1.surcharges.smallMixerTruck;
+        item.unit = item.unit || "㎥";
+        item.remarks = replaceConcretePriceRemark(item.remarks, `${concreteUnitPriceTableR8_4_1.source}: 小型車使用料 ${concreteUnitPriceTableR8_4_1.surcharges.smallMixerTruck.toLocaleString("ja-JP")}円`);
+        stats.smallTruckApplied += 1;
+      });
+      sheet.items.forEach((item) => {
+        if (!isConcreteCompressionTestItem(item)) return;
+        applyConcreteCompressionTestPrice(item);
+        stats.compressionTestApplied += 1;
+      });
+      if (!region) return;
       sheet.items.forEach((item) => {
         if (!isConcreteUnitPriceTarget(item)) return;
         const mix = parseConcreteMix(item);
@@ -708,10 +966,12 @@
   }
 
   function concretePriceStatusMessage(stats) {
-    if (!stats.region) return "工事場所から生コン単価の値引き地域を判定できませんでした。住所を確認してください。";
-    if (!stats.applied) return `生コン単価表に一致する配合が見つかりませんでした。地域は「${stats.region.label}」、${stats.region.amount.toLocaleString("ja-JP")}円引きです。`;
+    const smallTruck = stats.smallTruckApplied ? ` 小型車使用料を${stats.smallTruckApplied}行へ反映しました。` : "";
+    const compressionTest = stats.compressionTestApplied ? ` 圧縮試験費を${stats.compressionTestApplied}行へ反映しました。` : "";
+    if (!stats.region) return `工事場所から生コン単価の値引き地域を判定できませんでした。住所を確認してください。${smallTruck}${compressionTest}`;
+    if (!stats.applied) return `生コン単価表に一致する配合が見つかりませんでした。地域は「${stats.region.label}」、${stats.region.amount.toLocaleString("ja-JP")}円引きです。${smallTruck}${compressionTest}`;
     const extra = stats.unmatched ? ` ${stats.unmatched}行は配合が単価表に一致しませんでした。` : "";
-    return `生コン単価を${stats.applied}行へ反映しました。地域は「${stats.region.label}」、${stats.region.amount.toLocaleString("ja-JP")}円引きです。${extra}`;
+    return `生コン単価を${stats.applied}行へ反映しました。地域は「${stats.region.label}」、${stats.region.amount.toLocaleString("ja-JP")}円引きです。${smallTruck}${compressionTest}${extra}`;
   }
 
   function syncConcreteTotals(estimateState) {
@@ -722,7 +982,7 @@
         .filter(isConcreteQuantityItem)
         .reduce((sum, item) => sum + toNumber(item.qty), 0);
       sheet.items.forEach((item) => {
-        if (!isConcretePumpOrPlacementItem(item)) return;
+        if (!isConcreteTotalLinkedItem(item)) return;
         if (item.manualQty) return;
         item.qty = Number(concreteTotal.toFixed(2));
         item.unit = item.unit || "㎥";
@@ -780,6 +1040,31 @@
     return 0;
   }
 
+  function isCeilingInsulationItem(item) {
+    const name = normalizedText(item.name);
+    return item.type === "item" && name.includes("天井") && name.includes("断熱材");
+  }
+
+  function ceilingInsertQuantityForSheet(sheet) {
+    return sheet.items
+      .filter(isRowVisible)
+      .filter(isCeilingInsertItem)
+      .reduce((sum, item) => sum + toNumber(item.qty), 0);
+  }
+
+  function ceilingInsulationQuantity(insertQty) {
+    const quantity = toNumber(insertQty);
+    return quantity > 0 ? Math.ceil(quantity / 1.62) + 1 : 0;
+  }
+
+  function primaryCeilingInsulationItem(sheet) {
+    const rows = sheet.items.filter(isCeilingInsulationItem);
+    return rows.find((item) => isRowVisible(item) && toNumber(item.qty) > 0) ||
+      rows.find((item) => normalizedText(item.category).includes("取り込み")) ||
+      rows[0] ||
+      null;
+  }
+
   function syncFormworkTotals(estimateState) {
     if (!Array.isArray(estimateState.sheets)) return;
     estimateState.sheets.filter(isFormworkSheet).forEach((sheet) => {
@@ -794,7 +1079,7 @@
           item.unit = "式";
           return;
         }
-        if (insulationArea > 0 && isCeilingInsertItem(item)) {
+        if (!item.manualQty && insulationArea > 0 && isCeilingInsertItem(item)) {
           item.qty = Number(insulationArea.toFixed(2));
           item.unit = "㎡";
           if (String(item.remarks || "").includes("断熱材数量連動")) {
@@ -807,7 +1092,59 @@
           item.unit = "㎡";
         }
       });
+      const ceilingInsertQty = ceilingInsertQuantityForSheet(sheet);
+      const ceilingInsulationItem = primaryCeilingInsulationItem(sheet);
+      if (ceilingInsulationItem && ceilingInsertQty > 0) {
+        ceilingInsulationItem.qty = ceilingInsulationQuantity(ceilingInsertQty);
+        ceilingInsulationItem.unit = "枚";
+        ceilingInsulationItem.hidden = false;
+        ceilingInsulationItem.remarks = "インサート金物数量÷1.62 小数点繰り上げ +1";
+      }
       cleanupZeroInsertRows(sheet);
+    });
+  }
+
+  function wireMeshLaborQuantityForSheet(sheet) {
+    if (!sheet || !Array.isArray(sheet.items)) return 0;
+    return sheet.items
+      .filter(isWireMeshLaborItem)
+      .reduce((sum, item) => sum + toNumber(item.qty), 0);
+  }
+
+  function wireMeshMaterialQuantity(laborQty) {
+    return Math.floor(Math.max(toNumber(laborQty) / 7.2, 0));
+  }
+
+  function syncWireMeshQuantities(estimateState) {
+    if (!Array.isArray(estimateState.sheets)) return;
+    estimateState.sheets.forEach((sheet) => {
+      const laborRows = sheet.items.filter(isWireMeshLaborItem);
+      if (!laborRows.length) return;
+      const laborQty = wireMeshLaborQuantityForSheet(sheet);
+      let materialRows = sheet.items.filter(isWireMeshMaterialItem);
+      if (!materialRows.length && isRebarSheet(sheet)) {
+        const lastLaborIndex = Math.max(...laborRows.map((item) => sheet.items.indexOf(item)));
+        const laborRow = laborRows[laborRows.length - 1];
+        const materialRow = {
+          type: "item",
+          category: laborRow.category || "材料費",
+          name: "ワイヤメッシュ",
+          summary: "",
+          qty: 0,
+          unit: "枚",
+          price: 0,
+          remarks: "ワイヤメッシュ敷き手間数量÷7.2",
+          printRemarks: "",
+          hidden: false
+        };
+        sheet.items.splice(lastLaborIndex + 1, 0, materialRow);
+        materialRows = [materialRow];
+      }
+      materialRows.forEach((item) => {
+        item.qty = wireMeshMaterialQuantity(laborQty);
+        item.unit = "枚";
+        item.hidden = toNumber(item.qty) <= 0;
+      });
     });
   }
 
@@ -842,6 +1179,8 @@
     syncConcreteTotals(estimateState);
     syncConcreteUnitPrices(estimateState);
     syncFormworkTotals(estimateState);
+    syncWireMeshQuantities(estimateState);
+    syncAllZeroQuantityVisibility(estimateState.sheets);
     syncAdjustmentRows(estimateState);
   }
 
@@ -912,6 +1251,7 @@
     });
     const temporarySheet = next.sheets.find((sheet) => sheet.name === "仮設工事");
     mergeUeharaTemporaryItems(temporarySheet);
+    if (String(next.notes ?? "").trim()) {
     const noteAdditions = [
       "普久原工業PDFより仮設工事を取り込み。",
       "見積書20260619 PDFより外部足場以外の仮設工事明細を取り込み。",
@@ -920,6 +1260,7 @@
     ];
     const currentNotes = next.notes || "";
     next.notes = [currentNotes, ...noteAdditions.filter((line) => !currentNotes.includes(line))].filter(Boolean).join("\n");
+    }
     next.activeSheetIndex = Math.max(0, next.sheets.findIndex((sheet) => sheet.name === "仮設工事"));
     return next;
   }
@@ -927,7 +1268,7 @@
   const fields = [
     "quoteNo", "issueDate", "clientName", "projectName", "siteAddress", "siteArea", "buildingArea", "totalFloorArea", "period", "validUntil",
     "companyName", "companyAddress", "companyPhone", "companyPerson", "paymentTerms",
-    "taxRate", "siteManagementRate", "generalManagementRate", "discount", "netAmount", "notes"
+    "taxRate", "commonTemporaryCost", "siteManagementRate", "generalManagementRate", "discount", "netAmount", "notes"
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -1015,7 +1356,12 @@
       name: sheet.name || (index === 0 ? "簡易見積" : `工種${index + 1}`),
       suppressConcreteTemplate: Boolean(sheet.suppressConcreteTemplate),
       manualRowOrder: Boolean(sheet.manualRowOrder),
-      items: Array.isArray(sheet.items) ? sheet.items.map((item) => ({ ...item, hidden: Boolean(item.hidden) })) : []
+      items: Array.isArray(sheet.items) ? sheet.items.map((item) => ({
+        ...item,
+        printRemarks: item.printRemarks || "",
+        hidden: Boolean(item.hidden),
+        manualVisibility: Boolean(item.manualVisibility)
+      })) : []
     }));
     ensureConcreteTemplateRows(next.sheets);
     ensureConcreteBlockTemplateRows(next.sheets);
@@ -1024,6 +1370,7 @@
     ensurePlasterTemplateRows(next.sheets);
     ensureMetalTemplateRows(next.sheets);
     ensureAdjustmentRows(next.sheets);
+    syncAllZeroQuantityVisibility(next.sheets);
     syncQuantityLinks(next);
     next.activeSheetIndex = Math.min(Math.max(Number(next.activeSheetIndex) || 0, 0), next.sheets.length - 1);
     next.estimateMode = next.estimateMode === "byTrade" ? "byTrade" : "simple";
@@ -1037,6 +1384,11 @@
     record.updatedAt = new Date().toISOString();
     localStorage.setItem(bookStorageKey, JSON.stringify(estimateBook));
     localStorage.setItem(storageKey, JSON.stringify(state));
+    try {
+      rememberSaveBackup(JSON.stringify(dataFilePayload(), null, 2));
+    } catch (error) {
+      // The normal browser save still remains available if backup storage is full.
+    }
     scheduleDataFileAutosave();
   }
 
@@ -1066,7 +1418,7 @@
   }
 
   function scheduleDataFileAutosave() {
-    if (!dataFileHandle || isWritingDataFile) return;
+    if (isWritingDataFile) return;
     clearTimeout(dataSaveTimer);
     dataSaveTimer = setTimeout(() => {
       saveDataFile({ silent: true }).catch(() => {
@@ -1082,19 +1434,58 @@
     return await handle.requestPermission(options) === "granted";
   }
 
+  function assertValidDataFileContent(text) {
+    if (!text || !text.trim()) throw new Error("Saved data is empty");
+    const payload = JSON.parse(text);
+    const book = payload.book || payload;
+    if (!Array.isArray(book.estimates) || !book.estimates.length) {
+      throw new Error("Saved data has no estimates");
+    }
+  }
+
+  function rememberSaveBackup(content) {
+    try {
+      localStorage.setItem(saveBackupKey, content);
+    } catch (error) {
+      // File saving still proceeds even when browser storage is unavailable.
+    }
+  }
+
+  async function verifySavedDataFile(handle, expectedContent) {
+    const file = await handle.getFile();
+    const savedContent = await file.text();
+    assertValidDataFileContent(savedContent);
+    if (savedContent !== expectedContent) {
+      throw new Error("Saved data verification failed");
+    }
+  }
+
   async function loadDataFile() {
     if (window.showOpenFilePicker) {
-      const [handle] = await window.showOpenFilePicker({
-        multiple: false,
-        types: [{
-          description: "見積データ",
-          accept: { "application/json": [".json"] }
-        }]
-      });
-      await loadDataFileHandle(handle);
-      return;
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          multiple: false,
+          types: [{
+            description: "見積データ",
+            accept: { "application/json": [".json"] }
+          }]
+        });
+        await loadDataFileHandle(handle);
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        openDataFileInput("Dropbox共有データ: ファイル選択で見積データを選んでください。");
+        return;
+      }
     }
-    $("dataFileInput").click();
+    openDataFileInput("Dropbox共有データ: ファイル選択で見積データを選んでください。");
+  }
+
+  function openDataFileInput(message = "") {
+    const input = $("dataFileInput");
+    if (!input) throw new Error("ファイル選択欄が見つかりません。");
+    if (message) setDataFileStatus(message);
+    input.click();
   }
 
   async function loadDataFileHandle(handle) {
@@ -1131,6 +1522,10 @@
   }
 
   async function loadBundledDataFile() {
+    if (window.location.protocol === "file:") {
+      openDataFileInput("Dropbox共有データ: mitsumori_data.json を選択してください。");
+      return;
+    }
     const response = await fetch("mitsumori_data.json", { cache: "no-store" });
     if (!response.ok) {
       throw new Error("保存済みデータが見つかりません");
@@ -1141,36 +1536,58 @@
     setDataFileStatus("Dropbox共有データ: 保存済みデータを読み込みました");
   }
 
+  function canUseLocalSaveServer() {
+    return window.location.protocol === "http:" || window.location.protocol === "https:";
+  }
+
+  async function saveDataFileToLocalServer(content) {
+    const response = await fetch("api/save-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json;charset=utf-8" },
+      body: content,
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => "");
+      throw new Error(message || "保存サーバーに接続できません");
+    }
+    return response.json().catch(() => ({}));
+  }
+
+  function timestampedDataFileName() {
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    return `mitsumori_data_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.json`;
+  }
+
   async function saveDataFile(options = {}) {
     const { saveAs = false, silent = false } = options;
     const content = JSON.stringify(dataFilePayload(), null, 2);
-    if (window.showSaveFilePicker) {
-      if (saveAs || !dataFileHandle) {
-        dataFileHandle = await window.showSaveFilePicker({
-          suggestedName: dataFileName || "mitsumori_data.json",
-          types: [{
-            description: "見積データ",
-            accept: { "application/json": [".json"] }
-          }]
-        });
-        dataFileName = dataFileHandle.name || "mitsumori_data.json";
-      }
-      if (!(await ensureFilePermission(dataFileHandle, "readwrite"))) {
-        throw new Error("保存の許可がありません。");
-      }
-      isWritingDataFile = true;
+    assertValidDataFileContent(content);
+    rememberSaveBackup(content);
+    if (saveAs) {
+      downloadFile(content, timestampedDataFileName(), "application/json;charset=utf-8");
+      if (!silent) setDataFileStatus("Dropbox共有データ: 別名JSONを作成しました。");
+      return;
+    }
+    if (canUseLocalSaveServer()) {
       try {
-        const writable = await dataFileHandle.createWritable();
-        await writable.write(content);
-        await writable.close();
+        isWritingDataFile = true;
+        const result = await saveDataFileToLocalServer(content);
+        dataFileName = result.fileName || "mitsumori_data.json";
+        if (!silent) setDataFileStatus("Dropbox共有データ: 安全保存しました。");
+        return;
+      } catch (error) {
+        if (!silent) {
+          downloadFile(content, timestampedDataFileName(), "application/json;charset=utf-8");
+          setDataFileStatus("Dropbox共有データ: アプリ内バックアップへ保存しました。安全保存版URLから開いてください。");
+        }
+        return;
       } finally {
         isWritingDataFile = false;
       }
-      if (!silent) setDataFileStatus(`Dropbox共有データ: ${dataFileName || "見積データ"} に保存しました`);
-      return;
     }
-    downloadFile(content, dataFileName || "mitsumori_data.json", "application/json;charset=utf-8");
-    if (!silent) setDataFileStatus("Dropbox共有データ: JSONを保存しました。DropboxのOPENAIフォルダへ入れてください。");
+    if (!silent) setDataFileStatus("Dropbox共有データ: アプリ内バックアップへ保存しました。安全保存版URLから開いてください。");
   }
 
   function activeEstimateRecord() {
@@ -1256,33 +1673,55 @@
     });
   }
 
+  function totalPartsForManagement(pure, siteManagement, generalManagementRate, discountValue, taxRate) {
+    const cost = pure + siteManagement;
+    const generalManagement = Math.round(cost * (generalManagementRate / 100));
+    const beforeDiscount = pure + siteManagement + generalManagement;
+    const discount = Math.min(discountValue, beforeDiscount);
+    const taxable = Math.max(beforeDiscount - discount, 0);
+    const tax = Math.round(taxable * (taxRate / 100));
+    const total = taxable + tax;
+    return { cost, generalManagement, beforeDiscount, discount, taxable, tax, total };
+  }
+
+  function hasManualNetAmount() {
+    return String(state.netAmount ?? "").trim() !== "";
+  }
+
   function totals() {
     const subtotal = visibleSheets().reduce((sum, sheet) => sum + subtotalForSheet(sheet), 0);
+    const commonTemporaryCost = toNumber(state.commonTemporaryCost);
     const siteManagementRate = toNumber(state.siteManagementRate);
     const generalManagementRate = toNumber(state.generalManagementRate);
-    const siteManagement = Math.round(subtotal * (siteManagementRate / 100));
-    const cost = subtotal + siteManagement;
-    const generalManagement = Math.round(cost * (generalManagementRate / 100));
-    const beforeDiscount = subtotal + siteManagement + generalManagement;
-    const discount = Math.min(toNumber(state.discount), beforeDiscount);
-    const taxable = Math.max(beforeDiscount - discount, 0);
-    const tax = Math.round(taxable * (toNumber(state.taxRate) / 100));
-    const total = taxable + tax;
-    const net = state.netAmount === "" ? total : toNumber(state.netAmount);
+    const taxRate = toNumber(state.taxRate);
+    const discountValue = toNumber(state.discount);
+    const pure = subtotal + commonTemporaryCost;
+    const baseSiteManagement = Math.round(pure * (siteManagementRate / 100));
+    let siteManagement = baseSiteManagement;
+    let parts = totalPartsForManagement(pure, siteManagement, generalManagementRate, discountValue, taxRate);
+    const rawTotal = parts.total;
+    const net = hasManualNetAmount() ? toNumber(state.netAmount) : parts.total;
+    const netRule = hasManualNetAmount() ? "manual" : "total";
     const floorAreaTsubo = tsuboFromSquareMeters(state.totalFloorArea);
-    const tsuboUnitPrice = floorAreaTsubo > 0 ? Math.round(total / floorAreaTsubo) : 0;
+    const tsuboUnitPrice = floorAreaTsubo > 0 ? Math.round(parts.total / floorAreaTsubo) : 0;
     return {
       subtotal,
+      commonTemporaryCost,
+      pure,
       siteManagementRate,
+      baseSiteManagement,
       siteManagement,
-      cost,
+      cost: parts.cost,
       generalManagementRate,
-      generalManagement,
-      beforeDiscount,
-      discount,
-      taxable,
-      tax,
-      total,
+      generalManagement: parts.generalManagement,
+      beforeDiscount: parts.beforeDiscount,
+      discount: parts.discount,
+      taxable: parts.taxable,
+      tax: parts.tax,
+      total: parts.total,
+      coverTotal: rawTotal,
+      rawTotal,
+      netRule,
       net,
       floorAreaTsubo,
       tsuboUnitPrice
@@ -1427,21 +1866,28 @@
   }
 
   function renderItems() {
+    syncWireMeshQuantities({ sheets: [activeSheet()] });
     const body = $("itemsBody");
     body.innerHTML = "";
     activeSheet().items.forEach((item, index) => {
       const tr = document.createElement("tr");
       tr.dataset.index = String(index);
       const rowVisible = isRowVisible(item);
+      const quantityFormula = quantityFormulaForItem(item);
+      const qtyCellClass = ["qty-cell", quantityFormula ? "has-formula" : ""].filter(Boolean).join(" ");
       tr.className = [item.type === "section" ? "section-row" : "", rowVisible ? "" : "is-hidden"].filter(Boolean).join(" ");
       tr.innerHTML = `
         <td><input data-key="category" value="${escapeAttr(item.category)}" aria-label="区分"></td>
         <td><input data-key="name" value="${escapeAttr(item.name)}" aria-label="名称"></td>
         <td><input data-key="summary" value="${escapeAttr(item.summary)}" aria-label="概要"></td>
-        <td><input class="small" data-key="qty" type="text" inputmode="decimal" value="${escapeAttr(item.qty)}" aria-label="数量"></td>
+        <td class="${qtyCellClass}">
+          <input class="small" data-key="qty" type="text" inputmode="decimal" value="${escapeAttr(item.qty)}" aria-label="数量">
+          <div class="qty-formula" role="note">${escapeHtml(quantityFormula)}</div>
+        </td>
         <td><input class="small" data-key="unit" value="${escapeAttr(item.unit)}" aria-label="単位"></td>
         <td><input class="money" data-key="price" type="text" inputmode="numeric" value="${escapeAttr(item.price)}" aria-label="単価"></td>
         <td class="line-amount">${item.type === "item" ? (rowVisible ? yen(lineAmount(item)) : "対象外") : ""}</td>
+        <td><input data-key="printRemarks" value="${escapeAttr(item.printRemarks)}" aria-label="印刷備考"></td>
         <td><input data-key="remarks" value="${escapeAttr(item.remarks)}" aria-label="備考"></td>
         <td class="row-actions">
           <button type="button" class="move-button move-up" title="上へ" ${index === 0 ? "disabled" : ""}>↑</button>
@@ -1451,7 +1897,7 @@
         </td>
       `;
       if (isAdjustmentItem(item)) {
-        ["qty", "unit", "price", "remarks"].forEach((key) => {
+        ["qty", "unit", "price", "remarks", "printRemarks"].forEach((key) => {
           const adjustmentInput = tr.querySelector(`[data-key="${key}"]`);
           if (!adjustmentInput) return;
           adjustmentInput.readOnly = true;
@@ -1459,19 +1905,33 @@
         });
       }
       tr.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("focus", () => {
+          input.dataset.focusValue = input.value;
+          delete input.dataset.directInputDirty;
+        });
         input.addEventListener("input", () => {
-          commitDetailInput(input);
+          delete input.dataset.skipNextChangeAdjust;
+          input.dataset.directInputDirty = "1";
+          commitDetailInput(input, { adjustDirectConcreteQty: false });
           refreshDetailRowTotals(tr);
         });
         input.addEventListener("change", () => {
-          commitDetailInput(input);
+          const skipNextChangeAdjust = input.dataset.skipNextChangeAdjust === "1";
+          delete input.dataset.skipNextChangeAdjust;
+          commitDetailInput(input, { adjustDirectConcreteQty: !skipNextChangeAdjust });
+          input.dataset.focusValue = input.value;
+          delete input.dataset.directInputDirty;
           refreshDetailRowTotals(tr);
           saveState();
         });
         input.addEventListener("keydown", (event) => {
           if (event.key !== "Enter") return;
           event.preventDefault();
-          commitDetailInput(input);
+          const valueChanged = input.dataset.directInputDirty === "1" || input.value !== input.dataset.focusValue;
+          commitDetailInput(input, { adjustDirectConcreteQty: valueChanged });
+          if (input.dataset.key === "qty" && valueChanged) input.dataset.skipNextChangeAdjust = "1";
+          input.dataset.focusValue = input.value;
+          delete input.dataset.directInputDirty;
           refreshDetailRowTotals(tr);
           saveState();
           focusNextDetailInput(input);
@@ -1483,6 +1943,7 @@
       });
       tr.querySelector(".visibility-button").addEventListener("click", () => {
         item.hidden = rowVisible;
+        item.manualVisibility = true;
         render();
       });
       tr.querySelector(".move-up").addEventListener("click", () => moveItem(index, -1));
@@ -1496,11 +1957,12 @@
       <td class="subtotal-label">小計</td>
       <td class="subtotal-value">${yen(subtotalForSheet(activeSheet()))}</td>
       <td></td>
+      <td></td>
     `;
     body.appendChild(subtotalRow);
   }
 
-  function commitDetailInput(input) {
+  function commitDetailInput(input, options = {}) {
     const row = input.closest("tr[data-index]");
     const item = activeSheet().items[Number(row?.dataset.index)];
     if (!item) return;
@@ -1511,6 +1973,15 @@
     }
     if (key === "qty") item.manualQty = true;
     item[key] = value;
+    if (key === "qty" && options.adjustDirectConcreteQty !== false && applyDirectConcreteQuantityAdjustment(item, value)) {
+      input.value = item.qty;
+    }
+    if (isConcreteCompressionTestItem(item) && (key === "summary" || key === "name")) {
+      applyConcreteCompressionTestPrice(item);
+    }
+    if (key === "qty" && item.type === "item" && !isAdjustmentItem(item) && !item.manualVisibility) {
+      item.hidden = toNumber(item.qty) <= 0;
+    }
   }
 
   function normalizeNumericInput(value) {
@@ -1524,7 +1995,7 @@
   }
 
   function refreshDetailRowTotals(row) {
-    syncAdjustmentRows(state);
+    syncQuantityLinks(state);
     const rows = Array.from($("itemsBody")?.querySelectorAll("tr[data-index]") || []);
     rows.forEach((detailRowElement) => {
       const item = activeSheet().items[Number(detailRowElement.dataset.index)];
@@ -1535,15 +2006,120 @@
         detailRowElement.querySelector('[data-key="price"]').value = item.price;
         detailRowElement.querySelector('[data-key="remarks"]').value = item.remarks;
       }
+      if (isConcreteCompressionTestItem(item)) {
+        ["qty", "unit", "price", "remarks"].forEach((key) => {
+          const input = detailRowElement.querySelector(`[data-key="${key}"]`);
+          if (input && document.activeElement !== input) input.value = item[key] ?? "";
+        });
+      }
+      if (isWireMeshMaterialItem(item)) {
+        ["qty", "unit"].forEach((key) => {
+          const input = detailRowElement.querySelector(`[data-key="${key}"]`);
+          if (input && document.activeElement !== input) input.value = item[key] ?? "";
+        });
+      }
       const rowVisible = isRowVisible(item);
+      detailRowElement.className = [item.type === "section" ? "section-row" : "", rowVisible ? "" : "is-hidden"].filter(Boolean).join(" ");
+      const visibilityButton = detailRowElement.querySelector(".visibility-button");
+      if (visibilityButton) {
+        visibilityButton.title = rowVisible ? "計算から外して隠す" : "表示して計算に入れる";
+        visibilityButton.textContent = rowVisible ? "隠す" : "表示";
+      }
       const lineAmountCell = detailRowElement.querySelector(".line-amount");
       if (lineAmountCell) {
         lineAmountCell.textContent = item.type === "item" ? (rowVisible ? yen(lineAmount(item)) : "対象外") : "";
+      }
+      const qtyCell = detailRowElement.querySelector(".qty-cell");
+      const formulaElement = detailRowElement.querySelector(".qty-formula");
+      if (qtyCell && formulaElement) {
+        const quantityFormula = quantityFormulaForItem(item);
+        formulaElement.textContent = quantityFormula;
+        qtyCell.classList.toggle("has-formula", Boolean(quantityFormula));
       }
     });
     const subtotalValue = $("itemsBody")?.querySelector(".subtotal-value");
     if (subtotalValue) subtotalValue.textContent = yen(subtotalForSheet(activeSheet()));
     renderSummary();
+  }
+
+  function quantityFormulaForItem(item) {
+    if (!item || item.type !== "item") return "";
+    const remarkFormulas = String(item.remarks || "")
+      .split(/\s*\/\s*/)
+      .map((part) => part.trim())
+      .filter((part) => part.startsWith("数量補正:") || part.startsWith("直接入力数量補正:"));
+    if (remarkFormulas.length) return remarkFormulas.join("\n");
+    const inferredConcreteFormula = inferredExistingConcreteQuantityFormula(item);
+    if (inferredConcreteFormula) return inferredConcreteFormula;
+    const wireMeshFormula = wireMeshQuantityFormulaForItem(item);
+    if (wireMeshFormula) return wireMeshFormula;
+    const ceilingInsulationFormula = ceilingInsulationFormulaForItem(item);
+    if (ceilingInsulationFormula) return ceilingInsulationFormula;
+    if (isConcreteTotalLinkedItem(item)) {
+      return "コンクリート数量合計: 表示中のコンクリート明細の数量を合計";
+    }
+    if (isConcreteCompressionTestItem(item)) {
+      return `試験回数: 概要の週・日を各1回で集計 = ${formatNumber(compressionTestCount(item))}回`;
+    }
+    if (isFormworkTotalLinkedItem(item)) {
+      return "型枠数量合計: 表示中の型枠明細の数量を合計";
+    }
+    if (isFloorAreaLinkedItem(item) && toNumber(state.totalFloorArea) > 0) {
+      return `延べ床面積連動: ${formatNumber(state.totalFloorArea)}㎡`;
+    }
+    if (isSettingOutItem(item) && toNumber(state.buildingArea) > 0) {
+      return `建築面積連動: ${formatNumber(state.buildingArea)}㎡`;
+    }
+    if (isPlasterConcreteFinishItem(item)) {
+      const siteArea = toNumber(state.siteArea);
+      const buildingArea = toNumber(state.buildingArea);
+      if (siteArea > 0 || buildingArea > 0) {
+        return `敷地面積+建築面積: ${formatNumber(siteArea)}+${formatNumber(buildingArea)}=${formatNumber(siteArea + buildingArea)}㎡`;
+      }
+    }
+    if (isAdjustmentItem(item)) {
+      return "調整: 明細小計の下三桁を切り捨て";
+    }
+    return "";
+  }
+
+  function ceilingInsulationFormulaForItem(item) {
+    if (!isCeilingInsulationItem(item)) return "";
+    const sheet = activeSheet();
+    if (primaryCeilingInsulationItem(sheet) !== item) return "";
+    const insertQty = ceilingInsertQuantityForSheet(sheet);
+    if (insertQty <= 0) return "";
+    const divided = insertQty / 1.62;
+    const rounded = Math.ceil(divided);
+    return `天井断熱材: インサート金物 ${formatNumber(insertQty)}÷1.62=${formatNumber(divided)} → 小数点繰り上げ ${formatNumber(rounded)} +1 = ${formatNumber(ceilingInsulationQuantity(insertQty))}枚`;
+  }
+
+  function wireMeshQuantityFormulaForItem(item) {
+    if (!isWireMeshMaterialItem(item)) return "";
+    const sheet = activeSheet();
+    const hasLaborRow = sheet.items.some(isWireMeshLaborItem);
+    if (!hasLaborRow) return "";
+    const laborQty = wireMeshLaborQuantityForSheet(sheet);
+    return `ワイヤメッシュ敷き手間: ${formatNumber(laborQty)}÷7.2=${formatNumber(laborQty / 7.2)} → ${formatNumber(wireMeshMaterialQuantity(laborQty))}枚（小数点以下切り捨て）`;
+  }
+
+  function inferredExistingConcreteQuantityFormula(item) {
+    const adjustedQty = toNumber(item.qty);
+    if (adjustedQty <= 0) return "";
+    const targetName = directConcreteQuantityAdjustmentTarget(item);
+    if (!targetName) return "";
+    if (isSlabOrLevelingConcreteTarget(targetName)) {
+      const rawQty = (adjustedQty - 0.5) / 1.4;
+      if (rawQty <= 0) return "";
+      return `既存数量補正: ${formatNumber(rawQty)}×1.4+0.5=${formatNumber(adjustedQty)}㎥（現在数量から逆算）`;
+    }
+    if (isReinforcedConcreteTarget(targetName)) {
+      const count = concreteStructuralAllowanceCount(targetName, [item]);
+      const rawQty = (adjustedQty - count * 0.5) / 1.05;
+      if (rawQty <= 0) return "";
+      return `既存数量補正: ${formatNumber(rawQty)}×1.05+${count}×0.5=${formatNumber(adjustedQty)}㎥（現在数量から逆算）`;
+    }
+    return "";
   }
 
   function focusNextDetailInput(currentInput) {
@@ -1680,7 +2256,7 @@
     state = record.state;
     saveState();
     render();
-    $("importResult").textContent = "上原邸の入力内容を復旧しました。鉄筋工事 8件が入っています。";
+    $("importResult").textContent = "上原邸の入力内容を復旧しました。鉄筋工事 10件が入っています。";
   }
 
   function ensureSheet(name) {
@@ -2026,15 +2602,18 @@
     const foundationHint = concreteItems.find(isFoundationQuantityHint);
     if (foundationHint) {
       const foundationItems = [foundationHint];
-      const bodyItems = concreteItems.filter((item) => item !== foundationHint && !isLevelingConcreteImport(item) && isAboveGroundFloorConcreteImport(item));
+      const bodyItems = concreteItems.filter((item) => item !== foundationHint && !isLevelingConcreteImport(item) && !isSlabConcreteImport(item) && isAboveGroundFloorConcreteImport(item));
       predicted.set("有筋コンクリート基礎", foundationItems);
       predicted.set("有筋コンクリート躯体", bodyItems);
       lastConcreteReadSummary.push("ヒント位置から基礎列を抽出");
     }
     predicted.forEach((items, targetName) => {
       if (!items.length) return;
-      const qty = items.reduce((sum, item) => sum + toNumber(item.qty), 0);
+      const rawQty = items.reduce((sum, item) => sum + toNumber(item.qty), 0);
+      const qty = adjustedConcreteImportQty(targetName, rawQty, items);
       const sourceNames = items.map(concreteImportSourceLabel);
+      const adjustmentRemark = concreteImportAdjustmentRemark(targetName, rawQty, qty, items);
+      if (adjustmentRemark) sourceNames.push(adjustmentRemark);
       setConcreteTemplateQty(sheet, targetName, qty, sourceNames);
     });
     syncConcreteTotals({ sheets: [sheet] });
@@ -2061,13 +2640,16 @@
     if (name.includes("均し") || name.includes("捨てコン") || name.includes("捨コン")) {
       return "均しコンクリート";
     }
+    if (isSlabConcreteImport(item)) {
+      return "土間コンクリート";
+    }
     if (isFoundationQuantityHint(item)) {
       return "有筋コンクリート基礎";
     }
     if (isAboveGroundFloorConcreteImport(item)) {
       return "有筋コンクリート躯体";
     }
-    const foundationCandidates = concreteItems.filter((row) => !normalizedItemName(row).includes("均し"));
+    const foundationCandidates = concreteItems.filter((row) => !isLevelingConcreteImport(row) && !isSlabConcreteImport(row));
     const fallbackFoundation = foundationCandidates[foundationCandidates.length - 1];
     if (isFoundationConcreteImport(item) || item === fallbackFoundation) {
       return "有筋コンクリート基礎";
@@ -2078,7 +2660,6 @@
   function isConcreteImportQuantityItem(item) {
     const name = normalizedItemName(item);
     const summary = String(item.summary || "");
-    if (name.includes("土間")) return false;
     if (name.includes("圧送") || name.includes("打設") || name.includes("試験") || name.includes("ポンプ") || name.includes("セメント")) return false;
     return toNumber(item.qty) > 0 && (name.includes("コンクリート") || /FC\d+/i.test(summary) || ["㎥", "m3", "m³"].includes(item.unit));
   }
@@ -2095,6 +2676,115 @@
   function isLevelingConcreteImport(item) {
     const name = normalizedItemName(item);
     return name.includes("均し") || name.includes("捨てコン") || name.includes("捨コン");
+  }
+
+  function isSlabConcreteImport(item) {
+    const text = `${item.name || ""} ${item.summary || ""}`.replace(/\s+/g, "");
+    return /土間|スラブ/i.test(text) && !isLevelingConcreteImport(item);
+  }
+
+  function adjustedConcreteImportQty(targetName, rawQty, items) {
+    if (isSlabOrLevelingConcreteTarget(targetName)) {
+      return rawQty * 1.4 + 0.5;
+    }
+    if (isReinforcedConcreteTarget(targetName)) {
+      return rawQty * 1.05 + concreteStructuralAllowanceCount(targetName, items) * 0.5;
+    }
+    return rawQty;
+  }
+
+  function concreteImportAdjustmentRemark(targetName, rawQty, adjustedQty, items) {
+    if (Math.abs(rawQty - adjustedQty) < 0.005) return "";
+    if (isSlabOrLevelingConcreteTarget(targetName)) {
+      return `数量補正: ${formatNumber(rawQty)}×1.4+0.5=${formatNumber(adjustedQty)}㎥`;
+    }
+    if (isReinforcedConcreteTarget(targetName)) {
+      const count = concreteStructuralAllowanceCount(targetName, items);
+      return `数量補正: ${formatNumber(rawQty)}×1.05+${count}×0.5=${formatNumber(adjustedQty)}㎥`;
+    }
+    return "";
+  }
+
+  function applyDirectConcreteQuantityAdjustment(item, rawValue) {
+    const rawQty = toNumber(rawValue);
+    if (item.type !== "item" || isAdjustmentItem(item) || rawQty <= 0) return false;
+    const targetName = directConcreteQuantityAdjustmentTarget(item);
+    if (!targetName) return false;
+    const adjustedQty = adjustedConcreteImportQty(targetName, rawQty, [item]);
+    item.qty = Number(adjustedQty.toFixed(2));
+    item.unit = item.unit || "㎥";
+    item.hidden = false;
+    item.manualQty = true;
+    const remark = concreteDirectQuantityAdjustmentRemark(targetName, rawQty, adjustedQty, [item]);
+    if (remark) item.remarks = replaceConcreteQuantityAdjustmentRemark(item.remarks, remark);
+    return true;
+  }
+
+  function directConcreteQuantityAdjustmentTarget(item) {
+    const name = normalizedItemName(item);
+    if (name.includes("均し") || name.includes("捨てコン") || name.includes("捨コン")) return "均しコンクリート";
+    if (name.includes("土間")) return "土間コンクリート";
+    if (name.includes("有筋") && name.includes("基礎")) return "有筋コンクリート基礎";
+    if (name.includes("有筋") && name.includes("躯体")) return "有筋コンクリート躯体";
+    return "";
+  }
+
+  function concreteDirectQuantityAdjustmentRemark(targetName, rawQty, adjustedQty, items) {
+    const remark = concreteImportAdjustmentRemark(targetName, rawQty, adjustedQty, items);
+    return remark ? remark.replace(/^数量補正:/, "直接入力数量補正:") : "";
+  }
+
+  function replaceConcreteQuantityAdjustmentRemark(remarks, nextRemark) {
+    const parts = String(remarks || "")
+      .split(/\s*\/\s*/)
+      .map((part) => part.trim())
+      .filter((part) => part && !part.startsWith("数量補正:") && !part.startsWith("直接入力数量補正:"));
+    parts.push(nextRemark);
+    return parts.join(" / ");
+  }
+
+  function isSlabOrLevelingConcreteTarget(targetName) {
+    const name = normalizedText(targetName);
+    return name.includes("土間コンクリート") || name.includes("均しコンクリート");
+  }
+
+  function isReinforcedConcreteTarget(targetName) {
+    return normalizedText(targetName).includes("有筋コンクリート");
+  }
+
+  function concreteStructuralAllowanceCount(targetName, items) {
+    const name = normalizedText(targetName);
+    if (name.includes("基礎")) return 1;
+    if (name.includes("躯体")) {
+      const floorCount = countConcreteAboveGroundFloors(items);
+      return floorCount || (items.length ? 1 : 0);
+    }
+    return 0;
+  }
+
+  function countConcreteAboveGroundFloors(items) {
+    const floors = new Set();
+    items.forEach((item) => {
+      concreteAboveGroundFloorKeys(`${item.name || ""} ${item.summary || ""} ${item.remarks || ""}`).forEach((floor) => floors.add(floor));
+    });
+    return floors.size;
+  }
+
+  function concreteAboveGroundFloorKeys(value) {
+    const text = String(value || "")
+      .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+      .replace(/[Ａ-Ｚａ-ｚ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+      .replace(/\s+/g, "");
+    if (/地下|B\d*F?|GL下/i.test(text)) return [];
+    const floors = new Set();
+    Array.from(text.matchAll(/(\d+)(?:階|F)/gi)).forEach((match) => {
+      const floor = Number(match[1]);
+      if (floor > 0) floors.add(`${floor}F`);
+    });
+    if (/R階|RF|屋上/i.test(text) || /(^|[^A-Za-z0-9])R($|[^A-Za-z0-9])/i.test(String(value || ""))) {
+      floors.add("RF");
+    }
+    return Array.from(floors);
   }
 
   function isAboveGroundFloorConcreteImport(item) {
@@ -2122,6 +2812,7 @@
     const mixSummary = extractConcreteMixFromSources(uniqueSources) || inferConcreteMixSummary(uniqueSources);
     if (mixSummary) item.summary = mixSummary;
     item.remarks = uniqueSources.length ? `Excel取込: ${uniqueSources.join(" / ")}` : "Excel取込";
+    normalizeConcreteItemSummary(item);
   }
 
   function compactConcreteTemplateRowsAfterImport(sheet, keepNames) {
@@ -2493,9 +3184,9 @@
     if (areaTotal <= 0) return [];
     const rawThickness = volumeTotal > 0 ? (volumeTotal / areaTotal) * 1000 : 0;
     const thickness = rawThickness > 0 ? Math.round(rawThickness / 5) * 5 : 0;
-    const qty = Math.ceil(areaTotal / 1.62) + 1;
+    const qty = ceilingInsulationQuantity(areaTotal);
     const summary = thickness > 0 ? `B種 厚${thickness}mmスタイロフォーム` : "スタイロフォーム";
-    lastConcreteReadSummary.push(`断熱材=${formatNumber(qty)}枚 面積${formatNumber(areaTotal)}㎡`);
+    lastConcreteReadSummary.push(`断熱材=${formatNumber(qty)}枚 インサート${formatNumber(areaTotal)}÷1.62 繰り上げ+1`);
     lastConcreteReadSummary.push(`天井インサート=${formatNumber(areaTotal)}㎡`);
     return [
       [
@@ -2506,7 +3197,7 @@
         formatNumber(qty),
         "枚",
         0,
-        `Excel取込:断熱材面積 ${formatNumber(areaTotal)}㎡`
+        `Excel取込:インサート金物 ${formatNumber(areaTotal)}÷1.62 小数点繰り上げ +1`
       ].join("\t"),
       [
         "工種取込",
@@ -2754,6 +3445,7 @@
   function predictConcreteNameFromCells(cells) {
     const text = cells.join(" ").replace(/\s+/g, "");
     if (/均し|捨てコン|捨コン/i.test(text)) return "均しコンクリート";
+    if (/土間|スラブ/i.test(text)) return "土間コンクリート";
     if (cells.some((cell) => Math.abs(numericCellValue(cell) - 76.66) < 0.01)) return "有筋コンクリート基礎";
     if (isAboveGroundFloorCells(cells)) return "有筋コンクリート躯体";
     if (/地下|B\d*F?|GL下|基礎|フーチング|地中梁|立上|ベース/i.test(text)) return "有筋コンクリート基礎";
@@ -3018,6 +3710,7 @@
     const total = totals();
     renderAreaConversions();
     $("subtotalView").textContent = yen(total.subtotal);
+    $("commonTemporaryView").textContent = yen(total.commonTemporaryCost);
     $("siteManagementLabel").textContent = `現場管理費 (${formatNumber(total.siteManagementRate)}%)`;
     $("siteManagementView").textContent = yen(total.siteManagement);
     $("generalManagementLabel").textContent = `一般管理費 (${formatNumber(total.generalManagementRate)}%)`;
@@ -3055,6 +3748,7 @@
   }
 
   function coverPage(total) {
+    const coverNotes = printNotesLines();
     return `
       <article class="quote-page cover-page">
         <div class="recipient">${escapeHtml(state.clientName || "御中")}</div>
@@ -3065,9 +3759,9 @@
           <tr><td>工　　　期：</td><td>${escapeHtml(state.period)}</td></tr>
         </table>
         <div class="net-line">NET¥${Math.round(total.net).toLocaleString("ja-JP")}（消費税込）</div>
-        <div class="amount-box">¥${Math.round(total.total).toLocaleString("ja-JP")}（消費税込）</div>
+        <div class="amount-box">¥${Math.round(total.coverTotal ?? total.total).toLocaleString("ja-JP")}（消費税込）</div>
         <div class="tax-note">（消費税込み）</div>
-        <div class="print-notes cover-notes">${printNotesLines()}</div>
+        ${coverNotes ? `<div class="print-notes cover-notes">${coverNotes}</div>` : ""}
         <div class="issue-date">${formatJapaneseDate(state.issueDate)}</div>
         <div class="company-block">
           <div class="company-grid">
@@ -3082,6 +3776,8 @@
   }
 
   function printNotesLines() {
+    const rawNotes = String(state.notes ?? "").trim();
+    if (!rawNotes) return "";
     const notes = (state.notes || "見積り有効期限は提出日より1ヶ月間と致します。")
       .split("\n")
       .map((line) => line.trim())
@@ -3094,7 +3790,7 @@
 
   function costSummaryPage(total) {
     const direct = total.subtotal;
-    const common = 0;
+    const common = total.commonTemporaryCost;
     const pure = direct + common;
     const siteManagement = total.siteManagement;
     const cost = pure + siteManagement;
@@ -3104,9 +3800,9 @@
       ["直接工事費", 1, "式", direct, ""],
       ["共通仮設費", 1, "式", common, ""],
       ["純工事費", 1, "式", pure, ""],
-      ["現場管理費", 1, "式", siteManagement, `${formatNumber(total.siteManagementRate)}%`],
+      ["現場管理費", 1, "式", siteManagement, ""],
       ["工事原価", 1, "式", cost, ""],
-      ["一般管理費", 1, "式", general, `${formatNumber(total.generalManagementRate)}%`],
+      ["一般管理費", 1, "式", general, ""],
       ["税抜工事価格", 1, "式", beforeTax, ""],
       [`消費税 ${toNumber(state.taxRate)}%`, 1, "式", total.tax, ""],
       ["税込工事価格", 1, "式", total.total, ""]
@@ -3122,10 +3818,11 @@
 
   function simpleDetailPage(total) {
     const items = visibleItems(visibleSheets()[0]);
-    const rows = items.filter((item) => !isAdjustmentItem(item)).map(detailRow);
+    const rows = items.filter((item) => item.type === "item" && !isAdjustmentItem(item)).map(detailRow);
     const bottomRows = [
       ...items.filter(isAdjustmentItem).map(detailRow),
       totalDetailRow("小計", total.subtotal),
+      total.commonTemporaryCost ? totalDetailRow("共通仮設費", total.commonTemporaryCost) : "",
       total.siteManagement ? totalDetailRow(`現場管理費 ${formatNumber(total.siteManagementRate)}%`, total.siteManagement) : "",
       total.generalManagement ? totalDetailRow(`一般管理費 ${formatNumber(total.generalManagementRate)}%`, total.generalManagement) : "",
       total.discount ? totalDetailRow("値引き", -total.discount) : "",
@@ -3138,7 +3835,7 @@
   function tradeDetailPages() {
     return visibleSheets().map((sheet) => {
       const items = visibleItems(sheet);
-      const rows = items.filter((item) => !isAdjustmentItem(item)).map(detailRow);
+      const rows = items.filter((item) => item.type === "item" && !isAdjustmentItem(item)).map(detailRow);
       const bottomRows = [
         ...items.filter(isAdjustmentItem).map(detailRow),
         totalDetailRow("計", subtotalForSheet(sheet))
@@ -3188,7 +3885,7 @@
         <td class="center">${escapeHtml(item.unit)}</td>
         <td class="num">${toNumber(item.price).toLocaleString("ja-JP")}</td>
         <td class="num">${lineAmount(item).toLocaleString("ja-JP")}</td>
-        <td>${escapeHtml(item.remarks)}</td>
+        <td>${escapeHtml(item.printRemarks)}</td>
       </tr>`;
   }
 
@@ -3260,8 +3957,8 @@
   function addItem(type) {
     const sheet = activeSheet();
     const newItem = type === "section"
-      ? { type: "section", category: "新しい区分", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", hidden: false }
-      : { type: "item", category: "", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", hidden: false };
+      ? { type: "section", category: "新しい区分", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", printRemarks: "", hidden: false }
+      : { type: "item", category: "", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", printRemarks: "", hidden: false };
     const adjustmentIndex = sheet.items.findIndex(isAdjustmentItem);
     const insertIndex = adjustmentIndex >= 0 ? adjustmentIndex : sheet.items.length;
     sheet.items.splice(insertIndex, 0, newItem);
@@ -3303,6 +4000,543 @@
     window.print();
   }
 
+  async function savePdfFile() {
+    const button = $("previewPrintButton");
+    const originalText = button.textContent;
+    const pdfWindow = window.open("about:blank", "_blank");
+    if (pdfWindow) {
+      pdfWindow.document.title = "PDF作成中";
+      pdfWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">PDFを作成しています...</p>';
+    }
+    button.disabled = true;
+    button.textContent = "PDF作成中...";
+    try {
+      renderPrint();
+      const pageImages = await renderPdfPageImages();
+      const pdfBlob = buildImagePdf(pageImages);
+      openPdfBlob(pdfBlob, `${safeFileName(state.projectName || "見積書")}.pdf`, pdfWindow);
+      button.textContent = "PDFを開きました";
+      setTimeout(() => {
+        button.textContent = originalText;
+      }, 1200);
+    } catch (error) {
+      console.error(error);
+      if (pdfWindow && !pdfWindow.closed) {
+        pdfWindow.document.body.innerHTML = `<p style="font-family: sans-serif; padding: 24px;">PDF保存に失敗しました。<br>${escapeHtml(error.message || error)}</p>`;
+      }
+      alert(`PDF保存に失敗しました。印刷ボタンからPDF保存をお試しください。\n${error.message || error}`);
+      button.textContent = originalText;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function openPdfBlob(blob, filename, pdfWindow) {
+    const url = URL.createObjectURL(blob);
+    if (pdfWindow && !pdfWindow.closed) {
+      pdfWindow.location.href = url;
+    } else {
+      window.open(url, "_blank");
+    }
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  }
+
+  async function renderPdfPageImages() {
+    const total = totals();
+    const stamp = state.useStamp ? await loadCanvasImage("company_stamp.png").catch(() => null) : null;
+    const pages = [];
+    pages.push(await createPdfCanvasPage((ctx, metrics) => drawPdfCoverPage(ctx, metrics, total, stamp)));
+    if (state.estimateMode === "byTrade") {
+      pages.push(await createPdfCanvasPage((ctx, metrics) => drawPdfCostSummaryPage(ctx, metrics, total)));
+      pages.push(await createPdfCanvasPage((ctx, metrics) => drawPdfSubjectSummaryPage(ctx, metrics)));
+      for (const sheet of visibleSheets()) {
+        pages.push(await createPdfCanvasPage((ctx, metrics) => drawPdfTradeDetailPage(ctx, metrics, sheet)));
+      }
+    } else {
+      pages.push(await createPdfCanvasPage((ctx, metrics) => drawPdfSimpleDetailPage(ctx, metrics, total)));
+    }
+    return pages;
+  }
+
+  async function createPdfCanvasPage(drawPage) {
+    const metrics = pdfCanvasMetrics();
+    const canvas = document.createElement("canvas");
+    canvas.width = metrics.width;
+    canvas.height = metrics.height;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await drawPage(ctx, metrics);
+    return {
+      bytes: dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.92)),
+      width: canvas.width,
+      height: canvas.height
+    };
+  }
+
+  function pdfCanvasMetrics() {
+    const scale = 2;
+    const mm = (value) => value * 96 / 25.4 * scale;
+    return {
+      scale,
+      mm,
+      width: Math.round(mm(210)),
+      height: Math.round(mm(297))
+    };
+  }
+
+  function pdfSetFont(ctx, metrics, size, options = {}) {
+    const weight = options.weight || "400";
+    const family = options.family || '"Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif';
+    ctx.font = `${weight} ${size * metrics.scale}px ${family}`;
+  }
+
+  function pdfText(ctx, metrics, text, x, y, options = {}) {
+    ctx.save();
+    pdfSetFont(ctx, metrics, options.size || 11, options);
+    ctx.fillStyle = options.color || "#111";
+    ctx.textAlign = options.align || "left";
+    ctx.textBaseline = "top";
+    const maxWidth = options.maxWidth || null;
+    let value = String(text ?? "");
+    if (maxWidth) {
+      let fontSize = options.size || 11;
+      while (fontSize > 7 && ctx.measureText(value).width > maxWidth) {
+        fontSize -= 0.5;
+        pdfSetFont(ctx, metrics, fontSize, options);
+      }
+    }
+    ctx.fillText(value, x, y, maxWidth || undefined);
+    ctx.restore();
+  }
+
+  function pdfLine(ctx, x1, y1, x2, y2, color = "#2d7fac", width = 1.5) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function pdfMoney(value) {
+    return `¥ ${Math.round(toNumber(value)).toLocaleString("ja-JP")}`;
+  }
+
+  function pdfQty(value) {
+    return toNumber(value).toLocaleString("ja-JP", { maximumFractionDigits: 2 });
+  }
+
+  function drawPdfCoverPage(ctx, metrics, total, stamp) {
+    const { mm } = metrics;
+    const left = mm(22);
+    const right = metrics.width - mm(22);
+    pdfText(ctx, metrics, state.clientName || "御中", left, mm(25), { size: 18 });
+    pdfText(ctx, metrics, "御　見　積　書", metrics.width / 2, mm(58), { size: 28, align: "center" });
+    const tableY = mm(100);
+    const labelW = mm(38);
+    const rowH = mm(11);
+    [
+      ["工事名称", state.projectName],
+      ["工事場所", state.siteAddress],
+      ["工期", state.period]
+    ].forEach((row, index) => {
+      const y = tableY + rowH * index;
+      pdfText(ctx, metrics, row[0], left + mm(2), y + mm(2), { size: 16, maxWidth: labelW - mm(4) });
+      pdfText(ctx, metrics, row[1], left + labelW + mm(2), y + mm(2), { size: 16, maxWidth: right - left - labelW - mm(4) });
+      pdfLine(ctx, left, y + rowH, right, y + rowH);
+    });
+    pdfText(ctx, metrics, `NET${pdfMoney(total.net)}（消費税込）`, metrics.width / 2, mm(152), { size: 28, align: "center", color: "#f02b16", weight: "700", family: '"Times New Roman", "Yu Mincho", serif' });
+    const amountX = (metrics.width - mm(96)) / 2;
+    const amountY = mm(166);
+    ctx.strokeStyle = "#2d7fac";
+    ctx.lineWidth = metrics.scale * 1.5;
+    ctx.strokeRect(amountX, amountY, mm(96), mm(16));
+    pdfText(ctx, metrics, `${pdfMoney(total.coverTotal ?? total.total)}（消費税込）`, metrics.width / 2, amountY + mm(2), { size: 27, align: "center", weight: "700" });
+    pdfText(ctx, metrics, "（消費税込み）", amountX + mm(96), amountY + mm(20), { size: 15, align: "right" });
+    const notes = String(state.notes ?? "").trim();
+    if (notes) {
+      const noteLines = notes.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 5);
+      pdfText(ctx, metrics, "備考", left, mm(198), { size: 13, family: '"Yu Gothic", "Meiryo", sans-serif' });
+      for (let index = 0; index < 5; index += 1) {
+        const y = mm(205 + index * 7);
+        pdfText(ctx, metrics, noteLines[index] ? `※ ${noteLines[index]}` : "※", left, y, { size: 12, maxWidth: mm(130), family: '"Yu Gothic", "Meiryo", sans-serif' });
+        pdfLine(ctx, left, y + mm(6), metrics.width - mm(58), y + mm(6));
+      }
+    }
+    pdfText(ctx, metrics, formatJapaneseDate(state.issueDate), left, mm(248), { size: 16 });
+    const companyX = metrics.width - mm(128);
+    const companyY = mm(248);
+    [
+      ["住所", state.companyAddress],
+      ["会社名", state.companyName],
+      ["電話", state.companyPhone],
+      ["担当", state.companyPerson]
+    ].forEach((row, index) => {
+      const y = companyY + mm(8) * index;
+      pdfText(ctx, metrics, row[0], companyX, y, { size: 14, maxWidth: mm(20) });
+      pdfText(ctx, metrics, row[1], companyX + mm(26), y, { size: 14, maxWidth: mm(52) });
+    });
+    if (stamp) {
+      ctx.drawImage(stamp, metrics.width - mm(50), mm(254), mm(22), mm(22));
+    }
+  }
+
+  function drawPdfCostSummaryPage(ctx, metrics, total) {
+    const rows = [
+      ["直接工事費", 1, "式", total.subtotal, ""],
+      ["共通仮設費", 1, "式", total.commonTemporaryCost, ""],
+      ["純工事費", 1, "式", total.subtotal + total.commonTemporaryCost, ""],
+      ["現場管理費", 1, "式", total.siteManagement, ""],
+      ["工事原価", 1, "式", total.subtotal + total.commonTemporaryCost + total.siteManagement, ""],
+      ["一般管理費", 1, "式", total.generalManagement, ""],
+      ["税抜工事価格", 1, "式", total.taxable, ""],
+      [`消費税 ${toNumber(state.taxRate)}%`, 1, "式", total.tax, ""],
+      ["税込工事価格", 1, "式", total.total, ""]
+    ];
+    drawPdfSummaryTable(ctx, metrics, "工　事　費　内　訳　書", rows);
+  }
+
+  function drawPdfSubjectSummaryPage(ctx, metrics) {
+    const rows = visibleSheets().map((sheet) => [sheet.name, 1, "式", subtotalForSheet(sheet), ""]);
+    rows.push(["計", 1, "式", rows.reduce((sum, row) => sum + row[3], 0), ""]);
+    drawPdfSummaryTable(ctx, metrics, "科　目　別　内　訳　書", rows);
+  }
+
+  function drawPdfSimpleDetailPage(ctx, metrics, total) {
+    const items = visibleItems(visibleSheets()[0]);
+    const rows = items.filter((item) => item.type === "item" && !isAdjustmentItem(item)).map(pdfDetailRow);
+    const bottomRows = [
+      ...items.filter(isAdjustmentItem).map(pdfDetailRow),
+      pdfTotalRow("小計", total.subtotal),
+      total.commonTemporaryCost ? pdfTotalRow("共通仮設費", total.commonTemporaryCost) : null,
+      total.siteManagement ? pdfTotalRow(`現場管理費 ${formatNumber(total.siteManagementRate)}%`, total.siteManagement) : null,
+      total.generalManagement ? pdfTotalRow(`一般管理費 ${formatNumber(total.generalManagementRate)}%`, total.generalManagement) : null,
+      total.discount ? pdfTotalRow("値引き", -total.discount) : null,
+      pdfTotalRow(`消費税 ${toNumber(state.taxRate)}%`, total.tax),
+      pdfTotalRow("合計", total.total)
+    ].filter(Boolean);
+    drawPdfDetailTable(ctx, metrics, "工　事　費　内　訳　書", rows, bottomRows);
+  }
+
+  function drawPdfTradeDetailPage(ctx, metrics, sheet) {
+    const items = visibleItems(sheet);
+    const rows = items.filter((item) => item.type === "item" && !isAdjustmentItem(item)).map(pdfDetailRow);
+    const bottomRows = [
+      ...items.filter(isAdjustmentItem).map(pdfDetailRow),
+      pdfTotalRow("計", subtotalForSheet(sheet))
+    ];
+    drawPdfDetailTable(ctx, metrics, sheet.name, rows, bottomRows, "内訳明細書");
+  }
+
+  function pdfDetailRow(item) {
+    return {
+      cells: [
+        item.name,
+        item.summary,
+        pdfQty(item.qty),
+        item.unit,
+        toNumber(item.price).toLocaleString("ja-JP"),
+        lineAmount(item).toLocaleString("ja-JP"),
+        item.printRemarks || ""
+      ],
+      adjustment: isAdjustmentItem(item)
+    };
+  }
+
+  function pdfTotalRow(label, value) {
+    return {
+      cells: [label, "", "", "", "", pdfMoney(value), ""],
+      total: true
+    };
+  }
+
+  function drawPdfSummaryTable(ctx, metrics, title, rows) {
+    const { mm } = metrics;
+    pdfText(ctx, metrics, title, metrics.width / 2, mm(20), { size: 20, align: "center" });
+    const mapped = rows.map((row) => ({
+      cells: [row[0], pdfQty(row[1]), row[2], pdfMoney(row[3]), row[4] || ""]
+    }));
+    drawPdfTable(ctx, metrics, {
+      x: mm(15),
+      y: mm(43),
+      heads: ["名称", "数量", "単位", "金額", "備考"],
+      widths: [52, 34, 14, 36, 40].map(mm),
+      rows: mapped,
+      minRows: 25,
+      align: ["left", "right", "center", "right", "left"]
+    });
+  }
+
+  function drawPdfDetailTable(ctx, metrics, title, rows, bottomRows, centerTitle = "") {
+    const { mm } = metrics;
+    if (centerTitle) {
+      pdfText(ctx, metrics, title, mm(15), mm(18), { size: 17, maxWidth: mm(50) });
+      pdfText(ctx, metrics, centerTitle, metrics.width / 2, mm(18), { size: 17, align: "center" });
+    } else {
+      pdfText(ctx, metrics, title, metrics.width / 2, mm(18), { size: 20, align: "center" });
+    }
+    drawPdfTable(ctx, metrics, {
+      x: mm(15),
+      y: mm(37),
+      heads: ["名称", "概要", "数量", "単位", "単価", "金額", "備考"],
+      widths: [34, 56, 16, 11, 20, 25, 18].map(mm),
+      rows,
+      bottomRows,
+      minRows: 25,
+      align: ["left", "left", "right", "center", "right", "right", "left"]
+    });
+  }
+
+  function drawPdfTable(ctx, metrics, options) {
+    const rowHeight = metrics.mm(9.1);
+    const headerHeight = rowHeight;
+    const rows = options.rows || [];
+    const bottomRows = options.bottomRows || [];
+    const filler = Math.max((options.minRows || 0) - rows.length - bottomRows.length, 0);
+    const allRows = [
+      ...rows,
+      ...Array.from({ length: filler }, () => ({ cells: options.heads.map(() => "") })),
+      ...bottomRows
+    ];
+    const tableWidth = options.widths.reduce((sum, width) => sum + width, 0);
+    ctx.save();
+    ctx.strokeStyle = "#b7b7b7";
+    ctx.lineWidth = metrics.scale;
+    ctx.strokeRect(options.x, options.y, tableWidth, headerHeight + allRows.length * rowHeight);
+    let x = options.x;
+    options.heads.forEach((head, index) => {
+      const width = options.widths[index];
+      ctx.fillStyle = "#075a89";
+      ctx.fillRect(x, options.y, width, headerHeight);
+      ctx.strokeStyle = "#fff";
+      ctx.strokeRect(x, options.y, width, headerHeight);
+      pdfText(ctx, metrics, head, x + width / 2, options.y + metrics.mm(2.4), { size: 10, align: "center", color: "#fff", weight: "700", maxWidth: width - metrics.mm(2) });
+      x += width;
+    });
+    allRows.forEach((row, rowIndex) => {
+      const y = options.y + headerHeight + rowHeight * rowIndex;
+      x = options.x;
+      options.widths.forEach((width, cellIndex) => {
+        ctx.fillStyle = rowIndex % 2 === 1 ? "#ececec" : "#fff";
+        ctx.fillRect(x, y, width, rowHeight);
+        ctx.strokeStyle = "#b7b7b7";
+        ctx.strokeRect(x, y, width, rowHeight);
+        drawPdfCellText(ctx, metrics, row.cells[cellIndex] || "", x, y, width, rowHeight, {
+          align: options.align?.[cellIndex] || "left",
+          color: row.adjustment ? "#d21f12" : (row.total || cellIndex === 0 ? "#075a89" : "#111"),
+          weight: row.adjustment || row.total || cellIndex === 0 ? "700" : "400"
+        });
+        x += width;
+      });
+    });
+    ctx.restore();
+  }
+
+  function drawPdfCellText(ctx, metrics, text, x, y, width, height, options = {}) {
+    const padding = metrics.mm(1.2);
+    const textX = options.align === "right" ? x + width - padding : options.align === "center" ? x + width / 2 : x + padding;
+    const textY = y + metrics.mm(2.4);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + 1, y + 1, width - 2, height - 2);
+    ctx.clip();
+    pdfText(ctx, metrics, text, textX, textY, {
+      size: 10.2,
+      align: options.align,
+      color: options.color,
+      weight: options.weight,
+      maxWidth: width - padding * 2
+    });
+    ctx.restore();
+  }
+
+  function loadCanvasImage(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error(`${src} を読み込めません`));
+      image.src = src;
+    });
+  }
+
+  async function renderPdfPageImage(pageElement) {
+    const pageWidth = Math.round(210 * 96 / 25.4);
+    const pageHeight = Math.round(297 * 96 / 25.4);
+    const scale = 2;
+    const host = document.createElement("div");
+    host.style.position = "fixed";
+    host.style.left = "-10000px";
+    host.style.top = "0";
+    host.style.width = `${pageWidth}px`;
+    host.style.height = `${pageHeight}px`;
+    host.style.overflow = "hidden";
+    host.style.background = "#fff";
+    host.style.pointerEvents = "none";
+    const clone = pageElement.cloneNode(true);
+    clone.style.margin = "0";
+    clone.style.boxShadow = "none";
+    host.appendChild(clone);
+    document.body.appendChild(host);
+    try {
+      await inlineImagesForPdf(clone);
+      if (document.fonts?.ready) await document.fonts.ready;
+      const styleText = collectPdfStyles();
+      clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+      const pageMarkup = new XMLSerializer().serializeToString(clone);
+      const xhtml = `
+        <div xmlns="http://www.w3.org/1999/xhtml">
+          <style>${escapeXmlText(styleText)}</style>
+          ${pageMarkup}
+        </div>`;
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${pageWidth}" height="${pageHeight}" viewBox="0 0 ${pageWidth} ${pageHeight}">
+          <foreignObject width="100%" height="100%">${xhtml}</foreignObject>
+        </svg>`;
+      const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+      const image = await loadPdfImage(svgUrl);
+      URL.revokeObjectURL(svgUrl);
+      const canvas = document.createElement("canvas");
+      canvas.width = pageWidth * scale;
+      canvas.height = pageHeight * scale;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      return {
+        bytes: dataUrlToBytes(dataUrl),
+        width: canvas.width,
+        height: canvas.height
+      };
+    } finally {
+      host.remove();
+    }
+  }
+
+  function collectPdfStyles() {
+    const rules = Array.from(document.styleSheets).map((sheet) => {
+      try {
+        return Array.from(sheet.cssRules).map((rule) => rule.cssText).join("\n");
+      } catch (error) {
+        return "";
+      }
+    }).join("\n");
+    return `${rules}
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .quote-page { margin: 0 !important; box-shadow: none !important; }
+      .preview-pages .quote-page { box-shadow: none !important; }
+    `;
+  }
+
+  function escapeXmlText(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  async function inlineImagesForPdf(root) {
+    const images = Array.from(root.querySelectorAll("img"));
+    await Promise.all(images.map(async (image) => {
+      const source = image.getAttribute("src");
+      if (!source || source.startsWith("data:")) return;
+      const response = await fetch(new URL(source, window.location.href).href, { cache: "no-store" });
+      if (!response.ok) throw new Error(`${source} を読み込めません`);
+      image.src = await blobToDataUrl(await response.blob());
+    }));
+    await Promise.all(images.map((image) => image.complete
+      ? Promise.resolve()
+      : new Promise((resolve) => {
+        image.onload = resolve;
+        image.onerror = resolve;
+      })));
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function loadPdfImage(url) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("PDF画像化に失敗しました"));
+      image.src = url;
+    });
+  }
+
+  function dataUrlToBytes(dataUrl) {
+    const base64 = dataUrl.split(",")[1] || "";
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  }
+
+  function buildImagePdf(images) {
+    const pdfWidth = 595.28;
+    const pdfHeight = 841.89;
+    const encoder = new TextEncoder();
+    const chunks = [];
+    const offsets = [0];
+    let offset = 0;
+    const add = (value) => {
+      const bytes = typeof value === "string" ? encoder.encode(value) : value;
+      chunks.push(bytes);
+      offset += bytes.length;
+    };
+    const writeObject = (objectNumber, writer) => {
+      offsets[objectNumber] = offset;
+      add(`${objectNumber} 0 obj\n`);
+      writer();
+      add("\nendobj\n");
+    };
+    add("%PDF-1.4\n% Mitsumori PDF\n");
+    const pageObjectNumbers = images.map((_, index) => 3 + index * 3);
+    const objectCount = 2 + images.length * 3;
+    writeObject(1, () => add("<< /Type /Catalog /Pages 2 0 R >>"));
+    writeObject(2, () => add(`<< /Type /Pages /Kids [${pageObjectNumbers.map((number) => `${number} 0 R`).join(" ")}] /Count ${images.length} >>`));
+    images.forEach((image, index) => {
+      const pageObject = pageObjectNumbers[index];
+      const imageObject = pageObject + 1;
+      const contentObject = pageObject + 2;
+      const imageName = `Im${index + 1}`;
+      writeObject(pageObject, () => add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pdfWidth} ${pdfHeight}] /Resources << /XObject << /${imageName} ${imageObject} 0 R >> >> /Contents ${contentObject} 0 R >>`));
+      writeObject(imageObject, () => {
+        add(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`);
+        add(image.bytes);
+        add("\nendstream");
+      });
+      const content = `q\n${pdfWidth} 0 0 ${pdfHeight} 0 0 cm\n/${imageName} Do\nQ`;
+      writeObject(contentObject, () => add(`<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`));
+    });
+    const xrefOffset = offset;
+    add(`xref\n0 ${objectCount + 1}\n`);
+    add("0000000000 65535 f \n");
+    for (let index = 1; index <= objectCount; index += 1) {
+      add(`${String(offsets[index]).padStart(10, "0")} 00000 n \n`);
+    }
+    add(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+    return new Blob(chunks, { type: "application/pdf" });
+  }
+
   function exportExcel() {
     const total = totals();
     const worksheets = [
@@ -3322,6 +4556,7 @@
         ...visibleSheets().map((sheet) => [sheet.name, subtotalForSheet(sheet)]),
         [],
         ["小計", total.subtotal],
+        ["共通仮設費", total.commonTemporaryCost],
         [`現場管理費 ${formatNumber(total.siteManagementRate)}%`, total.siteManagement],
         [`一般管理費 ${formatNumber(total.generalManagementRate)}%`, total.generalManagement],
         ["値引き", -total.discount],
@@ -3331,12 +4566,12 @@
         ["備考", state.notes]
       ]),
       ...visibleSheets().map((sheet) => worksheetXml(sheet.name, [
-        ["区分", "名称", "概要", "数量", "単位", "単価", "金額", "備考"],
+        ["区分", "名称", "概要", "数量", "単位", "単価", "金額", "印刷備考", "備考"],
         ...visibleItems(sheet).map((item) => item.type === "section"
-          ? [item.category, "", "", "", "", "", "", ""]
-          : [item.category, item.name, item.summary, item.qty, item.unit, toNumber(item.price), lineAmount(item), item.remarks]),
+          ? [item.category, "", "", "", "", "", "", "", ""]
+          : [item.category, item.name, item.summary, item.qty, item.unit, toNumber(item.price), lineAmount(item), item.printRemarks, item.remarks]),
         [],
-        ["工種小計", "", "", "", "", "", subtotalForSheet(sheet), ""]
+        ["工種小計", "", "", "", "", "", subtotalForSheet(sheet), "", ""]
       ]))
     ].join("");
 
@@ -3369,7 +4604,10 @@ ${worksheets}
   }
 
   function downloadFile(content, filename, type) {
-    const blob = new Blob([content], { type });
+    downloadBlob(new Blob([content], { type }), filename);
+  }
+
+  function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -3377,7 +4615,7 @@ ${worksheets}
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function safeFileName(value) {
@@ -3447,7 +4685,13 @@ ${worksheets}
   });
   $("printButton").addEventListener("click", openPrintPdf);
   $("previewCloseButton").addEventListener("click", closePrintPreview);
-  $("previewPrintButton").addEventListener("click", printPreview);
+  $("previewBrowserPrintButton").addEventListener("click", printPreview);
+  $("previewPrintButton").addEventListener("click", () => {
+    savePdfFile().catch((error) => {
+      console.error(error);
+      alert(`PDF保存に失敗しました。\n${error.message || error}`);
+    });
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && $("pdfPreview").classList.contains("is-open")) {
       closePrintPreview();

@@ -1,0 +1,141 @@
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+
+const root = __dirname;
+const projectRoot = path.resolve(root, "..", "..");
+const dropboxRoot = path.resolve(projectRoot, "..");
+const port = Number(process.argv[2] || process.env.PORT || 8766);
+
+const mimeTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".pdf": "application/pdf"
+};
+
+function isInside(parent, target) {
+  const relative = path.relative(parent, target);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function validatePayload(text) {
+  if (!text || !text.trim()) throw new Error("empty data");
+  const payload = JSON.parse(text);
+  const book = payload.book || payload;
+  if (!Array.isArray(book.estimates) || book.estimates.length === 0) {
+    throw new Error("estimate data not found");
+  }
+}
+
+async function readBody(request) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > 25 * 1024 * 1024) throw new Error("data too large");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function writeAtomic(filePath, content) {
+  await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+  try {
+    const current = await fs.promises.readFile(filePath, "utf8");
+    validatePayload(current);
+    await fs.promises.writeFile(`${filePath}.last-good`, current, "utf8");
+  } catch (error) {
+    // No valid previous data to back up.
+  }
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  await fs.promises.writeFile(tempPath, content, "utf8");
+  validatePayload(await fs.promises.readFile(tempPath, "utf8"));
+  try {
+    await fs.promises.rename(tempPath, filePath);
+  } catch (error) {
+    if (error.code !== "EACCES" && error.code !== "EPERM") throw error;
+    await fs.promises.copyFile(tempPath, filePath);
+    await fs.promises.unlink(tempPath).catch(() => {});
+  }
+}
+
+function send(response, status, body, contentType = "text/plain; charset=utf-8") {
+  response.writeHead(status, {
+    "Content-Type": contentType,
+    "Cache-Control": "no-store"
+  });
+  response.end(body);
+}
+
+async function handleSave(request, response) {
+  try {
+    const content = await readBody(request);
+    validatePayload(content);
+    const targets = [
+      path.join(root, "mitsumori_data.json"),
+      path.join(projectRoot, "data", "mitsumori_data.json"),
+      path.join(dropboxRoot, "mitsumori_data.json")
+    ];
+    for (const target of targets) {
+      if (!isInside(dropboxRoot, target)) throw new Error(`invalid target: ${target}`);
+      await writeAtomic(target, content);
+    }
+    send(response, 200, JSON.stringify({
+      ok: true,
+      fileName: "mitsumori_data.json",
+      savedAt: new Date().toISOString(),
+      targets
+    }), "application/json; charset=utf-8");
+  } catch (error) {
+    send(response, 500, `save failed: ${error.message}`);
+  }
+}
+
+async function serveStatic(request, response) {
+  const url = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
+  const decodedPath = decodeURIComponent(url.pathname);
+  const relativePath = decodedPath === "/" ? "index.html" : decodedPath.replace(/^\/+/, "");
+  const filePath = path.resolve(root, relativePath);
+  if (!isInside(root, filePath)) {
+    send(response, 403, "forbidden");
+    return;
+  }
+  try {
+    const stat = await fs.promises.stat(filePath);
+    if (!stat.isFile()) {
+      send(response, 404, "not found");
+      return;
+    }
+    response.writeHead(200, {
+      "Content-Type": mimeTypes[path.extname(filePath).toLowerCase()] || "application/octet-stream",
+      "Cache-Control": filePath.endsWith("index.html") ? "no-store" : "public, max-age=60"
+    });
+    fs.createReadStream(filePath).pipe(response);
+  } catch (error) {
+    send(response, 404, "not found");
+  }
+}
+
+const server = http.createServer((request, response) => {
+  if (request.method === "GET" && request.url === "/api/health") {
+    send(response, 200, JSON.stringify({ ok: true }), "application/json; charset=utf-8");
+    return;
+  }
+  if (request.method === "POST" && request.url === "/api/save-data") {
+    handleSave(request, response);
+    return;
+  }
+  if (request.method === "GET" || request.method === "HEAD") {
+    serveStatic(request, response);
+    return;
+  }
+  send(response, 405, "method not allowed");
+});
+
+server.listen(port, "127.0.0.1", () => {
+  console.log(`mitsumori save server: http://127.0.0.1:${port}/`);
+});

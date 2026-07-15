@@ -4,7 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>工事見積アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260715-concrete-price">
+  <script>
+    if (window.location.protocol === "file:") {
+      window.location.replace("http://127.0.0.1:8765/index.html");
+    }
+  </script>
+  <link rel="stylesheet" href="styles.css?v=20260715-save-server">
 </head>
 <body>
   <div class="app-shell">
@@ -143,6 +148,22 @@
               <button type="button" id="addItemButton">明細追加</button>
             </div>
           </div>
+          <section class="summary-inline" aria-label="見積合計">
+            <div class="summary-strip">
+              <h3>合計</h3>
+              <dl>
+                <div><dt>小計</dt><dd id="subtotalView">0円</dd></div>
+                <div><dt>共通仮設費</dt><dd id="commonTemporaryView">0円</dd></div>
+                <div><dt id="siteManagementLabel">現場管理費</dt><dd id="siteManagementView">0円</dd></div>
+                <div><dt id="generalManagementLabel">一般管理費</dt><dd id="generalManagementView">0円</dd></div>
+                <div><dt>値引き</dt><dd id="discountView">0円</dd></div>
+                <div><dt>課税対象</dt><dd id="taxableView">0円</dd></div>
+                <div><dt>消費税</dt><dd id="taxView">0円</dd></div>
+                <div><dt>坪単価</dt><dd id="tsuboUnitPriceView">-</dd></div>
+                <div class="total"><dt>税込合計</dt><dd id="totalView">0円</dd></div>
+              </dl>
+            </div>
+          </section>
           <div class="sheet-tools" id="sheetTools">
             <div class="sheet-tabs" id="sheetTabs" aria-label="工種シート"></div>
             <div class="sheet-name">
@@ -152,6 +173,18 @@
           </div>
           <div class="items-table-wrap">
             <table class="items-table" aria-label="見積明細">
+              <colgroup>
+                <col class="category-col">
+                <col class="name-col">
+                <col class="summary-col">
+                <col class="qty-col">
+                <col class="unit-col">
+                <col class="price-col">
+                <col class="amount-col">
+                <col class="print-remarks-col">
+                <col class="remarks-col">
+                <col class="actions-col">
+              </colgroup>
               <thead>
                 <tr>
                   <th>区分</th>
@@ -161,6 +194,7 @@
                   <th>単位</th>
                   <th>単価</th>
                   <th>金額</th>
+                  <th>印刷備考</th>
                   <th>備考</th>
                   <th>操作</th>
                 </tr>
@@ -174,30 +208,16 @@
           <h2>調整・備考</h2>
           <div class="form-grid totals-inputs">
             <label>消費税率（%）<input id="taxRate" type="number" min="0" step="0.1"></label>
+            <label>共通仮設費<input id="commonTemporaryCost" type="number" min="0" step="1"></label>
             <label>現場管理費（%）<input id="siteManagementRate" type="number" min="0" step="0.1"></label>
             <label>一般管理費（%）<input id="generalManagementRate" type="number" min="0" step="0.1"></label>
             <label>値引き<input id="discount" type="number" min="0" step="1"></label>
-            <label>NET表示額<input id="netAmount" type="number" min="0" step="1" placeholder="空欄なら税込合計"></label>
-            <label class="wide">備考<textarea id="notes" rows="4" placeholder="例: 仕様変更がある場合は別途お見積りいたします。"></textarea></label>
+            <label>NET表示額<input id="netAmount" type="number" min="0" step="1" placeholder="手入力。空欄なら税込合計"></label>
+            <label class="wide">備考<textarea id="notes" rows="4" placeholder="例: 社内メモや取り込み備考を残します。"></textarea></label>
           </div>
         </div>
       </section>
 
-      <aside class="summary" aria-label="見積合計">
-        <div class="summary-card">
-          <h2>合計</h2>
-          <dl>
-            <div><dt>小計</dt><dd id="subtotalView">0円</dd></div>
-            <div><dt id="siteManagementLabel">現場管理費</dt><dd id="siteManagementView">0円</dd></div>
-            <div><dt id="generalManagementLabel">一般管理費</dt><dd id="generalManagementView">0円</dd></div>
-            <div><dt>値引き</dt><dd id="discountView">0円</dd></div>
-            <div><dt>課税対象</dt><dd id="taxableView">0円</dd></div>
-            <div><dt>消費税</dt><dd id="taxView">0円</dd></div>
-            <div><dt>坪単価</dt><dd id="tsuboUnitPriceView">-</dd></div>
-            <div class="total"><dt>税込合計</dt><dd id="totalView">0円</dd></div>
-          </dl>
-        </div>
-      </aside>
     </main>
   </div>
 
@@ -211,12 +231,13 @@
       </div>
       <div class="preview-actions">
         <button type="button" id="previewCloseButton" class="ghost">閉じる</button>
-        <button type="button" id="previewPrintButton" class="primary">印刷 / PDF保存</button>
+        <button type="button" id="previewBrowserPrintButton" class="ghost">印刷</button>
+        <button type="button" id="previewPrintButton" class="primary">PDF保存</button>
       </div>
     </div>
     <div class="preview-pages" id="pdfPreviewPages"></div>
   </section>
 
-  <script src="app.js?v=20260715-concrete-price"></script>
+  <script src="app.js?v=20260715-manual-net-adjust"></script>
 </body>
 </html>

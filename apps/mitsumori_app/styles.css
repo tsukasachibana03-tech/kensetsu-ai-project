@@ -82,7 +82,7 @@ h2 {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   max-width: 1480px;
   margin: 0 auto;
@@ -94,8 +94,7 @@ h2 {
   gap: 14px;
 }
 
-.panel,
-.summary-card {
+.panel {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -323,11 +322,85 @@ textarea:focus {
   overflow-x: auto;
 }
 
+.summary-inline {
+  margin: 0 0 14px;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: #f7fbfb;
+}
+
+.summary-strip h3 {
+  margin: 0;
+  color: var(--brand-dark);
+  font-size: 16px;
+}
+
+.summary-strip dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.summary-strip div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 7px;
+}
+
+.summary-strip dt {
+  color: var(--muted);
+}
+
+.summary-strip dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.summary-strip .total {
+  align-items: baseline;
+  border-bottom: 0;
+  border-radius: 5px;
+  padding: 7px 9px;
+  background: #eef8f6;
+  color: var(--brand-dark);
+}
+
+.summary-strip .total dd {
+  font-size: 22px;
+}
+
 .items-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: calc(1480px + 2cm);
   border-collapse: collapse;
+  table-layout: fixed;
 }
+
+.items-table .category-col { width: 118px; }
+.items-table .name-col { width: 180px; }
+.items-table .summary-col { width: calc(240px + 2cm); }
+.items-table .qty-col { width: 86px; }
+.items-table .unit-col { width: 82px; }
+.items-table .price-col { width: 118px; }
+.items-table .amount-col { width: 118px; }
+.items-table .remarks-col,
+.items-table .print-remarks-col {
+  width: 180px;
+}
+.items-table .actions-col { width: 184px; }
 
 .items-table th,
 .items-table td {
@@ -355,6 +428,29 @@ textarea:focus {
 
 .items-table .small { width: 78px; }
 .items-table .money { width: 110px; }
+.items-table .qty-cell {
+  vertical-align: top;
+}
+
+.items-table .qty-formula {
+  display: none;
+  min-width: 220px;
+  margin-top: 6px;
+  padding: 7px 8px;
+  border: 1px solid #c6d7d4;
+  border-radius: 5px;
+  background: #f7fbfb;
+  color: var(--brand-dark);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  text-decoration: none;
+}
+
+.items-table .qty-cell.has-formula:focus-within .qty-formula {
+  display: block;
+}
+
 .items-table .line-amount {
   min-width: 104px;
   color: var(--ink);
@@ -427,46 +523,6 @@ textarea:focus {
 .remove-button {
   border-color: #e0c6be;
   color: var(--accent);
-}
-
-.summary {
-  position: sticky;
-  top: 18px;
-}
-
-.summary-card dl {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-}
-
-.summary-card div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 9px;
-}
-
-.summary-card dt {
-  color: var(--muted);
-}
-
-.summary-card dd {
-  margin: 0;
-  font-weight: 700;
-  text-align: right;
-}
-
-.summary-card .total {
-  align-items: baseline;
-  border-bottom: 0;
-  color: var(--brand-dark);
-  padding-top: 8px;
-}
-
-.summary-card .total dd {
-  font-size: 25px;
 }
 
 .print-area {
@@ -616,13 +672,13 @@ textarea:focus {
   font-weight: 700;
 }
 
-.detail-table th:nth-child(1) { width: 42mm; }
-.detail-table th:nth-child(2) { width: 36mm; }
-.detail-table th:nth-child(3) { width: 18mm; }
-.detail-table th:nth-child(4) { width: 12mm; }
-.detail-table th:nth-child(5) { width: 22mm; }
-.detail-table th:nth-child(6) { width: 28mm; }
-.detail-table th:nth-child(7) { width: 22mm; }
+.detail-table th:nth-child(1) { width: 34mm; }
+.detail-table th:nth-child(2) { width: 56mm; }
+.detail-table th:nth-child(3) { width: 16mm; }
+.detail-table th:nth-child(4) { width: 11mm; }
+.detail-table th:nth-child(5) { width: 20mm; }
+.detail-table th:nth-child(6) { width: 25mm; }
+.detail-table th:nth-child(7) { width: 18mm; }
 
 .detail-table .num {
   text-align: right;
@@ -758,7 +814,12 @@ textarea:focus {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .summary { position: static; }
+  .summary-strip {
+    grid-template-columns: 1fr;
+  }
+  .summary-strip dl {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
   .form-grid { grid-template-columns: 1fr; }
   .project-controls { grid-template-columns: 1fr; }
   .import-controls { grid-template-columns: 1fr; }
