@@ -110,17 +110,6 @@
             <button class="opening-trade-button" type="button" data-opening-trade="木建具">木建具を拾う</button>
             <button class="opening-trade-button" type="button" data-opening-trade="金属製建具">金属製建具を拾う</button>
           </div>
-          <div class="floor-room-grid">
-            <label>階数<input id="floorInput" type="text" value="1階"></label>
-            <label class="room-field">部屋・範囲
-              <div class="room-picker">
-                <input id="roomInput" type="text" value="LDK" autocomplete="off">
-                <button id="roomMenuButton" class="room-menu-button" type="button" aria-label="部屋を選択">▼</button>
-              </div>
-              <div id="roomMenu" class="room-menu" hidden></div>
-            </label>
-          </div>
-          <p id="roomStatus" class="status room-status">部屋設定未登録</p>
           <div class="finish-schedule">
             <div class="finish-schedule-head">
               <div class="finish-table-tabs" role="tablist" aria-label="仕上げ表の種類">
@@ -129,6 +118,17 @@
               </div>
             </div>
             <div id="internalFinishPanel" class="finish-table-panel" role="tabpanel" aria-labelledby="internalFinishTab">
+              <div class="floor-room-grid">
+                <label>階数<input id="floorInput" type="text" value="1階"></label>
+                <label class="room-field">部屋・範囲
+                  <div class="room-picker">
+                    <input id="roomInput" type="text" value="LDK" autocomplete="off">
+                    <button id="roomMenuButton" class="room-menu-button" type="button" aria-label="部屋を選択">▼</button>
+                  </div>
+                  <div id="roomMenu" class="room-menu" hidden></div>
+                </label>
+              </div>
+              <p id="roomStatus" class="status room-status">部屋設定未登録</p>
               <label class="finish-choice-field"><span>床仕上</span>
                 <div class="finish-picker">
                   <input id="floorFinishInput" type="text" placeholder="PDF候補から選択 / 例: フローリング / タイル" autocomplete="off" role="combobox" aria-controls="floorFinishMenu" aria-expanded="false">
