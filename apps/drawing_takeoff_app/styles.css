@@ -143,6 +143,12 @@ h2 { font-size: 17px; }
   padding: 14px;
 }
 
+.drawing-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .project-panel {
   border-color: rgba(23, 105, 111, 0.28);
 }
@@ -207,6 +213,34 @@ label span {
 .drawing-list {
   display: grid;
   gap: 6px;
+}
+
+.drawing-list-scroll {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: clamp(320px, 48vh, 440px);
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.drawing-scale-settings {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+
+.drawing-list-scroll .drawing-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .drawing-list button {
