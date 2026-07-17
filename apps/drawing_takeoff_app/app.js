@@ -41,6 +41,8 @@ const els = {
   roomInput: document.getElementById("roomInput"),
   roomMenuButton: document.getElementById("roomMenuButton"),
   roomMenu: document.getElementById("roomMenu"),
+  saveRoomContentButton: document.getElementById("saveRoomContentButton"),
+  registeredRoomSelect: document.getElementById("registeredRoomSelect"),
   roomStatus: document.getElementById("roomStatus"),
   internalFinishTab: document.getElementById("internalFinishTab"),
   externalFinishTab: document.getElementById("externalFinishTab"),
@@ -807,6 +809,7 @@ function normalizeRoomSetting(setting) {
     lastAreaM2: optionalNumber(setting.lastAreaM2),
     lastPerimeterM: optionalNumber(setting.lastPerimeterM),
     lastLineM: optionalNumber(setting.lastLineM),
+    ...(setting.contentRegistered === true ? { contentRegistered: true } : {}),
     updatedAt: finiteNumber(setting.updatedAt, Date.now())
   };
 }
@@ -841,6 +844,41 @@ function roomSettingSummary(setting) {
   return parts.join(" / ") || "設定なし";
 }
 
+function registeredRoomContentEntries() {
+  return roomSettings
+    .filter((setting) => setting.contentRegistered)
+    .sort(compareRoomSettings);
+}
+
+function syncRegisteredRoomSelection() {
+  if (!els.registeredRoomSelect) return;
+  const currentKey = finishTableLocation()?.key || "";
+  const hasCurrentRoom = Array.from(els.registeredRoomSelect.options)
+    .some((option) => option.value === currentKey);
+  els.registeredRoomSelect.value = hasCurrentRoom ? currentKey : "";
+}
+
+function renderRegisteredRoomSelect(options = {}) {
+  if (!els.registeredRoomSelect) return;
+  const selectedKey = options.selectedKey ?? finishTableLocation()?.key ?? "";
+  const entries = registeredRoomContentEntries();
+  els.registeredRoomSelect.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "階数・部屋を選択";
+  els.registeredRoomSelect.appendChild(placeholder);
+  entries.forEach((setting) => {
+    const option = document.createElement("option");
+    option.value = setting.key;
+    option.textContent = `${setting.floor} / ${setting.room}`;
+    els.registeredRoomSelect.appendChild(option);
+  });
+  els.registeredRoomSelect.disabled = entries.length === 0;
+  els.registeredRoomSelect.value = entries.some((setting) => setting.key === selectedKey)
+    ? selectedKey
+    : "";
+}
+
 function findRoomSetting(floor = els.floorInput.value, room = els.roomInput.value) {
   const key = roomSettingKey(floor, room);
   return roomSettings.find((setting) => setting.key === key) || null;
@@ -850,12 +888,14 @@ function updateRoomStatus() {
   const room = normalizeRoomText(els.roomInput.value);
   if (!room) {
     els.roomStatus.textContent = "部屋設定未登録";
+    syncRegisteredRoomSelection();
     return;
   }
   const setting = findRoomSetting();
   els.roomStatus.textContent = setting
-    ? `登録済み: ${roomSettingSummary(setting)}`
+    ? `${setting.contentRegistered ? "内容登録済み" : "部屋設定登録済み"}: ${roomSettingSummary(setting)}`
     : "部屋設定未登録";
+  syncRegisteredRoomSelection();
 }
 
 function upsertRoomSetting(setting, options = {}) {
@@ -892,6 +932,28 @@ function saveRoomSettingFromInputs(options = {}) {
 function autoSaveCurrentRoomSetting() {
   if (!currentRoomSetting()) return;
   saveRoomSettingFromInputs({ silent: true, keepOpen: true });
+}
+
+function saveCurrentRoomContent() {
+  if (!finishTableLocation()) {
+    setHint("階数と部屋・範囲を入力してください。");
+    updateRoomStatus();
+    return;
+  }
+  applyMatchingRoomSetting();
+  saveActiveFinishTable();
+  const setting = upsertRoomSetting({ ...currentRoomSetting(), contentRegistered: true }, { persist: false });
+  if (!setting) return;
+  renderRegisteredRoomSelect({ selectedKey: setting.key });
+  saveQuietly();
+  setHint(`「${setting.floor} ${setting.room}」の内容を登録しました。登録済みの内容からいつでも呼び出せます。`);
+}
+
+function loadRegisteredRoomContent(key) {
+  const setting = registeredRoomContentEntries().find((candidate) => candidate.key === key);
+  if (!setting) return;
+  applyRoomSetting(setting);
+  renderRegisteredRoomSelect({ selectedKey: setting.key });
 }
 
 function applyRoomSetting(setting, options = {}) {
@@ -2115,6 +2177,7 @@ function applyAppState(data = {}) {
   els.pdfControls.hidden = true;
   updateScaleStatus();
   updateRoomStatus();
+  renderRegisteredRoomSelect();
   refreshRoomSuggestions();
   refreshMaterialSuggestions();
   renderRecords();
@@ -3993,6 +4056,7 @@ function replaceProjectStateBeforeImport() {
   applyFinishSchedule({});
   applyExternalFinishSchedule({});
   setActiveFinishTab("internal", { persist: false });
+  renderRegisteredRoomSelect();
   tempPoints = [];
   scaleCheckResult = null;
   updateRoomStatus();
@@ -4382,6 +4446,10 @@ els.roomMenuButton.addEventListener("click", (event) => {
   event.stopPropagation();
   toggleRoomMenu({ search: false });
 });
+els.saveRoomContentButton.addEventListener("click", saveCurrentRoomContent);
+els.registeredRoomSelect.addEventListener("change", () => {
+  if (els.registeredRoomSelect.value) loadRegisteredRoomContent(els.registeredRoomSelect.value);
+});
 els.floorInput.addEventListener("input", () => {
   updateRoomStatus();
   roomMenuSearchEnabled = true;
@@ -4486,6 +4554,7 @@ resizeMaterialInput();
 loadSaved();
 loadFinishTableForCurrentRoom();
 updateRoomStatus();
+renderRegisteredRoomSelect();
 renderDrawing();
 loadProjectFromQuery();
 updateOpeningTradeButtons();
