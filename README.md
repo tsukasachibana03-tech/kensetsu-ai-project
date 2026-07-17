@@ -2,6 +2,31 @@
 
 このリポジトリは、建設会社の業務にAIを活用するためのプロジェクトです。
 
+## 見積アプリ
+
+ブラウザで使える見積アプリを追加しました。
+
+- アプリ本体: `index.html`
+- Windows / Mac どちらでも利用可能
+- 見積明細の入力、消費税計算、印刷 / PDF保存、データの書き出し・読み込みに対応
+
+### Mac PC と共有して使う方法
+
+GitHub Pages を有効にすると、Mac の Safari や Chrome から次のURLで開けます。
+
+https://tsukasachibana03-tech.github.io/kensetsu-ai-project/
+
+GitHub Pages の設定手順:
+
+1. GitHubでこのリポジトリを開く
+2. `Settings` を開く
+3. 左側の `Pages` を開く
+4. `Build and deployment` の `Source` を `Deploy from a branch` にする
+5. `Branch` を `main`、フォルダを `/ (root)` にして `Save`
+6. 数分後に上のURLをMacで開く
+
+リポジトリがPrivateの場合、GitHub Pagesの利用条件や公開範囲はGitHubアカウントのプラン設定に左右されます。URLで誰でも開けるようにしたい場合は、リポジトリをPublicにするか、別の公開方法を使います。
+
 ## 目的
 
 建設現場や社内業務で発生する情報整理、書類作成、見積もり補助、問い合わせ対応などをAIで効率化することを目指します。
