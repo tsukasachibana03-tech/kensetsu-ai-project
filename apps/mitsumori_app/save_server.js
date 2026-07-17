@@ -9,14 +9,17 @@ const execFileAsync = promisify(execFile);
 const root = __dirname;
 const projectRoot = path.resolve(root, "..", "..");
 const dropboxRoot = path.resolve(projectRoot, "..");
+const dropboxDataPath = path.join(dropboxRoot, "mitsumori_data.json");
 const port = Number(process.argv[2] || process.env.PORT || 8766);
 const gitExecutable = process.env.GIT_EXE || "git";
 const gitSyncBranch = process.env.GITHUB_SYNC_BRANCH || "main";
-const gitSyncPaths = [
+const gitSyncPathspecs = [
   "apps/mitsumori_app",
-  "data/mitsumori_data.json",
   "index.html",
-  "README.md"
+  "README.md",
+  ":(exclude)apps/mitsumori_app/mitsumori_data.json",
+  ":(exclude)data/mitsumori_data.json",
+  ":(exclude)mitsumori_data.json"
 ];
 
 const mimeTypes = {
@@ -85,7 +88,7 @@ async function runGit(args) {
   return `${result.stdout || ""}${result.stderr || ""}`.trim();
 }
 
-async function syncToGitHub() {
+async function syncAppToGitHub() {
   if (process.env.DISABLE_GITHUB_SYNC === "1") {
     return { ok: true, skipped: true, reason: "disabled" };
   }
@@ -99,13 +102,13 @@ async function syncToGitHub() {
     };
   }
 
-  const status = await runGit(["status", "--porcelain", "--", ...gitSyncPaths]);
+  const status = await runGit(["status", "--porcelain", "--", ...gitSyncPathspecs]);
   if (!status) {
-    return { ok: true, skipped: true, reason: "no changes" };
+    return { ok: true, skipped: true, reason: "no app changes" };
   }
 
-  await runGit(["add", "--", ...gitSyncPaths]);
-  await runGit(["commit", "-m", "Save latest estimate app data"]);
+  await runGit(["add", "--", ...gitSyncPathspecs]);
+  await runGit(["commit", "-m", "Save latest estimate app"]);
   await runGit(["push", "origin", `HEAD:${gitSyncBranch}`]);
   return { ok: true, skipped: false, branch: gitSyncBranch };
 }
@@ -122,11 +125,7 @@ async function handleSave(request, response) {
   try {
     const content = await readBody(request);
     validatePayload(content);
-    const targets = [
-      path.join(root, "mitsumori_data.json"),
-      path.join(projectRoot, "data", "mitsumori_data.json"),
-      path.join(dropboxRoot, "mitsumori_data.json")
-    ];
+    const targets = [dropboxDataPath];
     for (const target of targets) {
       if (!isInside(dropboxRoot, target)) throw new Error(`invalid target: ${target}`);
       await writeAtomic(target, content);
@@ -134,10 +133,10 @@ async function handleSave(request, response) {
 
     let githubSync;
     try {
-      githubSync = await syncToGitHub();
+      githubSync = await syncAppToGitHub();
     } catch (error) {
       githubSync = { ok: false, error: error.message };
-      console.error(`GitHub sync failed: ${error.message}`);
+      console.error(`GitHub app sync failed: ${error.message}`);
     }
 
     send(response, 200, JSON.stringify({
@@ -149,6 +148,16 @@ async function handleSave(request, response) {
     }), "application/json; charset=utf-8");
   } catch (error) {
     send(response, 500, `save failed: ${error.message}`);
+  }
+}
+
+async function handleLatestData(response) {
+  try {
+    const content = await fs.promises.readFile(dropboxDataPath, "utf8");
+    validatePayload(content);
+    send(response, 200, content, "application/json; charset=utf-8");
+  } catch (error) {
+    send(response, 404, `latest data not found: ${error.message}`);
   }
 }
 
@@ -180,6 +189,10 @@ async function serveStatic(request, response) {
 const server = http.createServer((request, response) => {
   if (request.method === "GET" && request.url === "/api/health") {
     send(response, 200, JSON.stringify({ ok: true }), "application/json; charset=utf-8");
+    return;
+  }
+  if (request.method === "GET" && request.url === "/api/latest-data") {
+    handleLatestData(response);
     return;
   }
   if (request.method === "POST" && request.url === "/api/save-data") {
