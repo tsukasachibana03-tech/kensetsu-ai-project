@@ -386,6 +386,18 @@ select:focus {
   align-items: start;
 }
 
+.room-registration {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.room-registration > button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
 .finish-schedule {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1021,6 +1033,7 @@ tbody tr.selected td {
   }
 
   .floor-room-grid,
+  .room-registration,
   .deduct-actions,
   .three-cols {
     grid-template-columns: 1fr;
