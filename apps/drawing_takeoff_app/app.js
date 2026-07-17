@@ -84,7 +84,6 @@ const els = {
   traceDeductAreaButton: document.getElementById("traceDeductAreaButton"),
   memoInput: document.getElementById("memoInput"),
   finishPolyButton: document.getElementById("finishPolyButton"),
-  undoButton: document.getElementById("undoButton"),
   clearTempButton: document.getElementById("clearTempButton"),
   deleteSelectedButton: document.getElementById("deleteSelectedButton"),
   saveProjectButton: document.getElementById("saveProjectButton"),
@@ -4512,16 +4511,6 @@ els.clearTempButton.addEventListener("click", () => {
   scaleCheckResult = null;
   mode = "draw";
   updateDeductionTraceButtons();
-  renderRecords();
-  drawOverlay();
-});
-els.undoButton.addEventListener("click", () => {
-  if (tempPoints.length) tempPoints.pop();
-  else {
-    const removed = records.pop();
-    applyDeductionRecordDelta(removed, -1);
-  }
-  saveQuietly();
   renderRecords();
   drawOverlay();
 });
