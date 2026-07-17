@@ -410,6 +410,30 @@ select:focus {
   min-width: 0;
 }
 
+.finish-group {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #d8e3e5;
+}
+
+.finish-group:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.finish-group-title {
+  color: var(--brand-dark);
+  font-size: 13px;
+}
+
+.finish-subgroup-title {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .finish-schedule-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
