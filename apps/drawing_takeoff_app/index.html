@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>図面積算アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260718-floor-and-shared-substrate-1">
+  <link rel="stylesheet" href="styles.css?v=20260718-drawing-list-scale-sticky-2">
 </head>
 <body>
   <div class="app">
@@ -41,14 +41,13 @@
           <p id="projectStatus" class="status">現場ごとに図面と拾い明細を保存できます。</p>
         </section>
 
-        <section class="panel">
+        <section class="panel drawing-panel">
           <h2>図面</h2>
           <label class="file-drop" id="drawingDrop">
             <input id="drawingInput" type="file" accept="application/pdf,image/*" multiple>
             <strong>PDF / 画像を選択</strong>
             <span>複数ファイルもドロップできます</span>
           </label>
-          <div class="drawing-list" id="drawingList" hidden></div>
           <button id="removeDrawingButton" class="danger-button" type="button" disabled>表示中の図面を取消</button>
           <div class="pdf-controls" id="pdfControls" hidden>
             <button id="prevPageButton" type="button">前</button>
@@ -61,25 +60,27 @@
             <button id="zoomInButton" type="button">+</button>
             <button id="fitButton" type="button">全体</button>
           </div>
-        </section>
-
-        <section class="panel">
-          <h2>縮尺</h2>
-          <div class="scale-actions">
-            <button id="calibrateButton" class="wide-button" type="button">この図面の縮尺を2点で設定</button>
-            <button id="scaleCheckButton" type="button">なぞって縮尺チェック</button>
-          </div>
-          <label>実寸
-            <div class="inline-input">
-              <input id="scaleLengthInput" type="number" min="0.001" step="1" value="1000">
-              <select id="scaleUnitInput" class="unit-select" aria-label="縮尺単位">
-                <option value="mm" selected>mm</option>
-                <option value="m">m</option>
-              </select>
+          <div class="drawing-list-scroll">
+            <div class="drawing-list" id="drawingList" hidden></div>
+            <div class="drawing-scale-settings" aria-label="縮尺設定">
+            <h2>縮尺</h2>
+            <div class="scale-actions">
+              <button id="calibrateButton" class="wide-button" type="button">この図面の縮尺を2点で設定</button>
+              <button id="scaleCheckButton" type="button">なぞって縮尺チェック</button>
             </div>
-          </label>
-          <p id="scaleStatus" class="status">縮尺未設定</p>
-          <p id="scaleCheckStatus" class="status scale-check-status">縮尺チェック未実施</p>
+            <label>実寸
+              <div class="inline-input">
+                <input id="scaleLengthInput" type="number" min="0.001" step="1" value="1000">
+                <select id="scaleUnitInput" class="unit-select" aria-label="縮尺単位">
+                  <option value="mm" selected>mm</option>
+                  <option value="m">m</option>
+                </select>
+              </div>
+            </label>
+            <p id="scaleStatus" class="status">縮尺未設定</p>
+              <p id="scaleCheckStatus" class="status scale-check-status">縮尺チェック未実施</p>
+            </div>
+          </div>
         </section>
 
         <section class="panel">
