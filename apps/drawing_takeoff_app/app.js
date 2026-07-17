@@ -58,14 +58,10 @@ const els = {
   wallFinishInput: document.getElementById("wallFinishInput"),
   wallFinishMenuButton: document.getElementById("wallFinishMenuButton"),
   wallFinishMenu: document.getElementById("wallFinishMenu"),
-  wallTypeSummaryInput: document.getElementById("wallTypeSummaryInput"),
-  wallSubstrateSummaryInput: document.getElementById("wallSubstrateSummaryInput"),
-  wainscotSummaryInput: document.getElementById("wainscotSummaryInput"),
   ceilingFinishSummaryInput: document.getElementById("ceilingFinishSummaryInput"),
   ceilingFinishInput: document.getElementById("ceilingFinishInput"),
   ceilingFinishMenuButton: document.getElementById("ceilingFinishMenuButton"),
   ceilingFinishMenu: document.getElementById("ceilingFinishMenu"),
-  ceilingSubstrateSummaryInput: document.getElementById("ceilingSubstrateSummaryInput"),
   ceilingTrimSummaryInput: document.getElementById("ceilingTrimSummaryInput"),
   wallTypeInput: document.getElementById("wallTypeInput"),
   wallSubstrateInput: document.getElementById("wallSubstrateInput"),
@@ -169,20 +165,52 @@ const externalFinishCategories = [
 
 const internalFinishItems = [
   { key: "floor", label: "床仕上" },
+  { key: "floorSubstrate", label: "床下地" },
   { key: "baseboard", label: "巾木" },
-  { key: "wall", label: "壁仕上" },
+  { key: "wall", label: "外壁側壁 仕上" },
+  { key: "wallSubstrate", label: "外壁側壁 下地" },
+  { key: "partitionWall", label: "間仕切壁 仕上" },
+  { key: "partitionWallSubstrate", label: "間仕切壁 下地" },
+  { key: "plywoodReinforcement", label: "ベニヤ補強" },
+  { key: "exteriorWainscotUpperFinish", label: "外壁側壁 腰上仕上" },
+  { key: "exteriorWainscotUpperSubstrate", label: "外壁側壁 腰上下地" },
+  { key: "exteriorWainscotLowerFinish", label: "外壁側壁 腰下仕上" },
+  { key: "exteriorWainscotLowerSubstrate", label: "外壁側壁 腰下下地" },
+  { key: "partitionWainscotUpperFinish", label: "間仕切壁 腰上仕上" },
+  { key: "partitionWainscotUpperSubstrate", label: "間仕切壁 腰上下地" },
+  { key: "partitionWainscotLowerFinish", label: "間仕切壁 腰下仕上" },
+  { key: "partitionWainscotLowerSubstrate", label: "間仕切壁 腰下下地" },
   { key: "ceiling", label: "天井仕上" },
+  { key: "ceilingSubstrate", label: "天井下地" },
   { key: "ceilingTrim", label: "廻り縁" }
 ];
 
 const finishFormulaValues = ["floor", "perimeter", "wall", "count"];
 const internalFinishFormulaDefaults = {
   floor: "floor",
+  floorSubstrate: "floor",
   baseboard: "perimeter",
   wall: "wall",
+  wallSubstrate: "wall",
+  partitionWall: "wall",
+  partitionWallSubstrate: "wall",
+  plywoodReinforcement: "floor",
+  exteriorWainscotUpperFinish: "wall",
+  exteriorWainscotUpperSubstrate: "wall",
+  exteriorWainscotLowerFinish: "wall",
+  exteriorWainscotLowerSubstrate: "wall",
+  partitionWainscotUpperFinish: "wall",
+  partitionWainscotUpperSubstrate: "wall",
+  partitionWainscotLowerFinish: "wall",
+  partitionWainscotLowerSubstrate: "wall",
   ceiling: "floor",
+  ceilingSubstrate: "floor",
   ceilingTrim: "perimeter"
 };
+const sharedFinishFormulaGroups = [
+  ["floor", "floorSubstrate"],
+  ["ceiling", "ceilingSubstrate"]
+];
 const finishFormulaOptionLabels = {
   floor: "面積",
   perimeter: "長さ",
@@ -1256,15 +1284,16 @@ function directFinishCandidateValues() {
   const finishSchedule = currentFinishSchedule();
   const externalFinishSchedule = currentExternalFinishSchedule();
   const externalValues = Object.values(externalFinishSchedule).flatMap((rows) => rows.flatMap((row) => [row.finish, row.summary]));
+  const internalValues = Object.entries(finishSchedule.materials || {})
+    .filter(([key]) => !["baseboard", "ceilingTrim"].includes(key))
+    .map(([, value]) => value);
   const values = [
-    finishSchedule.floor,
-    finishSchedule.wall,
-    finishSchedule.ceiling,
+    ...internalValues,
     ...(finishSchedule.hardware || []).map((item) => item.name),
     ...Object.values(finishSchedule.itemSummaries || {}),
     ...externalValues
   ];
-  [finishSchedule.baseboard, finishSchedule.ceilingTrim].forEach((trim) => {
+  [finishSchedule.materials?.baseboard, finishSchedule.materials?.ceilingTrim].forEach((trim) => {
     const normalized = trimSettingValue(trim);
     if (!["no", "yes"].includes(normalized)) values.push(normalized);
   });
@@ -1434,44 +1463,103 @@ function closeMaterialMenu() {
 function finishPickerConfigs() {
   return [
     {
+      key: "floor",
       label: "床仕上",
-      input: els.floorFinishInput,
-      button: els.floorFinishMenuButton,
-      menu: els.floorFinishMenu,
+      input: internalFinishInput("floor"),
+      button: document.getElementById("floorFinishMenuButton"),
+      menu: document.getElementById("floorFinishMenu"),
       match: /床|フローリング|タイル|シート|CF|長尺|塩ビ|カーペット|畳|モルタル|コンクリート|仕上/,
       sourceMeta: "PDFから読み取った床仕上候補"
     },
     {
+      key: "baseboard",
       label: "巾木",
-      input: els.baseboardInput,
-      button: els.baseboardMenuButton,
-      menu: els.baseboardMenu,
+      input: internalFinishInput("baseboard"),
+      button: document.getElementById("baseboardMenuButton"),
+      menu: document.getElementById("baseboardMenu"),
       allowNone: true,
       match: /巾木|幅木|HABAKI|BASEBOARD/,
       restrictToMatch: true,
       sourceMeta: "PDF読取候補・入力履歴"
     },
     {
-      label: "壁仕上",
-      input: els.wallFinishInput,
-      button: els.wallFinishMenuButton,
-      menu: els.wallFinishMenu,
+      key: "wall",
+      label: "外壁側壁 仕上",
+      input: internalFinishInput("wall"),
+      button: document.getElementById("wallFinishMenuButton"),
+      menu: document.getElementById("wallFinishMenu"),
       match: /壁|内壁|外壁|クロス|ビニール|塗装|タイル|モルタル|シート|パネル|ボード|PB|石膏|珪酸|ケイカル|合板|化粧|仕上/,
       sourceMeta: "PDFから読み取った壁仕上候補"
     },
     {
+      key: "partitionWall",
+      label: "間仕切壁 仕上",
+      input: internalFinishInput("partitionWall"),
+      button: document.getElementById("partitionWallFinishMenuButton"),
+      menu: document.getElementById("partitionWallFinishMenu"),
+      match: /壁|内壁|クロス|ビニール|塗装|タイル|モルタル|シート|パネル|ボード|PB|石膏|珪酸|ケイカル|合板|化粧|仕上/,
+      sourceMeta: "PDF読取候補・入力履歴"
+    },
+    {
+      key: "plywoodReinforcement",
+      label: "ベニヤ補強",
+      input: internalFinishInput("plywoodReinforcement"),
+      button: document.getElementById("plywoodReinforcementMenuButton"),
+      menu: document.getElementById("plywoodReinforcementMenu"),
+      match: /ベニヤ|合板|構造用|補強|板/,
+      sourceMeta: "PDF読取候補・入力履歴"
+    },
+    {
+      key: "exteriorWainscotUpperFinish",
+      label: "外壁側壁 腰上仕上",
+      input: internalFinishInput("exteriorWainscotUpperFinish"),
+      button: document.getElementById("exteriorWainscotUpperFinishMenuButton"),
+      menu: document.getElementById("exteriorWainscotUpperFinishMenu"),
+      match: /壁|腰|クロス|ビニール|塗装|タイル|モルタル|シート|パネル|ボード|仕上/,
+      sourceMeta: "PDF読取候補・入力履歴"
+    },
+    {
+      key: "exteriorWainscotLowerFinish",
+      label: "外壁側壁 腰下仕上",
+      input: internalFinishInput("exteriorWainscotLowerFinish"),
+      button: document.getElementById("exteriorWainscotLowerFinishMenuButton"),
+      menu: document.getElementById("exteriorWainscotLowerFinishMenu"),
+      match: /壁|腰|クロス|ビニール|塗装|タイル|モルタル|シート|パネル|ボード|仕上/,
+      sourceMeta: "PDF読取候補・入力履歴"
+    },
+    {
+      key: "partitionWainscotUpperFinish",
+      label: "間仕切壁 腰上仕上",
+      input: internalFinishInput("partitionWainscotUpperFinish"),
+      button: document.getElementById("partitionWainscotUpperFinishMenuButton"),
+      menu: document.getElementById("partitionWainscotUpperFinishMenu"),
+      match: /壁|腰|クロス|ビニール|塗装|タイル|モルタル|シート|パネル|ボード|仕上/,
+      sourceMeta: "PDF読取候補・入力履歴"
+    },
+    {
+      key: "partitionWainscotLowerFinish",
+      label: "間仕切壁 腰下仕上",
+      input: internalFinishInput("partitionWainscotLowerFinish"),
+      button: document.getElementById("partitionWainscotLowerFinishMenuButton"),
+      menu: document.getElementById("partitionWainscotLowerFinishMenu"),
+      match: /壁|腰|クロス|ビニール|塗装|タイル|モルタル|シート|パネル|ボード|仕上/,
+      sourceMeta: "PDF読取候補・入力履歴"
+    },
+    {
+      key: "ceiling",
       label: "天井仕上",
-      input: els.ceilingFinishInput,
-      button: els.ceilingFinishMenuButton,
-      menu: els.ceilingFinishMenu,
+      input: internalFinishInput("ceiling"),
+      button: document.getElementById("ceilingFinishMenuButton"),
+      menu: document.getElementById("ceilingFinishMenu"),
       match: /天井|クロス|ビニール|塗装|岩綿|吸音|ロックウール|ジプトーン|ボード|PB|石膏|珪酸|ケイカル|化粧|仕上/,
       sourceMeta: "PDFから読み取った天井仕上候補"
     },
     {
+      key: "ceilingTrim",
       label: "廻り縁",
-      input: els.ceilingTrimInput,
-      button: els.ceilingTrimMenuButton,
-      menu: els.ceilingTrimMenu,
+      input: internalFinishInput("ceilingTrim"),
+      button: document.getElementById("ceilingTrimMenuButton"),
+      menu: document.getElementById("ceilingTrimMenu"),
       allowNone: true,
       match: /廻り縁|廻縁|回り縁|回縁|廻りブチ|回りブチ|MOLDING|CEILINGTRIM/,
       restrictToMatch: true,
@@ -2425,6 +2513,17 @@ function setSelectValue(select, value) {
   select.value = text;
 }
 
+function normalizeWallSubstrateValue(value, options = {}) {
+  const text = String(value || "").trim();
+  const aliases = {
+    "LGS下地＋石膏ボード": "軽鉄下地",
+    "木下地＋石膏ボード": "木下地"
+  };
+  const normalized = aliases[text] || text;
+  if (options.partition && normalized === "GL工法") return "";
+  return normalized;
+}
+
 function currentSubstrateSettings() {
   return {
     wallType: (els.wallTypeInput?.value || "").trim(),
@@ -2437,7 +2536,7 @@ function applySubstrateSettings(settings = {}) {
   const wallType = String(settings.wallType || "").trim();
   setSelectValue(els.wallTypeInput, wallType);
   if (els.wallTypeInput) els.wallTypeInput.dataset.previousValue = wallType;
-  setSelectValue(els.wallSubstrateInput, String(settings.wallSubstrate || "").trim());
+  setSelectValue(els.wallSubstrateInput, normalizeWallSubstrateValue(settings.wallSubstrate));
   setSelectValue(els.ceilingSubstrateInput, String(settings.ceilingSubstrate || "").trim());
 }
 
@@ -2459,11 +2558,7 @@ function finishSummaryInputs() {
     floor: els.floorFinishSummaryInput,
     baseboard: els.baseboardSummaryInput,
     wall: els.wallFinishSummaryInput,
-    wallType: els.wallTypeSummaryInput,
-    wallSubstrate: els.wallSubstrateSummaryInput,
-    wainscot: els.wainscotSummaryInput,
     ceiling: els.ceilingFinishSummaryInput,
-    ceilingSubstrate: els.ceilingSubstrateSummaryInput,
     ceilingTrim: els.ceilingTrimSummaryInput
   };
 }
@@ -2497,6 +2592,52 @@ function internalFinishFormulaInput(key) {
   return document.querySelector(`[data-internal-finish-formula="${key}"]`);
 }
 
+function internalFinishInput(key) {
+  return document.querySelector(`[data-internal-finish-key="${key}"]`);
+}
+
+function internalFinishValue(key) {
+  const value = String(internalFinishInput(key)?.value || "").trim();
+  return ["baseboard", "ceilingTrim"].includes(key) ? trimSettingValue(value) : value;
+}
+
+function currentInternalFinishMaterials() {
+  return Object.fromEntries(internalFinishItems.map(({ key }) => [key, internalFinishValue(key)]));
+}
+
+function normalizeInternalFinishMaterials(values = {}, schedule = {}) {
+  const legacy = {
+    floor: schedule.floor,
+    baseboard: schedule.baseboard,
+    wall: schedule.wall,
+    wallSubstrate: schedule.wallSubstrate ?? els.wallSubstrateInput?.value,
+    ceiling: schedule.ceiling,
+    ceilingTrim: schedule.ceilingTrim,
+    ceilingSubstrate: schedule.ceilingSubstrate ?? els.ceilingSubstrateInput?.value
+  };
+  return Object.fromEntries(internalFinishItems.map(({ key }) => {
+    const raw = values?.[key] ?? legacy[key] ?? "";
+    if (["baseboard", "ceilingTrim"].includes(key)) return [key, trimSettingValue(raw)];
+    if (["wallSubstrate", "exteriorWainscotUpperSubstrate", "exteriorWainscotLowerSubstrate"].includes(key)) {
+      return [key, normalizeWallSubstrateValue(raw)];
+    }
+    if (["partitionWallSubstrate", "partitionWainscotUpperSubstrate", "partitionWainscotLowerSubstrate"].includes(key)) {
+      return [key, normalizeWallSubstrateValue(raw, { partition: true })];
+    }
+    return [key, String(raw || "").trim()];
+  }));
+}
+
+function applyInternalFinishMaterials(materials = {}) {
+  internalFinishItems.forEach(({ key }) => {
+    const input = internalFinishInput(key);
+    if (!input) return;
+    const value = materials[key] || "";
+    if (input.tagName === "SELECT") setSelectValue(input, value);
+    else input.value = ["baseboard", "ceilingTrim"].includes(key) ? displayTrimInputValue(value) : value;
+  });
+}
+
 function currentInternalFinishFormulas() {
   return Object.fromEntries(internalFinishItems.map(({ key }) => [
     key,
@@ -2517,6 +2658,7 @@ function applyInternalFinishFormulas(values = {}) {
     const input = internalFinishFormulaInput(key);
     if (input) input.value = formula;
   });
+  sharedFinishFormulaGroups.forEach(([key]) => syncSharedFinishFormula(key));
 }
 
 function formulaForInternalFinish(key) {
@@ -2524,6 +2666,16 @@ function formulaForInternalFinish(key) {
     internalFinishFormulaInput(key)?.value,
     internalFinishFormulaDefaults[key] || "floor"
   );
+}
+
+function syncSharedFinishFormula(key) {
+  const group = sharedFinishFormulaGroups.find((keys) => keys.includes(key));
+  if (!group) return;
+  const formula = formulaForInternalFinish(key);
+  group.forEach((itemKey) => {
+    const input = internalFinishFormulaInput(itemKey);
+    if (input) input.value = formula;
+  });
 }
 
 function newHardwareFinishItemId() {
@@ -2693,26 +2845,30 @@ function updateHardwareFinishItem(id, values = {}) {
 }
 
 function currentFinishSchedule() {
+  const materials = currentInternalFinishMaterials();
   return {
     itemSummaries: currentFinishItemSummaries(),
-    floor: (els.floorFinishInput?.value || "").trim(),
-    baseboard: trimSettingValue(els.baseboardInput?.value || ""),
-    wall: (els.wallFinishInput?.value || "").trim(),
-    ceiling: (els.ceilingFinishInput?.value || "").trim(),
-    ceilingTrim: trimSettingValue(els.ceilingTrimInput?.value || ""),
+    materials,
+    floor: materials.floor,
+    baseboard: materials.baseboard,
+    wall: materials.wall,
+    ceiling: materials.ceiling,
+    ceilingTrim: materials.ceilingTrim,
     formulas: currentInternalFinishFormulas(),
     hardware: currentHardwareFinishSchedule()
   };
 }
 
 function normalizeFinishSchedule(schedule = {}) {
+  const materials = normalizeInternalFinishMaterials(schedule.materials || schedule.items || {}, schedule);
   return {
     itemSummaries: normalizeFinishItemSummaries(schedule.itemSummaries || schedule.summaries || {}),
-    floor: String(schedule.floor || "").trim(),
-    baseboard: trimSettingValue(schedule.baseboard),
-    wall: String(schedule.wall || "").trim(),
-    ceiling: String(schedule.ceiling || "").trim(),
-    ceilingTrim: trimSettingValue(schedule.ceilingTrim),
+    materials,
+    floor: materials.floor,
+    baseboard: materials.baseboard,
+    wall: materials.wall,
+    ceiling: materials.ceiling,
+    ceilingTrim: materials.ceilingTrim,
     formulas: normalizeInternalFinishFormulas(schedule.formulas || schedule.itemFormulas || {}),
     hardware: normalizeHardwareFinishItems(schedule.hardware || schedule.hardwareItems || [])
   };
@@ -2721,11 +2877,7 @@ function normalizeFinishSchedule(schedule = {}) {
 function applyFinishSchedule(schedule = {}) {
   const normalized = normalizeFinishSchedule(schedule);
   applyFinishItemSummaries(normalized.itemSummaries);
-  if (els.floorFinishInput) els.floorFinishInput.value = normalized.floor;
-  if (els.baseboardInput) els.baseboardInput.value = displayTrimInputValue(normalized.baseboard);
-  if (els.wallFinishInput) els.wallFinishInput.value = normalized.wall;
-  if (els.ceilingFinishInput) els.ceilingFinishInput.value = normalized.ceiling;
-  if (els.ceilingTrimInput) els.ceilingTrimInput.value = displayTrimInputValue(normalized.ceilingTrim);
+  applyInternalFinishMaterials(normalized.materials);
   applyInternalFinishFormulas(normalized.formulas);
   renderHardwareFinishSchedule(normalized.hardware);
 }
@@ -3046,13 +3198,7 @@ function defaultExternalFinishKey() {
 
 function updateFinishSelectionStyles() {
   internalFinishItems.forEach(({ key }) => {
-    const input = {
-      floor: els.floorFinishInput,
-      baseboard: els.baseboardInput,
-      wall: els.wallFinishInput,
-      ceiling: els.ceilingFinishInput,
-      ceilingTrim: els.ceilingTrimInput
-    }[key];
+    const input = internalFinishInput(key);
     input?.closest(".finish-choice-field")?.classList.toggle(
       "is-selected",
       activeFinishTab === "internal" && activeInternalFinishKey === key
@@ -3102,7 +3248,7 @@ function currentFinishSelection() {
   const item = internalFinishItem(key) || internalFinishItems[0];
   const material = ["baseboard", "ceilingTrim"].includes(item.key)
     ? trimMaterialForTarget(item.key)
-    : currentFinishSchedule()[item.key] || "";
+    : currentFinishSchedule().materials?.[item.key] || "";
   return { key: item.key, label: item.label, material, tab: "internal" };
 }
 
@@ -3234,7 +3380,7 @@ function recordSurfaceKind(formula, part, material) {
 
 function finishScheduleMaterial(kind) {
   const schedule = currentFinishSchedule();
-  return schedule[kind] || "";
+  return schedule.materials?.[kind] || schedule[kind] || "";
 }
 
 function trimMaterialForTarget(target) {
@@ -3249,7 +3395,10 @@ function trimMaterialForTarget(target) {
 function finishSelectionForRecord() {
   const selection = currentFinishSelection();
   if (selection.material) return selection;
-  if (selection.tab === "internal" && ["wall", "ceiling"].includes(selection.key)) {
+  if (selection.tab === "internal" && [
+    "wall", "partitionWall", "exteriorWainscotUpperFinish", "exteriorWainscotLowerFinish",
+    "partitionWainscotUpperFinish", "partitionWainscotLowerFinish", "ceiling"
+  ].includes(selection.key)) {
     return { ...selection, material: "部材なし" };
   }
   setHint(`${selection.tab === "external" ? "外部" : "内部"}仕上げ表の「${selection.label}」を入力してください。`);
@@ -3257,36 +3406,9 @@ function finishSelectionForRecord() {
 }
 
 function substrateInfoForRecord(formula, part, material) {
-  const settings = currentSubstrateSettings();
   const kind = recordSurfaceKind(formula, part, material);
-  if (kind === "ceiling") {
-    const ceilingSubstrate = settings.ceilingSubstrate || "部材なし";
-    return {
-      surfaceKind: "ceiling",
-      wallType: "",
-      wallTypeLabel: "",
-      wallSubstrate: "",
-      ceilingSubstrate,
-      substrateSummary: `天井下地: ${ceilingSubstrate}`
-    };
-  }
-  if (kind === "wall") {
-    const label = wallTypeLabel(settings.wallType);
-    const wallSubstrate = settings.wallSubstrate || "部材なし";
-    return {
-      surfaceKind: "wall",
-      wallType: settings.wallType,
-      wallTypeLabel: label,
-      wallSubstrate,
-      ceilingSubstrate: "",
-      substrateSummary: [
-        settings.wallType ? label : `壁種: ${label}`,
-        `壁下地: ${wallSubstrate}`
-      ].join(" / ")
-    };
-  }
   return {
-    surfaceKind: "",
+    surfaceKind: kind,
     wallType: "",
     wallTypeLabel: "",
     wallSubstrate: "",
@@ -4966,6 +5088,7 @@ document.querySelectorAll("[data-internal-finish-formula]").forEach((input) => {
   const key = input.dataset.internalFinishFormula;
   input.addEventListener("focus", () => setActiveInternalFinish(key));
   input.addEventListener("change", () => {
+    syncSharedFinishFormula(key);
     setActiveInternalFinish(key);
     saveQuietly();
   });
@@ -4985,30 +5108,24 @@ Object.values(finishSummaryInputs()).forEach((input) => {
     saveQuietly();
   });
 });
-[els.floorFinishInput, els.baseboardInput, els.wallFinishInput, els.ceilingFinishInput, els.ceilingTrimInput].forEach((input) => {
+document.querySelectorAll("[data-internal-finish-key]").forEach((input) => {
+  const key = input.dataset.internalFinishKey;
   input.addEventListener("input", () => {
     addDirectFinishCandidates({ persist: false });
   });
   input.addEventListener("change", () => {
-    if (input === els.baseboardInput || input === els.ceilingTrimInput) {
+    if (["baseboard", "ceilingTrim"].includes(key)) {
       const normalized = trimSettingValue(input.value);
       input.value = displayTrimInputValue(normalized);
       if (!["no", "yes"].includes(normalized)) addMaterialSuggestion(normalized, { persist: false });
     } else {
       addMaterialSuggestion(input.value, { persist: false });
     }
+    setActiveInternalFinish(key);
     saveQuietly();
   });
-});
-[
-  [els.floorFinishInput, "floor"],
-  [els.baseboardInput, "baseboard"],
-  [els.wallFinishInput, "wall"],
-  [els.ceilingFinishInput, "ceiling"],
-  [els.ceilingTrimInput, "ceilingTrim"]
-].forEach(([input, key]) => {
-  input?.addEventListener("focus", () => setActiveInternalFinish(key));
-  input?.addEventListener("click", () => setActiveInternalFinish(key));
+  input.addEventListener("focus", () => setActiveInternalFinish(key));
+  input.addEventListener("click", () => setActiveInternalFinish(key));
 });
 els.externalFinishCategories?.addEventListener("click", (event) => {
   const row = event.target.closest?.("[data-external-finish-row]");
