@@ -77,6 +77,8 @@ const els = {
   ceilingTrimInput: document.getElementById("ceilingTrimInput"),
   ceilingTrimMenuButton: document.getElementById("ceilingTrimMenuButton"),
   ceilingTrimMenu: document.getElementById("ceilingTrimMenu"),
+  hardwareFinishRows: document.getElementById("hardwareFinishRows"),
+  addHardwareFinishButton: document.getElementById("addHardwareFinishButton"),
   wainscotInput: document.getElementById("wainscotInput"),
   deductLengthInput: document.getElementById("deductLengthInput"),
   deductAreaInput: document.getElementById("deductAreaInput"),
@@ -200,6 +202,7 @@ let activeFinishTableLocation = null;
 let activeFinishTab = "internal";
 let activeInternalFinishKey = "";
 let activeExternalFinishKey = "";
+let activeHardwareLengthItemId = "";
 let activeTradeSheet = "";
 let projectBook = { activeId: "", projects: [] };
 let isApplyingProject = false;
@@ -300,12 +303,20 @@ async function renderDrawing() {
 
 function drawOverlay() {
   overlayCtx.clearRect(0, 0, baseWidth, baseHeight);
-  records.filter((record) => record.page === currentPage).forEach(drawRecord);
+  records
+    .filter((record) => (
+      record.page === currentPage &&
+      Array.isArray(record.points) &&
+      record.points.length > 0 &&
+      !(record.hardwareManual && record.hardwareTakeoffKind === "count")
+    ))
+    .forEach(drawRecord);
   drawScaleCheckResult();
   drawTemp();
 }
 
 function drawRecord(record) {
+  if (!Array.isArray(record?.points) || record.points.length === 0) return;
   const color = record.id === selectedId ? "#c55735" : record.recordType === "deduction" ? "#8b4fc4" : "#17696f";
   overlayCtx.save();
   overlayCtx.lineWidth = record.id === selectedId ? 4 : 2.5;
@@ -388,6 +399,8 @@ function drawTemp() {
     ? "#f0b429"
     : mode === "scaleCheck"
       ? "#2f6fb5"
+      : isHardwareLengthTraceMode()
+        ? "#17696f"
       : isDeductionTraceMode()
         ? "#8b4fc4"
         : "#c55735";
@@ -418,10 +431,20 @@ function isDeductionTraceMode() {
   return mode === "deductLength" || mode === "deductArea";
 }
 
+function isHardwareLengthTraceMode() {
+  return mode === "hardwareLength";
+}
+
 function updateModeButtons() {
   if (els.traceDeductLengthButton) els.traceDeductLengthButton.classList.toggle("active", mode === "deductLength");
   if (els.traceDeductAreaButton) els.traceDeductAreaButton.classList.toggle("active", mode === "deductArea");
   if (els.scaleCheckButton) els.scaleCheckButton.classList.toggle("active", mode === "scaleCheck");
+  els.hardwareFinishRows?.querySelectorAll("[data-hardware-trace]").forEach((button) => {
+    button.classList.toggle("active", isHardwareLengthTraceMode() && button.dataset.hardwareTrace === activeHardwareLengthItemId);
+  });
+  els.hardwareFinishRows?.querySelectorAll("[data-hardware-finish-row]").forEach((row) => {
+    row.classList.toggle("is-tracing", isHardwareLengthTraceMode() && row.dataset.hardwareFinishRow === activeHardwareLengthItemId);
+  });
 }
 
 function formatInputNumber(value) {
@@ -1221,6 +1244,7 @@ function directFinishCandidateValues() {
     finishSchedule.floor,
     finishSchedule.wall,
     finishSchedule.ceiling,
+    ...(finishSchedule.hardware || []).map((item) => item.name),
     ...Object.values(finishSchedule.itemSummaries || {}),
     ...externalValues
   ];
@@ -2318,6 +2342,7 @@ async function removeActiveDrawing() {
 
 function setTool(nextTool) {
   tool = nextTool;
+  activeHardwareLengthItemId = "";
   document.querySelectorAll(".tool-button").forEach((button) => {
     button.classList.toggle("active", button.dataset.tool === tool);
   });
@@ -2446,6 +2471,172 @@ function applyFinishItemSummaries(values = {}) {
   });
 }
 
+function newHardwareFinishItemId() {
+  return `hardware-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function signedNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function hardwareCountText(value) {
+  const count = signedNumber(value);
+  const text = Number.isInteger(count) ? String(count) : numberText(count, 2);
+  return `${count > 0 ? "+" : ""}${text}個`;
+}
+
+function hardwareLengthText(value) {
+  return `${numberText(Math.max(0, signedNumber(value)))}m`;
+}
+
+function normalizeHardwareFinishItem(item = {}) {
+  const source = typeof item === "string" ? { name: item } : item || {};
+  return {
+    id: String(source.id || source.key || newHardwareFinishItemId()),
+    name: String(source.name || source.material || source.finish || "").trim(),
+    count: signedNumber(source.count),
+    lengthM: Math.max(0, signedNumber(source.lengthM ?? source.length))
+  };
+}
+
+function normalizeHardwareFinishItems(items) {
+  const values = Array.isArray(items) ? items : [items];
+  return values
+    .map(normalizeHardwareFinishItem)
+    .filter((item) => item.name || item.count !== 0 || item.lengthM > 0);
+}
+
+function hardwareFinishRowElement(id) {
+  return Array.from(els.hardwareFinishRows?.querySelectorAll("[data-hardware-finish-row]") || [])
+    .find((row) => row.dataset.hardwareFinishRow === id) || null;
+}
+
+function hardwareFinishItemFromRow(row) {
+  if (!row) return null;
+  return normalizeHardwareFinishItem({
+    id: row.dataset.hardwareFinishRow,
+    name: row.querySelector('[data-hardware-finish-input="name"]')?.value,
+    count: row.dataset.hardwareCount,
+    lengthM: row.dataset.hardwareLength
+  });
+}
+
+function updateHardwareFinishRow(row, item) {
+  if (!row) return;
+  const normalized = normalizeHardwareFinishItem(item);
+  row.dataset.hardwareFinishRow = normalized.id;
+  row.dataset.hardwareCount = String(normalized.count);
+  row.dataset.hardwareLength = String(normalized.lengthM);
+  const nameInput = row.querySelector('[data-hardware-finish-input="name"]');
+  if (nameInput && nameInput.value !== normalized.name) nameInput.value = normalized.name;
+  const countView = row.querySelector("[data-hardware-count]");
+  if (countView) countView.textContent = hardwareCountText(normalized.count);
+  const lengthView = row.querySelector("[data-hardware-length]");
+  if (lengthView) lengthView.textContent = hardwareLengthText(normalized.lengthM);
+}
+
+function createHardwareFinishRow(item = {}) {
+  const normalized = normalizeHardwareFinishItem(item);
+  const row = document.createElement("div");
+  row.className = "hardware-finish-row";
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "hardware-finish-name";
+  nameInput.placeholder = "例: カーテンレール / 手すり";
+  nameInput.dataset.hardwareFinishInput = "name";
+  nameInput.setAttribute("aria-label", "金物名");
+
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "hardware-finish-remove";
+  removeButton.dataset.removeHardwareFinish = normalized.id;
+  removeButton.setAttribute("aria-label", "この金物を削除");
+  removeButton.title = "この金物を削除";
+  removeButton.textContent = "×";
+
+  const actions = document.createElement("div");
+  actions.className = "hardware-finish-actions";
+
+  const countControl = document.createElement("div");
+  countControl.className = "hardware-count-control";
+  const countLabel = document.createElement("span");
+  countLabel.textContent = "個数";
+  const minusButton = document.createElement("button");
+  minusButton.type = "button";
+  minusButton.className = "hardware-count-button";
+  minusButton.dataset.hardwareCountDelta = "-1";
+  minusButton.setAttribute("aria-label", "個数を1減らす");
+  minusButton.title = "-1個";
+  minusButton.textContent = "-";
+  const countView = document.createElement("output");
+  countView.className = "hardware-count-value";
+  countView.dataset.hardwareCount = "";
+  const plusButton = document.createElement("button");
+  plusButton.type = "button";
+  plusButton.className = "hardware-count-button";
+  plusButton.dataset.hardwareCountDelta = "1";
+  plusButton.setAttribute("aria-label", "個数を1増やす");
+  plusButton.title = "+1個";
+  plusButton.textContent = "+";
+  countControl.append(countLabel, minusButton, countView, plusButton);
+
+  const lengthControl = document.createElement("div");
+  lengthControl.className = "hardware-length-control";
+  const lengthLabel = document.createElement("span");
+  lengthLabel.textContent = "長さ";
+  const lengthView = document.createElement("output");
+  lengthView.className = "hardware-length-value";
+  lengthView.dataset.hardwareLength = "";
+  const traceButton = document.createElement("button");
+  traceButton.type = "button";
+  traceButton.className = "hardware-trace-button";
+  traceButton.dataset.hardwareTrace = normalized.id;
+  traceButton.textContent = "線をなぞる";
+  lengthControl.append(lengthLabel, lengthView, traceButton);
+
+  actions.append(countControl, lengthControl);
+  row.append(nameInput, removeButton, actions);
+  updateHardwareFinishRow(row, normalized);
+  return row;
+}
+
+function addHardwareFinishRow(item = {}) {
+  if (!els.hardwareFinishRows) return null;
+  const row = createHardwareFinishRow(item);
+  els.hardwareFinishRows.append(row);
+  return row;
+}
+
+function renderHardwareFinishSchedule(items = []) {
+  if (!els.hardwareFinishRows) return;
+  const normalized = normalizeHardwareFinishItems(items);
+  els.hardwareFinishRows.replaceChildren();
+  (normalized.length ? normalized : [{}]).forEach((item) => addHardwareFinishRow(item));
+  updateModeButtons();
+}
+
+function currentHardwareFinishSchedule() {
+  return Array.from(els.hardwareFinishRows?.querySelectorAll("[data-hardware-finish-row]") || [])
+    .map(hardwareFinishItemFromRow)
+    .filter((item) => item && (item.name || item.count !== 0 || item.lengthM > 0));
+}
+
+function hardwareFinishItemById(id) {
+  return hardwareFinishItemFromRow(hardwareFinishRowElement(id));
+}
+
+function updateHardwareFinishItem(id, values = {}) {
+  const row = hardwareFinishRowElement(id);
+  const current = hardwareFinishItemFromRow(row);
+  if (!row || !current) return null;
+  const next = normalizeHardwareFinishItem({ ...current, ...values, id: current.id });
+  updateHardwareFinishRow(row, next);
+  updateModeButtons();
+  return next;
+}
+
 function currentFinishSchedule() {
   return {
     itemSummaries: currentFinishItemSummaries(),
@@ -2453,7 +2644,8 @@ function currentFinishSchedule() {
     baseboard: trimSettingValue(els.baseboardInput?.value || ""),
     wall: (els.wallFinishInput?.value || "").trim(),
     ceiling: (els.ceilingFinishInput?.value || "").trim(),
-    ceilingTrim: trimSettingValue(els.ceilingTrimInput?.value || "")
+    ceilingTrim: trimSettingValue(els.ceilingTrimInput?.value || ""),
+    hardware: currentHardwareFinishSchedule()
   };
 }
 
@@ -2464,7 +2656,8 @@ function normalizeFinishSchedule(schedule = {}) {
     baseboard: trimSettingValue(schedule.baseboard),
     wall: String(schedule.wall || "").trim(),
     ceiling: String(schedule.ceiling || "").trim(),
-    ceilingTrim: trimSettingValue(schedule.ceilingTrim)
+    ceilingTrim: trimSettingValue(schedule.ceilingTrim),
+    hardware: normalizeHardwareFinishItems(schedule.hardware || schedule.hardwareItems || [])
   };
 }
 
@@ -2476,6 +2669,7 @@ function applyFinishSchedule(schedule = {}) {
   if (els.wallFinishInput) els.wallFinishInput.value = normalized.wall;
   if (els.ceilingFinishInput) els.ceilingFinishInput.value = normalized.ceiling;
   if (els.ceilingTrimInput) els.ceilingTrimInput.value = displayTrimInputValue(normalized.ceilingTrim);
+  renderHardwareFinishSchedule(normalized.hardware);
 }
 
 function externalFinishCategory(key) {
@@ -2743,7 +2937,8 @@ function internalFinishFallbackFromRoomSetting() {
     baseboard: trimSettingValue(els.baseboardInput?.value || ""),
     wall: "",
     ceiling: "",
-    ceilingTrim: trimSettingValue(els.ceilingTrimInput?.value || "")
+    ceilingTrim: trimSettingValue(els.ceilingTrimInput?.value || ""),
+    hardware: []
   };
 }
 
@@ -3112,6 +3307,161 @@ function finishDeductionTrace(points, shape) {
   setHint(`${label} ${numberText(value)}${unit} を追加しました。控除欄に自動加算しています。`);
 }
 
+function hardwareRecordIndex(itemId, kind) {
+  const floor = els.floorInput.value.trim() || "未設定";
+  const room = els.roomInput.value.trim() || "未設定";
+  return records.findIndex((record) => (
+    record.hardwareItemId === itemId &&
+    record.hardwareTakeoffKind === kind &&
+    record.floor === floor &&
+    record.room === room
+  ));
+}
+
+function hardwareRecordExpression(kind, value) {
+  return kind === "count"
+    ? `個数 ${hardwareCountText(value)}`
+    : `線なぞり 合計 ${hardwareLengthText(value)}`;
+}
+
+function upsertHardwareTakeoffRecord(item, kind, options = {}) {
+  const value = kind === "count" ? item.count : item.lengthM;
+  const index = hardwareRecordIndex(item.id, kind);
+  const existing = index >= 0 ? records[index] : null;
+  if (value === 0) {
+    if (existing) records.splice(index, 1);
+    return null;
+  }
+
+  const price = Number(existing?.price || 0);
+  const points = options.points || existing?.points || [];
+  const record = {
+    id: existing?.id || `hardware-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    page: currentPage,
+    shape: kind === "count" ? "count" : "line",
+    points: points.map((point) => ({ ...point })),
+    floor: els.floorInput.value.trim() || "未設定",
+    room: els.roomInput.value.trim() || "未設定",
+    part: "金物",
+    material: item.name || "金物",
+    estimateTrade: "",
+    formula: kind === "count" ? "個数" : "長さ",
+    expression: hardwareRecordExpression(kind, value),
+    quantity: value,
+    unit: kind === "count" ? "個" : "m",
+    height: Number(els.heightInput.value || 0),
+    baseboard: trimSettingValue(els.baseboardInput.value),
+    ceilingTrim: trimSettingValue(els.ceilingTrimInput.value),
+    wainscot: wainscotAvailability(els.wainscotInput.value),
+    deductLength: numberInputValue(els.deductLengthInput),
+    deductArea: numberInputValue(els.deductAreaInput),
+    price,
+    amount: price * value,
+    memo: existing?.memo || "",
+    hardwareManual: true,
+    hardwareItemId: item.id,
+    hardwareTakeoffKind: kind
+  };
+  if (existing) records[index] = record;
+  else records.push(record);
+  return record;
+}
+
+function syncHardwareTakeoffRecords(item, options = {}) {
+  if (!item) return;
+  upsertHardwareTakeoffRecord(item, "count", options);
+  upsertHardwareTakeoffRecord(item, "length", options);
+}
+
+function updateHardwareTakeoff(item, options = {}) {
+  syncHardwareTakeoffRecords(item, options);
+  selectedId = "";
+  overwriteSelectedRecord = false;
+  saveQuietly();
+  renderRecords();
+  drawOverlay();
+}
+
+function changeHardwareCount(itemId, delta) {
+  const current = hardwareFinishItemById(itemId);
+  if (!current) return;
+  const item = updateHardwareFinishItem(itemId, { count: current.count + signedNumber(delta) });
+  updateHardwareTakeoff(item);
+  setHint(`「${item.name || "金物"}」の個数を ${hardwareCountText(item.count)} にしました。`);
+}
+
+function startHardwareLengthTrace(itemId) {
+  const item = hardwareFinishItemById(itemId);
+  if (!item) return;
+  if (!scale) {
+    setHint("先に縮尺を設定してください。");
+    return;
+  }
+  activeHardwareLengthItemId = itemId;
+  tool = "line";
+  document.querySelectorAll(".tool-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tool === tool);
+  });
+  tempPoints = [];
+  mode = "hardwareLength";
+  updateModeButtons();
+  drawOverlay();
+  setHint(`「${item.name || "金物"}」の長さを測ります。図面上の始点と終点をクリックしてください。`);
+}
+
+function finishHardwareLengthTrace(points) {
+  const item = hardwareFinishItemById(activeHardwareLengthItemId);
+  if (!item || !scale) {
+    activeHardwareLengthItemId = "";
+    mode = "draw";
+    tempPoints = [];
+    updateModeButtons();
+    drawOverlay();
+    return;
+  }
+  const lengthM = polygonLength(points, false) / (scale.pxPerMeter || 1);
+  if (!Number.isFinite(lengthM) || lengthM <= 0) return;
+  const next = updateHardwareFinishItem(item.id, { lengthM: item.lengthM + lengthM });
+  activeHardwareLengthItemId = "";
+  mode = "draw";
+  tempPoints = [];
+  updateModeButtons();
+  updateHardwareTakeoff(next, { points });
+  setHint(`「${next.name || "金物"}」に ${numberText(lengthM)}m を追加しました。合計 ${hardwareLengthText(next.lengthM)} です。`);
+}
+
+function removeHardwareFinishItem(itemId) {
+  const row = hardwareFinishRowElement(itemId);
+  if (!row) return;
+  records = records.filter((record) => record.hardwareItemId !== itemId);
+  if (activeHardwareLengthItemId === itemId) {
+    activeHardwareLengthItemId = "";
+    mode = "draw";
+    tempPoints = [];
+  }
+  row.remove();
+  if (!els.hardwareFinishRows?.children.length) addHardwareFinishRow();
+  selectedId = "";
+  overwriteSelectedRecord = false;
+  updateModeButtons();
+  saveQuietly();
+  renderRecords();
+  drawOverlay();
+}
+
+function resetHardwareTakeoffForRecord(record) {
+  if (!record?.hardwareItemId) return;
+  const item = hardwareFinishItemById(record.hardwareItemId);
+  if (!item) return;
+  updateHardwareFinishItem(item.id, record.hardwareTakeoffKind === "count" ? { count: 0 } : { lengthM: 0 });
+}
+
+function resetAllHardwareTakeoffs() {
+  currentHardwareFinishSchedule().forEach((item) => {
+    updateHardwareFinishItem(item.id, { count: 0, lengthM: 0 });
+  });
+}
+
 function handleCanvasClick(event) {
   const point = pointFromEvent(event);
   const existing = nearestRecord(point);
@@ -3134,6 +3484,13 @@ function handleCanvasClick(event) {
   if (mode === "scaleCheck") {
     tempPoints.push(point);
     if (tempPoints.length === 2) finishScaleCheck();
+    else drawOverlay();
+    return;
+  }
+
+  if (isHardwareLengthTraceMode()) {
+    tempPoints.push(point);
+    if (tempPoints.length === 2) finishHardwareLengthTrace(tempPoints);
     else drawOverlay();
     return;
   }
@@ -3192,6 +3549,10 @@ function pendingTakeoff() {
 }
 
 function applyTakeoffToDetails() {
+  if (isHardwareLengthTraceMode()) {
+    setHint("金物の長さは、図面上の始点と終点をクリックして測ります。");
+    return;
+  }
   if (mode === "deductArea") {
     if (tempPoints.length < 3) {
       setHint("建具面積控除は3点以上、または矩形の2点でなぞってください。");
@@ -4232,6 +4593,7 @@ function deleteSelected() {
   const removed = records.find((record) => record.id === selectedId);
   records = records.filter((record) => record.id !== selectedId);
   applyDeductionRecordDelta(removed, -1);
+  resetHardwareTakeoffForRecord(removed);
   selectedId = "";
   overwriteSelectedRecord = false;
   saveQuietly();
@@ -4416,6 +4778,35 @@ els.externalFinishCategories?.addEventListener("change", (event) => {
   addMaterialSuggestions([event.target.value, ...extractMaterialCandidatesFromText(event.target.value)], { persist: false });
   saveQuietly();
 });
+els.addHardwareFinishButton?.addEventListener("click", () => {
+  const row = addHardwareFinishRow();
+  row?.querySelector('[data-hardware-finish-input="name"]')?.focus();
+  saveQuietly();
+});
+els.hardwareFinishRows?.addEventListener("click", (event) => {
+  const row = event.target.closest?.("[data-hardware-finish-row]");
+  if (!row) return;
+  const itemId = row.dataset.hardwareFinishRow;
+  const countButton = event.target.closest?.("[data-hardware-count-delta]");
+  if (countButton) {
+    changeHardwareCount(itemId, countButton.dataset.hardwareCountDelta);
+    return;
+  }
+  const traceButton = event.target.closest?.("[data-hardware-trace]");
+  if (traceButton) {
+    startHardwareLengthTrace(traceButton.dataset.hardwareTrace);
+    return;
+  }
+  if (event.target.closest?.("[data-remove-hardware-finish]")) removeHardwareFinishItem(itemId);
+});
+els.hardwareFinishRows?.addEventListener("change", (event) => {
+  if (!event.target.matches?.('[data-hardware-finish-input="name"]')) return;
+  const row = event.target.closest("[data-hardware-finish-row]");
+  const item = updateHardwareFinishItem(row?.dataset.hardwareFinishRow, { name: event.target.value });
+  if (!item) return;
+  addMaterialSuggestions([item.name, ...extractMaterialCandidatesFromText(item.name)], { persist: false });
+  updateHardwareTakeoff(item);
+});
 finishPickerConfigs().forEach((picker) => {
   picker.button.addEventListener("click", (event) => {
     event.preventDefault();
@@ -4499,6 +4890,13 @@ document.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (isHardwareLengthTraceMode()) {
+      activeHardwareLengthItemId = "";
+      tempPoints = [];
+      mode = "draw";
+      updateModeButtons();
+      drawOverlay();
+    }
     closeRoomMenu();
     closeMaterialMenu();
     closeFinishMenus();
@@ -4506,6 +4904,7 @@ document.addEventListener("keydown", (event) => {
 });
 els.clearTempButton.addEventListener("click", () => {
   tempPoints = [];
+  activeHardwareLengthItemId = "";
   selectedId = "";
   overwriteSelectedRecord = false;
   scaleCheckResult = null;
@@ -4522,6 +4921,7 @@ els.clearAllButton.addEventListener("click", () => {
   if (!confirm("拾い明細をすべて消去しますか？")) return;
   records.forEach((record) => applyDeductionRecordDelta(record, -1));
   records = [];
+  resetAllHardwareTakeoffs();
   selectedId = "";
   saveQuietly();
   renderRecords();
