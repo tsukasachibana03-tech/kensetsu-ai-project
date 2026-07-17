@@ -175,6 +175,21 @@ const internalFinishItems = [
   { key: "ceilingTrim", label: "廻り縁" }
 ];
 
+const finishFormulaValues = ["floor", "perimeter", "wall", "count"];
+const internalFinishFormulaDefaults = {
+  floor: "floor",
+  baseboard: "perimeter",
+  wall: "wall",
+  ceiling: "floor",
+  ceilingTrim: "perimeter"
+};
+const finishFormulaOptionLabels = {
+  floor: "面積",
+  perimeter: "長さ",
+  wall: "周長×高さ−建具",
+  count: "個数"
+};
+
 let pdfDoc = null;
 let imageBitmapSource = null;
 let drawingKind = "";
@@ -202,6 +217,7 @@ let activeFinishTableLocation = null;
 let activeFinishTab = "internal";
 let activeInternalFinishKey = "";
 let activeExternalFinishKey = "";
+let activeExternalFinishRow = null;
 let activeHardwareLengthItemId = "";
 let activeTradeSheet = "";
 let projectBook = { activeId: "", projects: [] };
@@ -1478,9 +1494,7 @@ function filteredFinishSuggestions(picker) {
       .filter((material) => picker.match.test(normalizeSearchText(material)))
       .map((material) => materialSuggestionKey(material)))
     : new Set();
-  const suggestions = picker.restrictToMatch && preferredKeys.size
-    ? source.filter((material) => preferredKeys.has(materialSuggestionKey(material)))
-    : source;
+  const suggestions = source;
   return suggestions
     .slice()
     .sort((a, b) => {
@@ -1567,6 +1581,9 @@ function renderOpenFinishMenus() {
   finishPickerConfigs().forEach((picker) => {
     if (!picker.menu.hidden) renderFinishMenu(picker);
   });
+  els.externalFinishCategories?.querySelectorAll("[data-external-finish-row]").forEach((row) => {
+    if (!externalFinishMenu(row)?.hidden) renderExternalFinishMenu(row);
+  });
 }
 
 function closeFinishMenu(picker) {
@@ -1585,6 +1602,7 @@ function openFinishMenu(picker) {
   if (!picker) return;
   closeMaterialMenu();
   closeFinishMenus({ except: picker });
+  closeExternalFinishMenus();
   addDirectFinishCandidates({ persist: false });
   refreshMaterialSuggestions();
   renderFinishMenu(picker);
@@ -2471,6 +2489,43 @@ function applyFinishItemSummaries(values = {}) {
   });
 }
 
+function normalizeFinishFormula(value, fallback = "floor") {
+  return finishFormulaValues.includes(value) ? value : fallback;
+}
+
+function internalFinishFormulaInput(key) {
+  return document.querySelector(`[data-internal-finish-formula="${key}"]`);
+}
+
+function currentInternalFinishFormulas() {
+  return Object.fromEntries(internalFinishItems.map(({ key }) => [
+    key,
+    normalizeFinishFormula(internalFinishFormulaInput(key)?.value, internalFinishFormulaDefaults[key])
+  ]));
+}
+
+function normalizeInternalFinishFormulas(values = {}) {
+  return Object.fromEntries(internalFinishItems.map(({ key }) => [
+    key,
+    normalizeFinishFormula(values?.[key], internalFinishFormulaDefaults[key])
+  ]));
+}
+
+function applyInternalFinishFormulas(values = {}) {
+  const normalized = normalizeInternalFinishFormulas(values);
+  Object.entries(normalized).forEach(([key, formula]) => {
+    const input = internalFinishFormulaInput(key);
+    if (input) input.value = formula;
+  });
+}
+
+function formulaForInternalFinish(key) {
+  return normalizeFinishFormula(
+    internalFinishFormulaInput(key)?.value,
+    internalFinishFormulaDefaults[key] || "floor"
+  );
+}
+
 function newHardwareFinishItemId() {
   return `hardware-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -2645,6 +2700,7 @@ function currentFinishSchedule() {
     wall: (els.wallFinishInput?.value || "").trim(),
     ceiling: (els.ceilingFinishInput?.value || "").trim(),
     ceilingTrim: trimSettingValue(els.ceilingTrimInput?.value || ""),
+    formulas: currentInternalFinishFormulas(),
     hardware: currentHardwareFinishSchedule()
   };
 }
@@ -2657,6 +2713,7 @@ function normalizeFinishSchedule(schedule = {}) {
     wall: String(schedule.wall || "").trim(),
     ceiling: String(schedule.ceiling || "").trim(),
     ceilingTrim: trimSettingValue(schedule.ceilingTrim),
+    formulas: normalizeInternalFinishFormulas(schedule.formulas || schedule.itemFormulas || {}),
     hardware: normalizeHardwareFinishItems(schedule.hardware || schedule.hardwareItems || [])
   };
 }
@@ -2669,6 +2726,7 @@ function applyFinishSchedule(schedule = {}) {
   if (els.wallFinishInput) els.wallFinishInput.value = normalized.wall;
   if (els.ceilingFinishInput) els.ceilingFinishInput.value = normalized.ceiling;
   if (els.ceilingTrimInput) els.ceilingTrimInput.value = displayTrimInputValue(normalized.ceilingTrim);
+  applyInternalFinishFormulas(normalized.formulas);
   renderHardwareFinishSchedule(normalized.hardware);
 }
 
@@ -2680,18 +2738,25 @@ function externalFinishRowsContainer(key) {
   return els.externalFinishCategories?.querySelector(`[data-external-finish-rows="${key}"]`) || null;
 }
 
-function normalizeExternalFinishRow(row = {}) {
+function defaultExternalFinishFormula(key) {
+  if (key === "wall") return "wall";
+  if (key === "hardware") return "count";
+  return "floor";
+}
+
+function normalizeExternalFinishRow(row = {}, key = "") {
   const source = typeof row === "string" ? { finish: row } : row || {};
   return {
     finish: String(source.finish || source.material || "").trim(),
-    summary: String(source.summary || "").trim()
+    summary: String(source.summary || "").trim(),
+    formula: normalizeFinishFormula(source.formula, defaultExternalFinishFormula(key))
   };
 }
 
-function normalizeExternalFinishRows(rows) {
+function normalizeExternalFinishRows(rows, key = "") {
   const values = Array.isArray(rows) ? rows : [rows];
   return values
-    .map(normalizeExternalFinishRow)
+    .map((row) => normalizeExternalFinishRow(row, key))
     .filter((row) => row.finish || row.summary);
 }
 
@@ -2705,13 +2770,13 @@ function legacyExternalFinishRows(schedule = {}, key) {
     hardware: { finish: schedule.hardware || schedule.other, summary: schedule.hardwareSummary || schedule.otherSummary, legacyLabel: !schedule.hardware && schedule.other ? "旧項目: その他外部仕上" : "" }
   }[key] || {};
   const summary = [legacy.summary, legacy.legacyLabel].filter(Boolean).join(" / ");
-  return normalizeExternalFinishRows({ finish: legacy.finish, summary });
+  return normalizeExternalFinishRows({ finish: legacy.finish, summary }, key);
 }
 
 function externalFinishRowsFromSchedule(schedule = {}, key) {
   const value = schedule?.[key];
-  if (Array.isArray(value)) return normalizeExternalFinishRows(value);
-  if (value && typeof value === "object") return normalizeExternalFinishRows(value);
+  if (Array.isArray(value)) return normalizeExternalFinishRows(value, key);
+  if (value && typeof value === "object") return normalizeExternalFinishRows(value, key);
   return legacyExternalFinishRows(schedule, key);
 }
 
@@ -2722,18 +2787,151 @@ function normalizeExternalFinishSchedule(schedule = {}) {
   ]));
 }
 
+function externalFinishMenu(row) {
+  return row?.querySelector("[data-external-finish-menu]") || null;
+}
+
+function externalFinishInput(row) {
+  return row?.querySelector('[data-external-finish-input="finish"]') || null;
+}
+
+function externalFinishSuggestions(row) {
+  const input = externalFinishInput(row);
+  const needle = materialSuggestionKey(normalizeMaterialText(input?.value || ""));
+  const source = needle
+    ? materialSuggestions.filter((material) => materialSuggestionKey(material).includes(needle))
+    : materialSuggestions;
+  return source
+    .slice()
+    .sort((a, b) => {
+      const aKey = materialSuggestionKey(a);
+      const bKey = materialSuggestionKey(b);
+      const aStarts = needle && aKey.startsWith(needle) ? 0 : 1;
+      const bStarts = needle && bKey.startsWith(needle) ? 0 : 1;
+      return aStarts - bStarts || a.localeCompare(b, "ja", { numeric: true });
+    })
+    .slice(0, 80);
+}
+
+function closeExternalFinishMenu(row) {
+  const menu = externalFinishMenu(row);
+  const input = externalFinishInput(row);
+  if (menu) menu.hidden = true;
+  input?.setAttribute("aria-expanded", "false");
+}
+
+function closeExternalFinishMenus(options = {}) {
+  els.externalFinishCategories?.querySelectorAll("[data-external-finish-row]").forEach((row) => {
+    if (row !== options.except) closeExternalFinishMenu(row);
+  });
+}
+
+function renderExternalFinishMenu(row) {
+  const menu = externalFinishMenu(row);
+  const input = externalFinishInput(row);
+  if (!menu || !input) return;
+  menu.innerHTML = "";
+  const current = normalizeMaterialText(input.value);
+  const currentExists = materialSuggestions.some((material) => materialSuggestionKey(material) === materialSuggestionKey(current));
+  if (current && !currentExists) {
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "material-menu-action";
+    action.setAttribute("role", "option");
+    action.innerHTML = `
+      <span class="material-menu-title">現在の入力を候補に追加</span>
+      <span class="material-menu-meta">${escapeHtml(current)}</span>
+    `;
+    action.addEventListener("click", (event) => {
+      event.preventDefault();
+      addMaterialSuggestion(current, { persist: true });
+      closeExternalFinishMenu(row);
+    });
+    menu.appendChild(action);
+  }
+  const values = externalFinishSuggestions(row);
+  if (values.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "material-menu-empty";
+    empty.textContent = "入力した仕上げは次回からここで選べます。";
+    menu.appendChild(empty);
+    return;
+  }
+  values.forEach((material) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "option");
+    button.innerHTML = `
+      <span class="material-menu-title">${escapeHtml(material)}</span>
+      <span class="material-menu-meta">入力履歴・PDF読取候補</span>
+    `;
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      input.value = material;
+      addMaterialSuggestion(material, { persist: false });
+      saveQuietly();
+      closeExternalFinishMenu(row);
+    });
+    menu.appendChild(button);
+  });
+}
+
+function openExternalFinishMenu(row) {
+  if (!row) return;
+  setActiveExternalFinish(row.dataset.externalFinishRow, { row });
+  closeMaterialMenu();
+  closeFinishMenus();
+  closeExternalFinishMenus({ except: row });
+  addDirectFinishCandidates({ persist: false });
+  refreshMaterialSuggestions();
+  renderExternalFinishMenu(row);
+  const menu = externalFinishMenu(row);
+  const input = externalFinishInput(row);
+  if (menu) menu.hidden = false;
+  input?.setAttribute("aria-expanded", "true");
+}
+
 function createExternalFinishRow(category, row = {}) {
-  const normalized = normalizeExternalFinishRow(row);
+  const normalized = normalizeExternalFinishRow(row, category.key);
   const rowElement = document.createElement("div");
   rowElement.className = "external-finish-row";
   rowElement.dataset.externalFinishRow = category.key;
 
+  const finishPicker = document.createElement("div");
+  finishPicker.className = "external-finish-picker";
   const finishInput = document.createElement("input");
   finishInput.type = "text";
   finishInput.value = normalized.finish;
   finishInput.placeholder = category.placeholder;
   finishInput.dataset.externalFinishInput = "finish";
+  finishInput.setAttribute("role", "combobox");
+  finishInput.setAttribute("aria-expanded", "false");
   finishInput.setAttribute("aria-label", `${category.label}の仕上げ`);
+
+  const menuButton = document.createElement("button");
+  menuButton.type = "button";
+  menuButton.className = "external-finish-menu-button";
+  menuButton.textContent = "▼";
+  menuButton.setAttribute("aria-label", `${category.label}の仕上げ候補を選択`);
+
+  const menu = document.createElement("div");
+  menu.className = "finish-menu";
+  menu.dataset.externalFinishMenu = "";
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+  finishPicker.append(finishInput, menuButton, menu);
+
+  const formulaInput = document.createElement("select");
+  formulaInput.className = "external-finish-formula";
+  formulaInput.dataset.externalFinishInput = "formula";
+  formulaInput.setAttribute("aria-label", `${category.label}の計算`);
+  finishFormulaValues.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = finishFormulaOptionLabels[value];
+    formulaInput.appendChild(option);
+  });
+  formulaInput.value = normalized.formula;
 
   const summaryInput = document.createElement("input");
   summaryInput.type = "text";
@@ -2751,7 +2949,28 @@ function createExternalFinishRow(category, row = {}) {
   removeButton.title = "この仕上げを削除";
   removeButton.textContent = "×";
 
-  rowElement.append(finishInput, summaryInput, removeButton);
+  menuButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (menu.hidden) openExternalFinishMenu(rowElement);
+    else closeExternalFinishMenu(rowElement);
+  });
+  finishInput.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      openExternalFinishMenu(rowElement);
+    } else if (event.key === "Enter" && !menu.hidden) {
+      const first = externalFinishSuggestions(rowElement)[0];
+      if (first) {
+        event.preventDefault();
+        finishInput.value = first;
+        addMaterialSuggestion(first, { persist: false });
+        saveQuietly();
+        closeExternalFinishMenu(rowElement);
+      }
+    }
+  });
+  rowElement.append(finishPicker, formulaInput, removeButton, summaryInput);
   return rowElement;
 }
 
@@ -2780,14 +2999,27 @@ function currentExternalFinishSchedule() {
     const container = externalFinishRowsContainer(key);
     const rows = Array.from(container?.querySelectorAll("[data-external-finish-row]") || []).map((row) => normalizeExternalFinishRow({
       finish: row.querySelector('[data-external-finish-input="finish"]')?.value,
-      summary: row.querySelector('[data-external-finish-input="summary"]')?.value
-    })).filter((row) => row.finish || row.summary);
+      summary: row.querySelector('[data-external-finish-input="summary"]')?.value,
+      formula: row.querySelector('[data-external-finish-input="formula"]')?.value
+    }, key)).filter((row) => row.finish || row.summary);
     return [key, rows];
   }));
 }
 
 function applyExternalFinishSchedule(schedule = {}) {
   renderExternalFinishSchedule(schedule);
+}
+
+function formulaForExternalFinishRow(row, key) {
+  return normalizeFinishFormula(
+    row?.querySelector('[data-external-finish-input="formula"]')?.value,
+    defaultExternalFinishFormula(key)
+  );
+}
+
+function formulaForExternalFinish(key) {
+  const row = externalFinishRowsContainer(key)?.querySelector("[data-external-finish-row]");
+  return formulaForExternalFinishRow(row, key);
 }
 
 function internalFinishItem(key) {
@@ -2833,15 +3065,24 @@ function updateFinishSelectionStyles() {
   });
 }
 
-function setActiveInternalFinish(key) {
+function setActiveInternalFinish(key, options = {}) {
   if (!internalFinishItem(key)) return;
   activeInternalFinishKey = key;
+  if (options.syncFormula !== false) els.formulaInput.value = formulaForInternalFinish(key);
   updateFinishSelectionStyles();
 }
 
-function setActiveExternalFinish(key) {
+function setActiveExternalFinish(key, options = {}) {
   if (!externalFinishCategories.some((category) => category.key === key)) return;
+  const categoryChanged = activeExternalFinishKey !== key;
   activeExternalFinishKey = key;
+  if (options.row?.dataset?.externalFinishRow === key) activeExternalFinishRow = options.row;
+  else if (categoryChanged) activeExternalFinishRow = null;
+  if (options.syncFormula !== false) {
+    els.formulaInput.value = activeExternalFinishRow
+      ? formulaForExternalFinishRow(activeExternalFinishRow, key)
+      : formulaForExternalFinish(key);
+  }
   updateFinishSelectionStyles();
 }
 
@@ -2849,7 +3090,11 @@ function currentFinishSelection() {
   if (activeFinishTab === "external") {
     const key = activeExternalFinishKey || defaultExternalFinishKey();
     const category = externalFinishCategory(key);
-    const material = (currentExternalFinishSchedule()[key] || []).map((row) => row.finish).find(Boolean) || "";
+    const row = activeExternalFinishRow?.isConnected
+      && activeExternalFinishRow.dataset.externalFinishRow === key
+      ? activeExternalFinishRow
+      : externalFinishRowsContainer(key)?.querySelector("[data-external-finish-row]");
+    const material = (externalFinishInput(row)?.value || "").trim();
     return { key, label: category.label, material, tab: "external" };
   }
 
@@ -2951,6 +3196,17 @@ function setActiveFinishTab(tab, options = {}) {
   els.externalFinishTab?.setAttribute("aria-selected", String(!isInternal));
   if (els.internalFinishPanel) els.internalFinishPanel.hidden = !isInternal;
   if (els.externalFinishPanel) els.externalFinishPanel.hidden = isInternal;
+  if (isInternal) {
+    els.formulaInput.value = formulaForInternalFinish(activeInternalFinishKey);
+  } else {
+    const row = activeExternalFinishRow?.isConnected
+      && activeExternalFinishRow.dataset.externalFinishRow === activeExternalFinishKey
+      ? activeExternalFinishRow
+      : null;
+    els.formulaInput.value = row
+      ? formulaForExternalFinishRow(row, activeExternalFinishKey)
+      : formulaForExternalFinish(activeExternalFinishKey);
+  }
   updateFinishSelectionStyles();
   if (options.persist) saveQuietly();
 }
@@ -4703,8 +4959,16 @@ els.calibrateButton.addEventListener("click", () => {
 els.scaleCheckButton.addEventListener("click", startScaleCheck);
 els.scaleUnitInput.addEventListener("change", syncScaleUnitInput);
 els.formulaInput.addEventListener("change", () => {
-  if (activeFinishTab === "external") setActiveExternalFinish(defaultExternalFinishKey());
-  else setActiveInternalFinish(defaultInternalFinishKey());
+  if (activeFinishTab === "external") setActiveExternalFinish(defaultExternalFinishKey(), { syncFormula: false });
+  else setActiveInternalFinish(defaultInternalFinishKey(), { syncFormula: false });
+});
+document.querySelectorAll("[data-internal-finish-formula]").forEach((input) => {
+  const key = input.dataset.internalFinishFormula;
+  input.addEventListener("focus", () => setActiveInternalFinish(key));
+  input.addEventListener("change", () => {
+    setActiveInternalFinish(key);
+    saveQuietly();
+  });
 });
 els.openingTradeInput.addEventListener("change", prepareOpeningInputs);
 document.querySelectorAll(".opening-trade-button").forEach((button) => {
@@ -4747,8 +5011,9 @@ Object.values(finishSummaryInputs()).forEach((input) => {
   input?.addEventListener("click", () => setActiveInternalFinish(key));
 });
 els.externalFinishCategories?.addEventListener("click", (event) => {
+  const row = event.target.closest?.("[data-external-finish-row]");
   const category = event.target.closest?.("[data-external-finish-category]");
-  if (category) setActiveExternalFinish(category.dataset.externalFinishCategory);
+  if (category) setActiveExternalFinish(category.dataset.externalFinishCategory, { row });
   const addButton = event.target.closest?.("[data-add-external-finish]");
   if (addButton) {
     const row = addExternalFinishRow(addButton.dataset.addExternalFinish);
@@ -4767,14 +5032,27 @@ els.externalFinishCategories?.addEventListener("click", (event) => {
   saveQuietly();
 });
 els.externalFinishCategories?.addEventListener("focusin", (event) => {
+  const row = event.target.closest?.("[data-external-finish-row]");
   const category = event.target.closest?.("[data-external-finish-category]");
-  if (category) setActiveExternalFinish(category.dataset.externalFinishCategory);
+  if (category) setActiveExternalFinish(category.dataset.externalFinishCategory, { row });
 });
 els.externalFinishCategories?.addEventListener("input", (event) => {
-  if (event.target.matches?.("[data-external-finish-input]")) addDirectFinishCandidates({ persist: false });
+  if (!event.target.matches?.('[data-external-finish-input="finish"], [data-external-finish-input="summary"]')) return;
+  addDirectFinishCandidates({ persist: false });
+  const row = event.target.closest("[data-external-finish-row]");
+  if (event.target.dataset.externalFinishInput === "finish" && !externalFinishMenu(row)?.hidden) {
+    renderExternalFinishMenu(row);
+  }
 });
 els.externalFinishCategories?.addEventListener("change", (event) => {
   if (!event.target.matches?.("[data-external-finish-input]")) return;
+  const row = event.target.closest("[data-external-finish-row]");
+  const category = event.target.closest("[data-external-finish-category]");
+  if (event.target.dataset.externalFinishInput === "formula") {
+    if (category) setActiveExternalFinish(category.dataset.externalFinishCategory, { row });
+    saveQuietly();
+    return;
+  }
   addMaterialSuggestions([event.target.value, ...extractMaterialCandidatesFromText(event.target.value)], { persist: false });
   saveQuietly();
 });
@@ -4887,6 +5165,7 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest?.(".room-field")) closeRoomMenu();
   if (!event.target.closest?.(".material-field")) closeMaterialMenu();
   if (!event.target.closest?.(".finish-choice-field")) closeFinishMenus();
+  if (!event.target.closest?.(".external-finish-picker")) closeExternalFinishMenus();
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
@@ -4900,6 +5179,7 @@ document.addEventListener("keydown", (event) => {
     closeRoomMenu();
     closeMaterialMenu();
     closeFinishMenus();
+    closeExternalFinishMenus();
   }
 });
 els.clearTempButton.addEventListener("click", () => {
