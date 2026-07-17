@@ -532,6 +532,127 @@ select:focus {
   font-size: 12px;
 }
 
+.hardware-finish-section {
+  display: grid;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid #d8e3e5;
+  border-bottom: 1px solid #d8e3e5;
+}
+
+.hardware-finish-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hardware-finish-head strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hardware-finish-add,
+.hardware-finish-remove,
+.hardware-count-button {
+  display: inline-grid;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  place-items: center;
+  line-height: 1;
+}
+
+.hardware-finish-add,
+.hardware-finish-remove {
+  width: 30px;
+  font-size: 18px;
+}
+
+.hardware-finish-remove {
+  color: #8a3f30;
+  border-color: #d9b2aa;
+  background: #fff7f5;
+  font-size: 16px;
+}
+
+.hardware-finish-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.hardware-finish-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 6px;
+  align-items: start;
+}
+
+.hardware-finish-row.is-tracing {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.hardware-finish-name {
+  min-height: 32px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.hardware-finish-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+
+.hardware-count-control,
+.hardware-length-control {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  min-height: 34px;
+  padding: 3px;
+  border: 1px solid #d8e3e5;
+  background: #fff;
+}
+
+.hardware-count-control {
+  grid-template-columns: auto 30px minmax(44px, 1fr) 30px;
+  gap: 3px;
+}
+
+.hardware-length-control {
+  grid-template-columns: auto minmax(52px, 1fr) auto;
+  gap: 5px;
+}
+
+.hardware-count-control span,
+.hardware-length-control span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.hardware-count-value,
+.hardware-length-value {
+  min-width: 0;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hardware-trace-button {
+  min-height: 30px;
+  padding: 4px 7px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .finish-schedule label span {
   color: var(--muted);
   font-size: 12px;
@@ -1046,6 +1167,10 @@ tbody tr.selected td {
   .external-finish-row .external-finish-summary {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+
+  .hardware-finish-actions {
+    grid-template-columns: 1fr;
   }
 
   .project-panel .action-row {
