@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>図面積算アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260718-wall-backing-summaries-2">
+  <link rel="stylesheet" href="styles.css?v=20260718-floor-and-shared-substrate-1">
 </head>
 <body>
   <div class="app">
@@ -110,6 +110,10 @@
               </div>
             </div>
             <div id="internalFinishPanel" class="finish-table-panel" role="tabpanel" aria-labelledby="internalFinishTab">
+              <section class="finish-group shared-finish-group" aria-label="間仕切壁下地（共通）">
+                <strong class="finish-group-title">間仕切壁下地（共通）</strong>
+                <label class="finish-choice-field"><span>間仕切壁 下地</span><div class="finish-entry-row"><select id="partitionWallSubstrateInput" data-internal-finish-key="partitionWallSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWallSubstrate" aria-label="間仕切壁下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+              </section>
               <div class="floor-room-grid">
                 <label>階数<input id="floorInput" type="text" value="1階"></label>
                 <label class="room-field">部屋・範囲
@@ -144,10 +148,16 @@
                   <div id="floorFinishMenu" class="finish-menu" role="listbox" hidden></div>
                   <input id="floorFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
                 </label>
-                <label class="finish-choice-field"><span>床下地</span>
+                <label class="finish-choice-field"><span>床下張り</span>
                   <div class="finish-entry-row">
-                    <select id="floorSubstrateInput" data-internal-finish-key="floorSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="合板下地">合板下地</option><option value="石膏ボード下地">石膏ボード下地</option><option value="LGS下地">LGS下地</option></select>
-                    <select class="finish-formula-select" data-internal-finish-formula="floorSubstrate" aria-label="床下地の計算"><option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select>
+                    <select id="floorBackingInput" data-internal-finish-key="floorBacking"><option value="" selected>未選択（部材なし）</option><option value="構造用合板 厚12mm">構造用合板 厚12mm</option></select>
+                    <select class="finish-formula-select" data-internal-finish-formula="floorBacking" aria-label="床下張りの計算"><option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select>
+                  </div>
+                </label>
+                <label class="finish-choice-field"><span>床下地組</span>
+                  <div class="finish-entry-row">
+                    <select id="floorSubstrateInput" data-internal-finish-key="floorSubstrate"><option value="" selected>未選択（部材なし）</option><option value="モルタル下地">モルタル下地</option><option value="木下地組">木下地組</option><option value="置床">置床</option></select>
+                    <select class="finish-formula-select" data-internal-finish-formula="floorSubstrate" aria-label="床下地組の計算"><option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select>
                   </div>
                 </label>
                 <label class="finish-choice-field"><span>巾木</span>
@@ -177,7 +187,6 @@
                 <label class="finish-choice-field"><span>外壁側壁 下地</span><div class="finish-entry-row"><select id="wallSubstrateInput" data-internal-finish-key="wallSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option><option value="GL工法">GL工法</option></select><select class="finish-formula-select" data-internal-finish-formula="wallSubstrate" aria-label="外壁側壁下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
                 <label class="finish-choice-field"><span>間仕切壁 仕上</span><div class="finish-entry-row"><div class="finish-picker"><input id="partitionWallFinishInput" data-internal-finish-key="partitionWall" type="text" placeholder="直接入力 / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="partitionWallFinishMenu" aria-expanded="false"><button id="partitionWallFinishMenuButton" class="finish-menu-button" type="button" aria-label="間仕切壁仕上候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="partitionWall" aria-label="間仕切壁仕上の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div><div id="partitionWallFinishMenu" class="finish-menu" role="listbox" hidden></div></label>
                 <label class="finish-choice-field"><span>間仕切壁 下張り</span><div class="finish-entry-row"><select id="partitionWallBackingInput" data-internal-finish-key="partitionWallBacking"><option value="" selected>未選択（部材なし）</option><option value="ベニヤ">ベニヤ</option><option value="石膏ボード">石膏ボード</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWallBacking" aria-label="間仕切壁下張りの計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
-                <label class="finish-choice-field"><span>間仕切壁 下地</span><div class="finish-entry-row"><select id="partitionWallSubstrateInput" data-internal-finish-key="partitionWallSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWallSubstrate" aria-label="間仕切壁下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
                 <label class="finish-choice-field"><span>ベニヤ補強</span><div class="finish-entry-row"><div class="finish-picker"><input id="plywoodReinforcementInput" data-internal-finish-key="plywoodReinforcement" type="text" placeholder="直接入力 / 例: 構造用合板 12mm" autocomplete="off" role="combobox" aria-controls="plywoodReinforcementMenu" aria-expanded="false"><button id="plywoodReinforcementMenuButton" class="finish-menu-button" type="button" aria-label="ベニヤ補強候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="plywoodReinforcement" aria-label="ベニヤ補強の計算"><option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select></div><div id="plywoodReinforcementMenu" class="finish-menu" role="listbox" hidden></div></label>
               </section>
 
@@ -337,6 +346,6 @@
     </section>
   </div>
 
-  <script type="module" src="app.js?v=20260718-wall-backing-summaries-2"></script>
+  <script type="module" src="app.js?v=20260718-floor-and-shared-substrate-1"></script>
 </body>
 </html>
