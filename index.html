@@ -3,256 +3,48 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>建設見積アプリ</title>
+  <meta http-equiv="refresh" content="0; url=apps/mitsumori_app/">
+  <title>工事見積アプリを開く</title>
   <style>
-    :root {
-      color-scheme: light;
-      --bg: #f4f2ee;
-      --panel: #ffffff;
-      --ink: #202124;
-      --muted: #687076;
-      --line: #d8d2c8;
-      --brand: #0f766e;
-      --brand-dark: #0b5f59;
-      --soft: #e7f4f2;
-      --danger: #b42318;
-    }
-    * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--ink);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Yu Gothic", "Meiryo", sans-serif;
+      background: #edf2f3;
+      color: #182026;
     }
-    header {
-      padding: 22px clamp(16px, 4vw, 36px);
-      background: #183a37;
-      color: white;
+    main {
+      width: min(560px, calc(100% - 32px));
+      padding: 24px;
+      border: 1px solid #d6dde3;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 16px 42px rgba(24, 32, 38, 0.08);
+      text-align: center;
     }
-    h1 { margin: 0; font-size: clamp(24px, 4vw, 36px); letter-spacing: 0; }
-    main { padding: 20px clamp(12px, 4vw, 32px) 40px; max-width: 1180px; margin: 0 auto; }
-    .toolbar, .panel, .summary, table { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
-    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; padding: 12px; margin-bottom: 14px; }
-    button, .file-label {
-      border: 1px solid var(--line);
+    h1 { margin: 0 0 10px; font-size: 24px; }
+    p { margin: 0 0 18px; color: #5f6c76; line-height: 1.7; }
+    a {
+      display: inline-block;
       border-radius: 6px;
-      background: white;
-      color: var(--ink);
-      padding: 10px 12px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    button.primary { background: var(--brand); color: white; border-color: var(--brand); }
-    button.primary:hover { background: var(--brand-dark); }
-    button.danger { color: var(--danger); }
-    input, textarea {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 9px 10px;
-      font: inherit;
-      background: white;
-    }
-    textarea { min-height: 74px; resize: vertical; }
-    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .panel { padding: 14px; margin-bottom: 14px; }
-    .panel h2 { margin: 0 0 12px; font-size: 18px; }
-    .items-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; }
-    th, td { border-bottom: 1px solid var(--line); padding: 8px; vertical-align: top; }
-    th { background: #faf9f6; text-align: left; font-size: 13px; color: var(--muted); font-weight: 600; }
-    td.num, th.num { text-align: right; }
-    tr:last-child td { border-bottom: 0; }
-    .w-name { min-width: 220px; }
-    .w-small { min-width: 90px; }
-    .amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .summary { margin-top: 14px; padding: 14px; display: grid; grid-template-columns: 1fr minmax(260px, 360px); gap: 18px; align-items: start; }
-    .totals { width: 100%; }
-    .totals div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-    .totals div:last-child { border-bottom: 0; font-size: 22px; font-weight: 700; color: var(--brand-dark); }
-    .muted { color: var(--muted); font-size: 13px; }
-    .hidden-file { display: none; }
-    @media (max-width: 760px) {
-      .grid, .summary { grid-template-columns: 1fr; }
-      header { padding-top: 18px; padding-bottom: 18px; }
-      button, .file-label { width: 100%; text-align: center; }
-      .toolbar { display: grid; grid-template-columns: 1fr; }
-    }
-    @media print {
-      body { background: white; }
-      header, .toolbar, .no-print, button { display: none !important; }
-      main { padding: 0; max-width: none; }
-      .panel, .summary, table { border: 0; border-radius: 0; }
-      input, textarea { border: 0; padding: 0; }
+      padding: 10px 16px;
+      background: #0f6b65;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
     }
   </style>
+  <script>
+    window.location.replace("apps/mitsumori_app/");
+  </script>
 </head>
 <body>
-  <header>
-    <h1>建設見積アプリ</h1>
-    <p class="muted" style="color:#d7ebe8;margin:8px 0 0;">WindowsでもMacでも、ブラウザだけで見積を作成できます。</p>
-  </header>
-
   <main>
-    <section class="toolbar no-print" aria-label="操作">
-      <button class="primary" id="addRow">明細を追加</button>
-      <button id="saveData">データを書き出し</button>
-      <label class="file-label" for="loadData">データを読み込み</label>
-      <input class="hidden-file" id="loadData" type="file" accept="application/json">
-      <button id="printEstimate">印刷 / PDF保存</button>
-      <button class="danger" id="clearAll">初期化</button>
-    </section>
-
-    <section class="panel">
-      <h2>基本情報</h2>
-      <div class="grid">
-        <div><label for="estimateNo">見積番号</label><input id="estimateNo" placeholder="例: EST-2026-001"></div>
-        <div><label for="estimateDate">作成日</label><input id="estimateDate" type="date"></div>
-        <div><label for="customer">提出先</label><input id="customer" placeholder="例: 株式会社〇〇 御中"></div>
-        <div><label for="project">工事件名</label><input id="project" placeholder="例: 内装改修工事"></div>
-        <div><label for="company">自社名</label><input id="company" placeholder="例: 〇〇建設株式会社"></div>
-        <div><label for="taxRate">消費税率（%）</label><input id="taxRate" type="number" min="0" step="0.1" value="10"></div>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>見積明細</h2>
-      <div class="items-wrap">
-        <table aria-label="見積明細">
-          <thead>
-            <tr>
-              <th class="w-name">品目・作業内容</th>
-              <th class="w-small">数量</th>
-              <th class="w-small">単位</th>
-              <th class="w-small num">単価</th>
-              <th class="w-small num">金額</th>
-              <th class="no-print">削除</th>
-            </tr>
-          </thead>
-          <tbody id="items"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="summary">
-      <div>
-        <label for="notes">備考</label>
-        <textarea id="notes" placeholder="支払条件、工期、見積有効期限など"></textarea>
-      </div>
-      <div class="totals" aria-live="polite">
-        <div><span>小計</span><strong id="subtotal">0円</strong></div>
-        <div><span>消費税</span><strong id="tax">0円</strong></div>
-        <div><span>合計</span><strong id="total">0円</strong></div>
-      </div>
-    </section>
+    <h1>工事見積アプリを開いています</h1>
+    <p>自動で開かない場合は、下のボタンを押してください。</p>
+    <a href="apps/mitsumori_app/">工事見積アプリを開く</a>
   </main>
-
-  <script>
-    const fields = ["estimateNo", "estimateDate", "customer", "project", "company", "taxRate", "notes"];
-    const items = document.getElementById("items");
-    const yen = new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY", maximumFractionDigits: 0 });
-
-    function today() {
-      const d = new Date();
-      return d.toISOString().slice(0, 10);
-    }
-
-    function createRow(data = {}) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><input class="item-name" value="${escapeHtml(data.name || "")}" placeholder="例: 仮設工事"></td>
-        <td><input class="item-qty" type="number" min="0" step="0.01" value="${data.qty ?? 1}"></td>
-        <td><input class="item-unit" value="${escapeHtml(data.unit || "式")}"></td>
-        <td><input class="item-price" type="number" min="0" step="1" value="${data.price ?? 0}"></td>
-        <td class="num amount">0円</td>
-        <td class="no-print"><button type="button" class="danger delete-row">削除</button></td>`;
-      items.appendChild(tr);
-      tr.querySelectorAll("input").forEach(input => input.addEventListener("input", saveAndRender));
-      tr.querySelector(".delete-row").addEventListener("click", () => { tr.remove(); saveAndRender(); });
-      render();
-    }
-
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch]));
-    }
-
-    function collect() {
-      return {
-        fields: Object.fromEntries(fields.map(id => [id, document.getElementById(id).value])),
-        items: [...items.querySelectorAll("tr")].map(row => ({
-          name: row.querySelector(".item-name").value,
-          qty: Number(row.querySelector(".item-qty").value) || 0,
-          unit: row.querySelector(".item-unit").value,
-          price: Number(row.querySelector(".item-price").value) || 0
-        }))
-      };
-    }
-
-    function load(data) {
-      fields.forEach(id => { document.getElementById(id).value = data.fields?.[id] || ""; });
-      if (!document.getElementById("estimateDate").value) document.getElementById("estimateDate").value = today();
-      if (!document.getElementById("taxRate").value) document.getElementById("taxRate").value = 10;
-      items.innerHTML = "";
-      (data.items && data.items.length ? data.items : [
-        { name: "仮設工事", qty: 1, unit: "式", price: 0 },
-        { name: "材料費", qty: 1, unit: "式", price: 0 },
-        { name: "施工費", qty: 1, unit: "式", price: 0 }
-      ]).forEach(createRow);
-      saveAndRender();
-    }
-
-    function render() {
-      let subtotal = 0;
-      items.querySelectorAll("tr").forEach(row => {
-        const qty = Number(row.querySelector(".item-qty").value) || 0;
-        const price = Number(row.querySelector(".item-price").value) || 0;
-        const amount = qty * price;
-        subtotal += amount;
-        row.querySelector(".amount").textContent = yen.format(amount);
-      });
-      const rate = (Number(document.getElementById("taxRate").value) || 0) / 100;
-      const tax = Math.round(subtotal * rate);
-      document.getElementById("subtotal").textContent = yen.format(subtotal);
-      document.getElementById("tax").textContent = yen.format(tax);
-      document.getElementById("total").textContent = yen.format(subtotal + tax);
-    }
-
-    function saveAndRender() {
-      render();
-      localStorage.setItem("kensetsuEstimate", JSON.stringify(collect()));
-    }
-
-    fields.forEach(id => document.getElementById(id).addEventListener("input", saveAndRender));
-    document.getElementById("addRow").addEventListener("click", () => createRow({ qty: 1, unit: "式", price: 0 }));
-    document.getElementById("printEstimate").addEventListener("click", () => window.print());
-    document.getElementById("clearAll").addEventListener("click", () => {
-      if (confirm("入力内容を初期化しますか？")) {
-        localStorage.removeItem("kensetsuEstimate");
-        load({ fields: { estimateDate: today(), taxRate: 10 }, items: [] });
-      }
-    });
-    document.getElementById("saveData").addEventListener("click", () => {
-      const blob = new Blob([JSON.stringify(collect(), null, 2)], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `estimate-${document.getElementById("estimateNo").value || today()}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    });
-    document.getElementById("loadData").addEventListener("change", event => {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try { load(JSON.parse(reader.result)); }
-        catch { alert("読み込めないファイルです。"); }
-      };
-      reader.readAsText(file);
-    });
-
-    const saved = localStorage.getItem("kensetsuEstimate");
-    load(saved ? JSON.parse(saved) : { fields: { estimateDate: today(), taxRate: 10 }, items: [] });
-  </script>
 </body>
 </html>
