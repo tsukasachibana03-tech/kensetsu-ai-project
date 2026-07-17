@@ -4,17 +4,22 @@
 
 ## 見積アプリ
 
-ブラウザで使える見積アプリを追加しました。
+以前作成した工事見積アプリは、次の場所に入っています。
 
-- アプリ本体: `index.html`
+- アプリ本体: `apps/mitsumori_app/`
+- 入口ページ: `index.html`
 - Windows / Mac どちらでも利用可能
-- 見積明細の入力、消費税計算、印刷 / PDF保存、データの書き出し・読み込みに対応
+- 現場別見積、工種別見積、PDFプレビュー、PDF保存、Excel出力、データ保存・読込に対応
 
 ### Mac PC と共有して使う方法
 
 GitHub Pages を有効にすると、Mac の Safari や Chrome から次のURLで開けます。
 
 https://tsukasachibana03-tech.github.io/kensetsu-ai-project/
+
+直接開く場合はこちらです。
+
+https://tsukasachibana03-tech.github.io/kensetsu-ai-project/apps/mitsumori_app/
 
 GitHub Pages の設定手順:
 
