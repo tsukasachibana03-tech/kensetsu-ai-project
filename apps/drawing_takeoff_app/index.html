@@ -147,7 +147,7 @@
               </label>
               <label class="finish-choice-field"><span>壁仕上</span>
                 <div class="finish-picker">
-                  <input id="wallFinishInput" type="text" placeholder="PDF候補から選択 / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="wallFinishMenu" aria-expanded="false">
+                  <input id="wallFinishInput" type="text" placeholder="未入力は部材なし / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="wallFinishMenu" aria-expanded="false">
                   <button id="wallFinishMenuButton" class="finish-menu-button" type="button" aria-label="PDFから読み取った壁仕上候補を選択">▼</button>
                 </div>
                 <div id="wallFinishMenu" class="finish-menu" role="listbox" hidden></div>
@@ -155,7 +155,8 @@
               </label>
               <label><span>壁種</span>
                 <select id="wallTypeInput">
-                  <option value="partition" selected>間仕切り壁</option>
+                  <option value="" selected>未選択（部材なし）</option>
+                  <option value="partition">間仕切り壁</option>
                   <option value="concrete-gl">コンクリートGL</option>
                   <option value="concrete-direct">コンクリート直</option>
                 </select>
@@ -163,7 +164,8 @@
               </label>
               <label><span>壁下地</span>
                 <select id="wallSubstrateInput">
-                  <option value="LGS下地＋石膏ボード" selected>LGS下地＋石膏ボード</option>
+                  <option value="" selected>未選択（部材なし）</option>
+                  <option value="LGS下地＋石膏ボード">LGS下地＋石膏ボード</option>
                   <option value="木下地＋石膏ボード">木下地＋石膏ボード</option>
                   <option value="木下地">木下地</option>
                   <option value="GL工法">GL工法</option>
@@ -173,14 +175,15 @@
               </label>
               <label><span>腰壁</span>
                 <select id="wainscotInput">
-                  <option value="no" selected>なし</option>
+                  <option value="" selected>未選択（部材なし）</option>
+                  <option value="no">なし</option>
                   <option value="yes">あり</option>
                 </select>
                 <input id="wainscotSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
               </label>
               <label class="finish-choice-field"><span>天井仕上</span>
                 <div class="finish-picker">
-                  <input id="ceilingFinishInput" type="text" placeholder="PDF候補から選択 / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="ceilingFinishMenu" aria-expanded="false">
+                  <input id="ceilingFinishInput" type="text" placeholder="未入力は部材なし / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="ceilingFinishMenu" aria-expanded="false">
                   <button id="ceilingFinishMenuButton" class="finish-menu-button" type="button" aria-label="PDFから読み取った天井仕上候補を選択">▼</button>
                 </div>
                 <div id="ceilingFinishMenu" class="finish-menu" role="listbox" hidden></div>
@@ -188,7 +191,8 @@
               </label>
               <label><span>天井下地</span>
                 <select id="ceilingSubstrateInput">
-                  <option value="石膏ボード下地" selected>石膏ボード下地</option>
+                  <option value="" selected>未選択（部材なし）</option>
+                  <option value="石膏ボード下地">石膏ボード下地</option>
                   <option value="LGS下地＋石膏ボード">LGS下地＋石膏ボード</option>
                   <option value="木下地＋石膏ボード">木下地＋石膏ボード</option>
                   <option value="木下地">木下地</option>
