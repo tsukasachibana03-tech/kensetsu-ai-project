@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>図面積算アプリ</title>
+  <link rel="stylesheet" href="styles.css?v=20260716-transfer-export">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Drawing Takeoff</p>
+        <h1>図面積算アプリ</h1>
+      </div>
+      <div class="top-actions">
+        <button id="saveProjectButton" type="button">保存</button>
+        <button id="exportTransferButton" type="button">引継ぎ</button>
+        <button id="exportJsonButton" type="button">JSON</button>
+        <button id="exportCsvButton" type="button">CSV</button>
+        <label class="file-button">
+          読込
+          <input id="importJsonInput" type="file" accept="application/json,.json">
+        </label>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="side-panel">
+        <section class="panel project-panel">
+          <h2>現場</h2>
+          <label>作業中の現場
+            <select id="projectSelect"></select>
+          </label>
+          <label>現場名<input id="projectNameInput" type="text" value="現場1"></label>
+          <div class="action-row">
+            <button id="newProjectButton" type="button">新規現場</button>
+            <button id="duplicateProjectButton" type="button">複製</button>
+            <button id="deleteProjectButton" class="danger-button" type="button">削除</button>
+          </div>
+          <p id="projectStatus" class="status">現場ごとに図面と拾い明細を保存できます。</p>
+        </section>
+
+        <section class="panel">
+          <h2>図面</h2>
+          <label class="file-drop" id="drawingDrop">
+            <input id="drawingInput" type="file" accept="application/pdf,image/*" multiple>
+            <strong>PDF / 画像を選択</strong>
+            <span>複数ファイルもドロップできます</span>
+          </label>
+          <div class="drawing-list" id="drawingList" hidden></div>
+          <button id="removeDrawingButton" class="danger-button" type="button" disabled>表示中の図面を取消</button>
+          <div class="pdf-controls" id="pdfControls" hidden>
+            <button id="prevPageButton" type="button">前</button>
+            <span id="pageView">1 / 1</span>
+            <button id="nextPageButton" type="button">次</button>
+          </div>
+          <div class="zoom-controls">
+            <button id="zoomOutButton" type="button">-</button>
+            <span id="zoomView">100%</span>
+            <button id="zoomInButton" type="button">+</button>
+            <button id="fitButton" type="button">全体</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>縮尺</h2>
+          <div class="scale-actions">
+            <button id="calibrateButton" class="wide-button" type="button">この図面の縮尺を2点で設定</button>
+            <button id="scaleCheckButton" type="button">なぞって縮尺チェック</button>
+          </div>
+          <label>実寸
+            <div class="inline-input">
+              <input id="scaleLengthInput" type="number" min="0.001" step="1" value="1000">
+              <select id="scaleUnitInput" class="unit-select" aria-label="縮尺単位">
+                <option value="mm" selected>mm</option>
+                <option value="m">m</option>
+              </select>
+            </div>
+          </label>
+          <p id="scaleStatus" class="status">縮尺未設定</p>
+          <p id="scaleCheckStatus" class="status scale-check-status">縮尺チェック未実施</p>
+        </section>
+
+        <section class="panel">
+          <h2>拾い設定</h2>
+          <div class="tool-grid" role="group" aria-label="拾いツール">
+            <button class="tool-button active" data-tool="rect" type="button">矩形</button>
+            <button class="tool-button" data-tool="poly" type="button">多角形</button>
+            <button class="tool-button" data-tool="line" type="button">長さ</button>
+            <button class="tool-button" data-tool="count" type="button">個数</button>
+          </div>
+          <label>計算
+            <select id="formulaInput">
+              <option value="floor">床/天井 面積</option>
+              <option value="perimeter">巾木/廻縁 長さ</option>
+              <option value="wall">壁 面積 = 周長 x 高さ - 建具</option>
+              <option value="count">個数</option>
+            </select>
+          </label>
+          <label>建具拾いの工種
+            <select id="openingTradeInput">
+              <option value="">未分類</option>
+              <option value="金属製建具">金属製建具</option>
+              <option value="木建具">木建具</option>
+              <option value="ガラス工事">ガラス工事</option>
+            </select>
+          </label>
+          <div class="opening-trade-actions" role="group" aria-label="建具拾いの工種を選択">
+            <button class="opening-trade-button" type="button" data-opening-trade="木建具">木建具を拾う</button>
+            <button class="opening-trade-button" type="button" data-opening-trade="金属製建具">金属製建具を拾う</button>
+          </div>
+          <div class="floor-room-grid">
+            <label>階数<input id="floorInput" type="text" value="1階"></label>
+            <label class="room-field">部屋・範囲
+              <div class="room-picker">
+                <input id="roomInput" type="text" value="LDK" autocomplete="off">
+                <button id="roomMenuButton" class="room-menu-button" type="button" aria-label="部屋を選択">▼</button>
+              </div>
+              <div id="roomMenu" class="room-menu" hidden></div>
+            </label>
+          </div>
+          <p id="roomStatus" class="status room-status">部屋設定未登録</p>
+          <div class="finish-schedule">
+            <div class="finish-schedule-head">
+              <div class="finish-table-tabs" role="tablist" aria-label="仕上げ表の種類">
+                <button id="internalFinishTab" class="finish-table-tab" type="button" role="tab" aria-controls="internalFinishPanel" aria-selected="true">内部仕上げ表</button>
+                <button id="externalFinishTab" class="finish-table-tab" type="button" role="tab" aria-controls="externalFinishPanel" aria-selected="false">外部仕上げ表</button>
+              </div>
+            </div>
+            <div id="internalFinishPanel" class="finish-table-panel" role="tabpanel" aria-labelledby="internalFinishTab">
+              <label class="finish-choice-field"><span>床仕上</span>
+                <div class="finish-picker">
+                  <input id="floorFinishInput" type="text" placeholder="PDF候補から選択 / 例: フローリング / タイル" autocomplete="off" role="combobox" aria-controls="floorFinishMenu" aria-expanded="false">
+                  <button id="floorFinishMenuButton" class="finish-menu-button" type="button" aria-label="PDFから読み取った床仕上候補を選択">▼</button>
+                </div>
+                <div id="floorFinishMenu" class="finish-menu" role="listbox" hidden></div>
+                <input id="floorFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label class="finish-choice-field"><span>巾木</span>
+                <div class="finish-picker">
+                  <input id="baseboardInput" type="text" placeholder="未選択=なし / 例: ソフト巾木" autocomplete="off" role="combobox" aria-controls="baseboardMenu" aria-expanded="false">
+                  <button id="baseboardMenuButton" class="finish-menu-button" type="button" aria-label="巾木仕上候補を選択">▼</button>
+                </div>
+                <div id="baseboardMenu" class="finish-menu" role="listbox" hidden></div>
+                <input id="baseboardSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label class="finish-choice-field"><span>壁仕上</span>
+                <div class="finish-picker">
+                  <input id="wallFinishInput" type="text" placeholder="PDF候補から選択 / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="wallFinishMenu" aria-expanded="false">
+                  <button id="wallFinishMenuButton" class="finish-menu-button" type="button" aria-label="PDFから読み取った壁仕上候補を選択">▼</button>
+                </div>
+                <div id="wallFinishMenu" class="finish-menu" role="listbox" hidden></div>
+                <input id="wallFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label><span>壁種</span>
+                <select id="wallTypeInput">
+                  <option value="partition" selected>間仕切り壁</option>
+                  <option value="concrete-gl">コンクリートGL</option>
+                  <option value="concrete-direct">コンクリート直</option>
+                </select>
+                <input id="wallTypeSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label><span>壁下地</span>
+                <select id="wallSubstrateInput">
+                  <option value="LGS下地＋石膏ボード" selected>LGS下地＋石膏ボード</option>
+                  <option value="木下地＋石膏ボード">木下地＋石膏ボード</option>
+                  <option value="木下地">木下地</option>
+                  <option value="GL工法">GL工法</option>
+                  <option value="躯体コンクリート">躯体コンクリート</option>
+                </select>
+                <input id="wallSubstrateSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label><span>腰壁</span>
+                <select id="wainscotInput">
+                  <option value="no" selected>なし</option>
+                  <option value="yes">あり</option>
+                </select>
+                <input id="wainscotSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label class="finish-choice-field"><span>天井仕上</span>
+                <div class="finish-picker">
+                  <input id="ceilingFinishInput" type="text" placeholder="PDF候補から選択 / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="ceilingFinishMenu" aria-expanded="false">
+                  <button id="ceilingFinishMenuButton" class="finish-menu-button" type="button" aria-label="PDFから読み取った天井仕上候補を選択">▼</button>
+                </div>
+                <div id="ceilingFinishMenu" class="finish-menu" role="listbox" hidden></div>
+                <input id="ceilingFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label><span>天井下地</span>
+                <select id="ceilingSubstrateInput">
+                  <option value="石膏ボード下地" selected>石膏ボード下地</option>
+                  <option value="LGS下地＋石膏ボード">LGS下地＋石膏ボード</option>
+                  <option value="木下地＋石膏ボード">木下地＋石膏ボード</option>
+                  <option value="木下地">木下地</option>
+                </select>
+                <input id="ceilingSubstrateSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label class="finish-choice-field"><span>廻り縁</span>
+                <div class="finish-picker">
+                  <input id="ceilingTrimInput" type="text" placeholder="未選択=なし / 例: 廻り縁" autocomplete="off" role="combobox" aria-controls="ceilingTrimMenu" aria-expanded="false">
+                  <button id="ceilingTrimMenuButton" class="finish-menu-button" type="button" aria-label="廻り縁仕上候補を選択">▼</button>
+                </div>
+                <div id="ceilingTrimMenu" class="finish-menu" role="listbox" hidden></div>
+                <input id="ceilingTrimSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+              </label>
+              <label><span>高さ m</span><input id="heightInput" type="number" min="0" step="0.01" value="2.4"></label>
+            </div>
+            <div id="externalFinishPanel" class="finish-table-panel" role="tabpanel" aria-labelledby="externalFinishTab" hidden>
+              <div id="externalFinishCategories" class="external-finish-categories">
+                <section class="external-finish-category" data-external-finish-category="roof">
+                  <div class="external-finish-category-head"><strong>屋根</strong><button class="external-finish-add" type="button" data-add-external-finish="roof" aria-label="屋根の仕上げを追加" title="仕上げを追加">+</button></div>
+                  <div class="external-finish-rows" data-external-finish-rows="roof"></div>
+                </section>
+                <section class="external-finish-category" data-external-finish-category="wall">
+                  <div class="external-finish-category-head"><strong>外壁</strong><button class="external-finish-add" type="button" data-add-external-finish="wall" aria-label="外壁の仕上げを追加" title="仕上げを追加">+</button></div>
+                  <div class="external-finish-rows" data-external-finish-rows="wall"></div>
+                </section>
+                <section class="external-finish-category" data-external-finish-category="eaves">
+                  <div class="external-finish-category-head"><strong>軒裏</strong><button class="external-finish-add" type="button" data-add-external-finish="eaves" aria-label="軒裏の仕上げを追加" title="仕上げを追加">+</button></div>
+                  <div class="external-finish-rows" data-external-finish-rows="eaves"></div>
+                </section>
+                <section class="external-finish-category" data-external-finish-category="parking">
+                  <div class="external-finish-category-head"><strong>駐車スペース</strong><button class="external-finish-add" type="button" data-add-external-finish="parking" aria-label="駐車スペースの仕上げを追加" title="仕上げを追加">+</button></div>
+                  <div class="external-finish-rows" data-external-finish-rows="parking"></div>
+                </section>
+                <section class="external-finish-category" data-external-finish-category="dogrun">
+                  <div class="external-finish-category-head"><strong>犬走り</strong><button class="external-finish-add" type="button" data-add-external-finish="dogrun" aria-label="犬走りの仕上げを追加" title="仕上げを追加">+</button></div>
+                  <div class="external-finish-rows" data-external-finish-rows="dogrun"></div>
+                </section>
+                <section class="external-finish-category" data-external-finish-category="hardware">
+                  <div class="external-finish-category-head"><strong>外部金物</strong><button class="external-finish-add" type="button" data-add-external-finish="hardware" aria-label="外部金物の仕上げを追加" title="仕上げを追加">+</button></div>
+                  <div class="external-finish-rows" data-external-finish-rows="hardware"></div>
+                </section>
+              </div>
+            </div>
+          </div>
+          <div class="two-cols">
+            <label>建具幅控除 m<input id="deductLengthInput" type="number" min="0" step="0.01" value="0"></label>
+            <label>建具面積控除 m2<input id="deductAreaInput" type="number" min="0" step="0.01" value="0"></label>
+          </div>
+          <div class="deduct-actions">
+            <button id="traceDeductLengthButton" type="button">幅控除をなぞる</button>
+            <button id="traceDeductAreaButton" type="button">面積控除をなぞる</button>
+          </div>
+          <label>備考<input id="memoInput" type="text" placeholder="図番、仕様、注意点など"></label>
+          <div class="action-row">
+            <button id="finishPolyButton" type="button">拾い明細に反映</button>
+            <button id="undoButton" type="button">戻す</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="canvas-area" id="canvasArea">
+        <div class="canvas-toolbar">
+          <div>
+            <strong id="drawingName">図面未読込</strong>
+            <span id="hintText">図面を読み込んでから、縮尺を設定してください。</span>
+          </div>
+          <div class="action-row">
+            <button id="clearTempButton" type="button">選択解除</button>
+            <button id="deleteSelectedButton" type="button">選択削除</button>
+          </div>
+        </div>
+        <div class="stage-wrap" id="stageWrap">
+          <div class="stage" id="stage">
+            <canvas id="drawingCanvas"></canvas>
+            <canvas id="overlayCanvas"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <aside class="summary-panel">
+        <section class="panel">
+          <h2>建具拾い</h2>
+          <div id="openingSummary" class="mini-summary"></div>
+          <p id="openingDrawingStatus" class="status"></p>
+          <div class="action-row">
+            <button id="findOpeningDrawingsButton" type="button">建具図面を探す</button>
+            <button id="exportOpeningListButton" type="button">建具拾いTSV</button>
+            <button id="exportOpeningCheckCsvButton" type="button">工種別CSV</button>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="table-panel">
+      <div class="section-head">
+        <h2>拾い明細</h2>
+        <button id="clearAllButton" type="button">全消去</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>階数</th>
+              <th>部屋・範囲</th>
+              <th>部位</th>
+              <th>部材</th>
+              <th>下地</th>
+              <th>工種</th>
+              <th>巾木</th>
+              <th>廻り縁</th>
+              <th>腰壁</th>
+              <th>式</th>
+              <th>数量</th>
+              <th>単位</th>
+              <th>単価</th>
+              <th>金額</th>
+              <th>備考</th>
+            </tr>
+          </thead>
+          <tbody id="recordsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="table-panel material-sheet-panel">
+      <div class="section-head">
+        <h2>部材別集計</h2>
+      </div>
+      <div id="tradeSheetTabs" class="trade-sheet-tabs" role="tablist" aria-label="工種別シート"></div>
+      <div id="tradeSheets" class="trade-sheets"></div>
+    </section>
+  </div>
+
+  <script type="module" src="app.js?v=20260716-transfer-export"></script>
+</body>
+</html>
