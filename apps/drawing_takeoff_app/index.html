@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>図面積算アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260718-finish-formulas">
+  <link rel="stylesheet" href="styles.css?v=20260718-internal-finish-breakdown">
 </head>
 <body>
   <div class="app">
@@ -129,124 +129,80 @@
                 </label>
               </div>
               <p id="roomStatus" class="status room-status">部屋設定未登録</p>
-              <label class="finish-choice-field"><span>床仕上</span>
-                <div class="finish-entry-row">
-                  <div class="finish-picker">
-                    <input id="floorFinishInput" type="text" placeholder="PDF候補から選択 / 例: フローリング / タイル" autocomplete="off" role="combobox" aria-controls="floorFinishMenu" aria-expanded="false">
-                    <button id="floorFinishMenuButton" class="finish-menu-button" type="button" aria-label="PDFから読み取った床仕上候補を選択">▼</button>
+              <section class="finish-group" aria-label="床">
+                <strong class="finish-group-title">床</strong>
+                <label class="finish-choice-field"><span>床仕上</span>
+                  <div class="finish-entry-row">
+                    <div class="finish-picker">
+                      <input id="floorFinishInput" data-internal-finish-key="floor" type="text" placeholder="PDF候補から選択 / 例: フローリング / タイル" autocomplete="off" role="combobox" aria-controls="floorFinishMenu" aria-expanded="false">
+                      <button id="floorFinishMenuButton" class="finish-menu-button" type="button" aria-label="床仕上候補を選択">▼</button>
+                    </div>
+                    <select class="finish-formula-select" data-internal-finish-formula="floor" aria-label="床仕上の計算">
+                      <option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option>
+                    </select>
                   </div>
-                  <select class="finish-formula-select" data-internal-finish-formula="floor" aria-label="床仕上の計算">
-                    <option value="floor" selected>面積</option>
-                    <option value="perimeter">長さ</option>
-                    <option value="wall">周長×高さ−建具</option>
-                    <option value="count">個数</option>
-                  </select>
-                </div>
-                <div id="floorFinishMenu" class="finish-menu" role="listbox" hidden></div>
-                <input id="floorFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
-              <label class="finish-choice-field"><span>巾木</span>
-                <div class="finish-entry-row">
-                  <div class="finish-picker">
-                    <input id="baseboardInput" type="text" placeholder="未選択=なし / 例: ソフト巾木" autocomplete="off" role="combobox" aria-controls="baseboardMenu" aria-expanded="false">
-                    <button id="baseboardMenuButton" class="finish-menu-button" type="button" aria-label="巾木仕上候補を選択">▼</button>
+                  <div id="floorFinishMenu" class="finish-menu" role="listbox" hidden></div>
+                  <input id="floorFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+                </label>
+                <label class="finish-choice-field"><span>床下地</span>
+                  <div class="finish-entry-row">
+                    <select id="floorSubstrateInput" data-internal-finish-key="floorSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="合板下地">合板下地</option><option value="石膏ボード下地">石膏ボード下地</option><option value="LGS下地">LGS下地</option></select>
+                    <select class="finish-formula-select" data-internal-finish-formula="floorSubstrate" aria-label="床下地の計算"><option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select>
                   </div>
-                  <select class="finish-formula-select" data-internal-finish-formula="baseboard" aria-label="巾木の計算">
-                    <option value="floor">面積</option>
-                    <option value="perimeter" selected>長さ</option>
-                    <option value="wall">周長×高さ−建具</option>
-                    <option value="count">個数</option>
-                  </select>
-                </div>
-                <div id="baseboardMenu" class="finish-menu" role="listbox" hidden></div>
-                <input id="baseboardSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
-              <label class="finish-choice-field"><span>壁仕上</span>
-                <div class="finish-entry-row">
-                  <div class="finish-picker">
-                    <input id="wallFinishInput" type="text" placeholder="未入力は部材なし / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="wallFinishMenu" aria-expanded="false">
-                    <button id="wallFinishMenuButton" class="finish-menu-button" type="button" aria-label="PDFから読み取った壁仕上候補を選択">▼</button>
+                </label>
+                <label class="finish-choice-field"><span>巾木</span>
+                  <div class="finish-entry-row">
+                    <div class="finish-picker">
+                      <input id="baseboardInput" data-internal-finish-key="baseboard" type="text" placeholder="未選択=なし / 例: ソフト巾木" autocomplete="off" role="combobox" aria-controls="baseboardMenu" aria-expanded="false">
+                      <button id="baseboardMenuButton" class="finish-menu-button" type="button" aria-label="巾木仕上候補を選択">▼</button>
+                    </div>
+                    <select class="finish-formula-select" data-internal-finish-formula="baseboard" aria-label="巾木の計算"><option value="floor">面積</option><option value="perimeter" selected>長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select>
                   </div>
-                  <select class="finish-formula-select" data-internal-finish-formula="wall" aria-label="壁仕上の計算">
-                    <option value="floor">面積</option>
-                    <option value="perimeter">長さ</option>
-                    <option value="wall" selected>周長×高さ−建具</option>
-                    <option value="count">個数</option>
-                  </select>
-                </div>
-                <div id="wallFinishMenu" class="finish-menu" role="listbox" hidden></div>
-                <input id="wallFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
-              <label><span>壁種</span>
-                <select id="wallTypeInput">
-                  <option value="" selected>未選択（部材なし）</option>
-                  <option value="partition">間仕切り壁</option>
-                  <option value="concrete-gl">コンクリートGL</option>
-                  <option value="concrete-direct">コンクリート直</option>
-                </select>
-                <input id="wallTypeSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
-              <label><span>壁下地</span>
-                <select id="wallSubstrateInput">
-                  <option value="" selected>未選択（部材なし）</option>
-                  <option value="LGS下地＋石膏ボード">LGS下地＋石膏ボード</option>
-                  <option value="木下地＋石膏ボード">木下地＋石膏ボード</option>
-                  <option value="木下地">木下地</option>
-                  <option value="GL工法">GL工法</option>
-                  <option value="躯体コンクリート">躯体コンクリート</option>
-                </select>
-                <input id="wallSubstrateSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
-              <label><span>腰壁</span>
-                <select id="wainscotInput">
-                  <option value="" selected>未選択（部材なし）</option>
-                  <option value="no">なし</option>
-                  <option value="yes">あり</option>
-                </select>
-                <input id="wainscotSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
-              <label class="finish-choice-field"><span>天井仕上</span>
-                <div class="finish-entry-row">
-                  <div class="finish-picker">
-                    <input id="ceilingFinishInput" type="text" placeholder="未入力は部材なし / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="ceilingFinishMenu" aria-expanded="false">
-                    <button id="ceilingFinishMenuButton" class="finish-menu-button" type="button" aria-label="PDFから読み取った天井仕上候補を選択">▼</button>
+                  <div id="baseboardMenu" class="finish-menu" role="listbox" hidden></div>
+                  <input id="baseboardSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+                </label>
+              </section>
+
+              <section class="finish-group" aria-label="壁">
+                <strong class="finish-group-title">壁</strong>
+                <label class="finish-choice-field"><span>外壁側壁 仕上</span>
+                  <div class="finish-entry-row">
+                    <div class="finish-picker"><input id="wallFinishInput" data-internal-finish-key="wall" type="text" placeholder="直接入力 / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="wallFinishMenu" aria-expanded="false"><button id="wallFinishMenuButton" class="finish-menu-button" type="button" aria-label="外壁側壁仕上候補を選択">▼</button></div>
+                    <select class="finish-formula-select" data-internal-finish-formula="wall" aria-label="外壁側壁仕上の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select>
                   </div>
-                  <select class="finish-formula-select" data-internal-finish-formula="ceiling" aria-label="天井仕上の計算">
-                    <option value="floor" selected>面積</option>
-                    <option value="perimeter">長さ</option>
-                    <option value="wall">周長×高さ−建具</option>
-                    <option value="count">個数</option>
-                  </select>
-                </div>
-                <div id="ceilingFinishMenu" class="finish-menu" role="listbox" hidden></div>
-                <input id="ceilingFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
-              <label><span>天井下地</span>
-                <select id="ceilingSubstrateInput">
-                  <option value="" selected>未選択（部材なし）</option>
-                  <option value="石膏ボード下地">石膏ボード下地</option>
-                  <option value="LGS下地＋石膏ボード">LGS下地＋石膏ボード</option>
-                  <option value="木下地＋石膏ボード">木下地＋石膏ボード</option>
-                  <option value="木下地">木下地</option>
-                </select>
-                <input id="ceilingSubstrateSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
-              <label class="finish-choice-field"><span>廻り縁</span>
-                <div class="finish-entry-row">
-                  <div class="finish-picker">
-                    <input id="ceilingTrimInput" type="text" placeholder="未選択=なし / 例: 廻り縁" autocomplete="off" role="combobox" aria-controls="ceilingTrimMenu" aria-expanded="false">
-                    <button id="ceilingTrimMenuButton" class="finish-menu-button" type="button" aria-label="廻り縁仕上候補を選択">▼</button>
-                  </div>
-                  <select class="finish-formula-select" data-internal-finish-formula="ceilingTrim" aria-label="廻り縁の計算">
-                    <option value="floor">面積</option>
-                    <option value="perimeter" selected>長さ</option>
-                    <option value="wall">周長×高さ−建具</option>
-                    <option value="count">個数</option>
-                  </select>
-                </div>
-                <div id="ceilingTrimMenu" class="finish-menu" role="listbox" hidden></div>
-                <input id="ceilingTrimSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
-              </label>
+                  <div id="wallFinishMenu" class="finish-menu" role="listbox" hidden></div>
+                  <input id="wallFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
+                </label>
+                <label class="finish-choice-field"><span>外壁側壁 下地</span><div class="finish-entry-row"><select id="wallSubstrateInput" data-internal-finish-key="wallSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option><option value="GL工法">GL工法</option></select><select class="finish-formula-select" data-internal-finish-formula="wallSubstrate" aria-label="外壁側壁下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+                <label class="finish-choice-field"><span>間仕切壁 仕上</span><div class="finish-entry-row"><div class="finish-picker"><input id="partitionWallFinishInput" data-internal-finish-key="partitionWall" type="text" placeholder="直接入力 / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="partitionWallFinishMenu" aria-expanded="false"><button id="partitionWallFinishMenuButton" class="finish-menu-button" type="button" aria-label="間仕切壁仕上候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="partitionWall" aria-label="間仕切壁仕上の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div><div id="partitionWallFinishMenu" class="finish-menu" role="listbox" hidden></div></label>
+                <label class="finish-choice-field"><span>間仕切壁 下地</span><div class="finish-entry-row"><select id="partitionWallSubstrateInput" data-internal-finish-key="partitionWallSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWallSubstrate" aria-label="間仕切壁下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+                <label class="finish-choice-field"><span>ベニヤ補強</span><div class="finish-entry-row"><div class="finish-picker"><input id="plywoodReinforcementInput" data-internal-finish-key="plywoodReinforcement" type="text" placeholder="直接入力 / 例: 構造用合板 12mm" autocomplete="off" role="combobox" aria-controls="plywoodReinforcementMenu" aria-expanded="false"><button id="plywoodReinforcementMenuButton" class="finish-menu-button" type="button" aria-label="ベニヤ補強候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="plywoodReinforcement" aria-label="ベニヤ補強の計算"><option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select></div><div id="plywoodReinforcementMenu" class="finish-menu" role="listbox" hidden></div></label>
+              </section>
+
+              <section class="finish-group" aria-label="腰壁">
+                <strong class="finish-group-title">腰壁</strong>
+                <div class="finish-subgroup-title">外壁側壁</div>
+                <label class="finish-choice-field"><span>腰上仕上</span><div class="finish-entry-row"><div class="finish-picker"><input id="exteriorWainscotUpperFinishInput" data-internal-finish-key="exteriorWainscotUpperFinish" type="text" placeholder="直接入力" autocomplete="off" role="combobox" aria-controls="exteriorWainscotUpperFinishMenu" aria-expanded="false"><button id="exteriorWainscotUpperFinishMenuButton" class="finish-menu-button" type="button" aria-label="外壁側壁の腰上仕上候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="exteriorWainscotUpperFinish" aria-label="外壁側壁の腰上仕上の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div><div id="exteriorWainscotUpperFinishMenu" class="finish-menu" role="listbox" hidden></div></label>
+                <label class="finish-choice-field"><span>腰上下地</span><div class="finish-entry-row"><select id="exteriorWainscotUpperSubstrateInput" data-internal-finish-key="exteriorWainscotUpperSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option><option value="GL工法">GL工法</option></select><select class="finish-formula-select" data-internal-finish-formula="exteriorWainscotUpperSubstrate" aria-label="外壁側壁の腰上下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+                <label class="finish-choice-field"><span>腰下仕上</span><div class="finish-entry-row"><div class="finish-picker"><input id="exteriorWainscotLowerFinishInput" data-internal-finish-key="exteriorWainscotLowerFinish" type="text" placeholder="直接入力" autocomplete="off" role="combobox" aria-controls="exteriorWainscotLowerFinishMenu" aria-expanded="false"><button id="exteriorWainscotLowerFinishMenuButton" class="finish-menu-button" type="button" aria-label="外壁側壁の腰下仕上候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="exteriorWainscotLowerFinish" aria-label="外壁側壁の腰下仕上の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div><div id="exteriorWainscotLowerFinishMenu" class="finish-menu" role="listbox" hidden></div></label>
+                <label class="finish-choice-field"><span>腰下下地</span><div class="finish-entry-row"><select id="exteriorWainscotLowerSubstrateInput" data-internal-finish-key="exteriorWainscotLowerSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option><option value="GL工法">GL工法</option></select><select class="finish-formula-select" data-internal-finish-formula="exteriorWainscotLowerSubstrate" aria-label="外壁側壁の腰下下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+                <div class="finish-subgroup-title">間仕切壁</div>
+                <label class="finish-choice-field"><span>腰上仕上</span><div class="finish-entry-row"><div class="finish-picker"><input id="partitionWainscotUpperFinishInput" data-internal-finish-key="partitionWainscotUpperFinish" type="text" placeholder="直接入力" autocomplete="off" role="combobox" aria-controls="partitionWainscotUpperFinishMenu" aria-expanded="false"><button id="partitionWainscotUpperFinishMenuButton" class="finish-menu-button" type="button" aria-label="間仕切壁の腰上仕上候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="partitionWainscotUpperFinish" aria-label="間仕切壁の腰上仕上の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div><div id="partitionWainscotUpperFinishMenu" class="finish-menu" role="listbox" hidden></div></label>
+                <label class="finish-choice-field"><span>腰上下地</span><div class="finish-entry-row"><select id="partitionWainscotUpperSubstrateInput" data-internal-finish-key="partitionWainscotUpperSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWainscotUpperSubstrate" aria-label="間仕切壁の腰上下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+                <label class="finish-choice-field"><span>腰下仕上</span><div class="finish-entry-row"><div class="finish-picker"><input id="partitionWainscotLowerFinishInput" data-internal-finish-key="partitionWainscotLowerFinish" type="text" placeholder="直接入力" autocomplete="off" role="combobox" aria-controls="partitionWainscotLowerFinishMenu" aria-expanded="false"><button id="partitionWainscotLowerFinishMenuButton" class="finish-menu-button" type="button" aria-label="間仕切壁の腰下仕上候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="partitionWainscotLowerFinish" aria-label="間仕切壁の腰下仕上の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div><div id="partitionWainscotLowerFinishMenu" class="finish-menu" role="listbox" hidden></div></label>
+                <label class="finish-choice-field"><span>腰下下地</span><div class="finish-entry-row"><select id="partitionWainscotLowerSubstrateInput" data-internal-finish-key="partitionWainscotLowerSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWainscotLowerSubstrate" aria-label="間仕切壁の腰下下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+              </section>
+
+              <section class="finish-group" aria-label="天井">
+                <strong class="finish-group-title">天井</strong>
+                <label class="finish-choice-field"><span>天井仕上</span><div class="finish-entry-row"><div class="finish-picker"><input id="ceilingFinishInput" data-internal-finish-key="ceiling" type="text" placeholder="未入力は部材なし / 例: ビニールクロス仕上" autocomplete="off" role="combobox" aria-controls="ceilingFinishMenu" aria-expanded="false"><button id="ceilingFinishMenuButton" class="finish-menu-button" type="button" aria-label="天井仕上候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="ceiling" aria-label="天井仕上の計算"><option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select></div><div id="ceilingFinishMenu" class="finish-menu" role="listbox" hidden></div><input id="ceilingFinishSummaryInput" class="finish-summary-input" type="text" placeholder="概要"></label>
+                <label class="finish-choice-field"><span>天井下地</span><div class="finish-entry-row"><select id="ceilingSubstrateInput" data-internal-finish-key="ceilingSubstrate"><option value="" selected>未選択（部材なし）</option><option value="石膏ボード下地">石膏ボード下地</option><option value="LGS下地＋石膏ボード">LGS下地＋石膏ボード</option><option value="木下地＋石膏ボード">木下地＋石膏ボード</option><option value="木下地">木下地</option></select><select class="finish-formula-select" data-internal-finish-formula="ceilingSubstrate" aria-label="天井下地の計算"><option value="floor" selected>面積</option><option value="perimeter">長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+                <label class="finish-choice-field"><span>廻り縁</span><div class="finish-entry-row"><div class="finish-picker"><input id="ceilingTrimInput" data-internal-finish-key="ceilingTrim" type="text" placeholder="未選択=なし / 例: 廻り縁" autocomplete="off" role="combobox" aria-controls="ceilingTrimMenu" aria-expanded="false"><button id="ceilingTrimMenuButton" class="finish-menu-button" type="button" aria-label="廻り縁仕上候補を選択">▼</button></div><select class="finish-formula-select" data-internal-finish-formula="ceilingTrim" aria-label="廻り縁の計算"><option value="floor">面積</option><option value="perimeter" selected>長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select></div><div id="ceilingTrimMenu" class="finish-menu" role="listbox" hidden></div><input id="ceilingTrimSummaryInput" class="finish-summary-input" type="text" placeholder="概要"></label>
+              </section>
+              <div hidden>
+                <select id="wallTypeInput"><option value="" selected>未選択</option></select>
+                <select id="wainscotInput"><option value="" selected>未選択</option><option value="no">なし</option><option value="yes">あり</option></select>
+              </div>
               <label><span>高さ m</span><input id="heightInput" type="number" min="0" step="0.01" value="2.4"></label>
               <section id="hardwareFinishSection" class="hardware-finish-section" aria-label="金物">
                 <div class="hardware-finish-head">
@@ -379,6 +335,6 @@
     </section>
   </div>
 
-  <script type="module" src="app.js?v=20260718-finish-formulas"></script>
+  <script type="module" src="app.js?v=20260718-internal-finish-breakdown"></script>
 </body>
 </html>
