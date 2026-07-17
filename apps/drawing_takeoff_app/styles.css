@@ -551,7 +551,8 @@ select:focus {
 }
 
 .external-finish-row input,
-.external-finish-row select {
+.external-finish-row select,
+.external-finish-row button {
   min-height: 32px;
   padding: 5px 8px;
   font-size: 12px;
@@ -759,6 +760,36 @@ select:focus {
   min-height: 34px;
   padding: 5px 7px;
   font-size: 11px;
+}
+
+.finish-takeoff-button,
+.external-finish-takeoff {
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px 7px;
+  overflow: hidden;
+  border-color: #9fc2c5;
+  background: #f3fbfb;
+  color: var(--brand-dark);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finish-takeoff-button:hover,
+.external-finish-takeoff:hover {
+  border-color: var(--brand);
+  background: #e3f3f3;
+}
+
+.finish-takeoff-button.has-quantity,
+.external-finish-takeoff.has-quantity {
+  border-color: #76b68f;
+  background: #ebf8ef;
+  color: #176944;
 }
 
 .finish-menu-button {
