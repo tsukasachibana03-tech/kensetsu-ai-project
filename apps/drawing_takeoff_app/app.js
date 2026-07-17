@@ -168,8 +168,10 @@ const internalFinishItems = [
   { key: "floorSubstrate", label: "床下地" },
   { key: "baseboard", label: "巾木" },
   { key: "wall", label: "外壁側壁 仕上" },
+  { key: "wallBacking", label: "外壁側壁 下張り" },
   { key: "wallSubstrate", label: "外壁側壁 下地" },
   { key: "partitionWall", label: "間仕切壁 仕上" },
+  { key: "partitionWallBacking", label: "間仕切壁 下張り" },
   { key: "partitionWallSubstrate", label: "間仕切壁 下地" },
   { key: "plywoodReinforcement", label: "ベニヤ補強" },
   { key: "exteriorWainscotUpperFinish", label: "外壁側壁 腰上仕上" },
@@ -191,8 +193,10 @@ const internalFinishFormulaDefaults = {
   floorSubstrate: "floor",
   baseboard: "perimeter",
   wall: "wall",
+  wallBacking: "wall",
   wallSubstrate: "wall",
   partitionWall: "wall",
+  partitionWallBacking: "wall",
   partitionWallSubstrate: "wall",
   plywoodReinforcement: "floor",
   exteriorWainscotUpperFinish: "wall",
@@ -2551,13 +2555,10 @@ function syncWallSubstrateDefault() {
 }
 
 function finishSummaryInputs() {
-  return {
-    floor: els.floorFinishSummaryInput,
-    baseboard: els.baseboardSummaryInput,
-    wall: els.wallFinishSummaryInput,
-    ceiling: els.ceilingFinishSummaryInput,
-    ceilingTrim: els.ceilingTrimSummaryInput
-  };
+  return Object.fromEntries(Array.from(document.querySelectorAll("[data-internal-finish-summary]")).map((input) => [
+    input.dataset.internalFinishSummary,
+    input
+  ]));
 }
 
 function currentFinishItemSummaries() {
@@ -2611,6 +2612,62 @@ function initializeInternalFinishTakeoffButtons() {
 
 function internalFinishInput(key) {
   return document.querySelector(`[data-internal-finish-key="${key}"]`);
+}
+
+function initializeFinishSummaryInputs() {
+  const keys = [
+    "floor", "baseboard", "wall", "wallBacking", "wallSubstrate",
+    "partitionWall", "partitionWallBacking", "partitionWallSubstrate", "plywoodReinforcement",
+    "exteriorWainscotUpperFinish", "exteriorWainscotUpperSubstrate",
+    "exteriorWainscotLowerFinish", "exteriorWainscotLowerSubstrate",
+    "partitionWainscotUpperFinish", "partitionWainscotUpperSubstrate",
+    "partitionWainscotLowerFinish", "partitionWainscotLowerSubstrate",
+    "ceiling", "ceilingTrim"
+  ];
+  keys.forEach((key) => {
+    const field = internalFinishInput(key)?.closest(".finish-choice-field");
+    if (!field) return;
+    let input = field.querySelector("[data-internal-finish-summary]") || field.querySelector(".finish-summary-input");
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "text";
+      input.className = "finish-summary-input";
+      input.placeholder = "概要";
+      field.appendChild(input);
+    }
+    input.dataset.internalFinishSummary = key;
+  });
+}
+
+function initializeWainscotSectionToggle() {
+  const section = document.querySelector('.finish-group[aria-label="腰壁"]');
+  if (!section || section.querySelector("[data-wainscot-toggle]")) return;
+  const title = section.querySelector(".finish-group-title");
+  if (!title) return;
+  const header = document.createElement("div");
+  header.className = "finish-group-heading";
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "finish-group-toggle";
+  toggle.dataset.wainscotToggle = "";
+  toggle.setAttribute("aria-expanded", "true");
+  const content = document.createElement("div");
+  content.className = "wainscot-finish-content";
+  content.dataset.wainscotContent = "";
+  title.replaceWith(header);
+  header.append(title, toggle);
+  Array.from(section.children).forEach((child) => {
+    if (child !== header) content.appendChild(child);
+  });
+  section.appendChild(content);
+  const update = (collapsed) => {
+    content.hidden = collapsed;
+    toggle.textContent = collapsed ? "表示" : "隠す";
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.title = collapsed ? "腰壁を表示" : "腰壁を隠す";
+  };
+  toggle.addEventListener("click", () => update(!content.hidden));
+  update(false);
 }
 
 function internalFinishValue(key) {
@@ -5163,6 +5220,8 @@ els.calibrateButton.addEventListener("click", () => {
 });
 els.scaleCheckButton.addEventListener("click", startScaleCheck);
 els.scaleUnitInput.addEventListener("change", syncScaleUnitInput);
+initializeFinishSummaryInputs();
+initializeWainscotSectionToggle();
 initializeInternalFinishTakeoffButtons();
 els.formulaInput.addEventListener("change", () => {
   if (activeFinishTab === "external") setActiveExternalFinish(defaultExternalFinishKey(), { syncFormula: false });
@@ -5211,30 +5270,30 @@ document.querySelectorAll("[data-internal-finish-key]").forEach((input) => {
   input.addEventListener("click", () => setActiveInternalFinish(key));
 });
 els.externalFinishCategories?.addEventListener("click", (event) => {
-  const row = event.target.closest?.("[data-external-finish-row]");
+  const activeRow = event.target.closest?.("[data-external-finish-row]");
   const category = event.target.closest?.("[data-external-finish-category]");
-  if (category) setActiveExternalFinish(category.dataset.externalFinishCategory, { row });
+  if (category) setActiveExternalFinish(category.dataset.externalFinishCategory, { row: activeRow });
   const takeoffButton = event.target.closest?.("[data-external-finish-takeoff]");
-  if (takeoffButton && row && category) {
+  if (takeoffButton && activeRow && category) {
     startFinishTakeoff(
-      externalFinishSelectionForRow(row, category.dataset.externalFinishCategory),
-      formulaForExternalFinishRow(row, category.dataset.externalFinishCategory)
+      externalFinishSelectionForRow(activeRow, category.dataset.externalFinishCategory),
+      formulaForExternalFinishRow(activeRow, category.dataset.externalFinishCategory)
     );
     return;
   }
   const addButton = event.target.closest?.("[data-add-external-finish]");
   if (addButton) {
-    const row = addExternalFinishRow(addButton.dataset.addExternalFinish);
-    row?.querySelector('[data-external-finish-input="finish"]')?.focus();
+    const addedRow = addExternalFinishRow(addButton.dataset.addExternalFinish);
+    addedRow?.querySelector('[data-external-finish-input="finish"]')?.focus();
     addDirectFinishCandidates({ persist: false });
     saveQuietly();
     return;
   }
   const removeButton = event.target.closest?.("[data-remove-external-finish]");
   if (!removeButton) return;
-  const row = removeButton.closest("[data-external-finish-row]");
-  const container = row?.parentElement;
-  row?.remove();
+  const removedRow = removeButton.closest("[data-external-finish-row]");
+  const container = removedRow?.parentElement;
+  removedRow?.remove();
   if (container && !container.children.length) addExternalFinishRow(removeButton.dataset.removeExternalFinish);
   addDirectFinishCandidates({ persist: false });
   saveQuietly();
