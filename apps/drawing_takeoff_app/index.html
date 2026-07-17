@@ -90,14 +90,6 @@
             <button class="tool-button" data-tool="line" type="button">長さ</button>
             <button class="tool-button" data-tool="count" type="button">個数</button>
           </div>
-          <label>計算
-            <select id="formulaInput">
-              <option value="floor">床/天井 面積</option>
-              <option value="perimeter">巾木/廻縁 長さ</option>
-              <option value="wall">壁 面積 = 周長 x 高さ - 建具</option>
-              <option value="count">個数</option>
-            </select>
-          </label>
           <label>建具拾いの工種
             <select id="openingTradeInput">
               <option value="">未分類</option>
@@ -234,6 +226,14 @@
               </div>
             </div>
           </div>
+          <label>計算
+            <select id="formulaInput">
+              <option value="floor">床/天井 面積</option>
+              <option value="perimeter">巾木/廻縁 長さ</option>
+              <option value="wall">壁 面積 = 周長 x 高さ - 建具</option>
+              <option value="count">個数</option>
+            </select>
+          </label>
           <div class="two-cols">
             <label>建具幅控除 m<input id="deductLengthInput" type="number" min="0" step="0.01" value="0"></label>
             <label>建具面積控除 m2<input id="deductAreaInput" type="number" min="0" step="0.01" value="0"></label>
