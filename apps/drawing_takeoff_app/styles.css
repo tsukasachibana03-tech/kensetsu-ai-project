@@ -521,15 +521,39 @@ select:focus {
 
 .external-finish-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 118px 30px;
   gap: 6px;
   align-items: center;
 }
 
-.external-finish-row input {
+.external-finish-row input,
+.external-finish-row select {
   min-height: 32px;
   padding: 5px 8px;
   font-size: 12px;
+}
+
+.external-finish-picker {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.external-finish-picker input {
+  min-width: 0;
+}
+
+.external-finish-menu-button {
+  min-width: 30px;
+  min-height: 32px;
+  padding: 0;
+  font-size: 12px;
+}
+
+.external-finish-summary {
+  grid-column: 1 / -1;
 }
 
 .hardware-finish-section {
@@ -696,6 +720,21 @@ select:focus {
   gap: 4px;
   align-items: center;
   min-width: 0;
+}
+
+.finish-entry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.finish-formula-select {
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px 7px;
+  font-size: 11px;
 }
 
 .finish-menu-button {
@@ -1161,7 +1200,7 @@ tbody tr.selected td {
   }
 
   .external-finish-row {
-    grid-template-columns: minmax(0, 1fr) 30px;
+    grid-template-columns: minmax(0, 1fr) 102px 30px;
   }
 
   .external-finish-row .external-finish-summary {
@@ -1171,6 +1210,10 @@ tbody tr.selected td {
 
   .hardware-finish-actions {
     grid-template-columns: 1fr;
+  }
+
+  .finish-entry-row {
+    grid-template-columns: minmax(0, 1fr) 102px;
   }
 
   .project-panel .action-row {
