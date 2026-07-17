@@ -3773,12 +3773,15 @@ function saveActiveEntryState() {
   entry.currentPage = currentPage;
 }
 
-function drawingListBadge(entry, drawingNumber, isOpeningDrawing) {
+function hasConfiguredScale(entry) {
+  return Number(entry?.scale?.pxPerMeter || 0) > 0;
+}
+
+function drawingListBadges(entry, isOpeningDrawing) {
   const badges = [];
-  if (isOpeningDrawing) badges.push("建具");
-  if (entry.scale) badges.push("縮尺済");
-  if (badges.length) return badges.join("・");
-  return drawingNumber || String((entry.records || []).length);
+  if (isOpeningDrawing) badges.push({ className: "opening-badge", label: "建具" });
+  if (hasConfiguredScale(entry)) badges.push({ className: "scale-badge", label: "縮尺設定済" });
+  return badges;
 }
 
 function renderDrawingList() {
@@ -3793,13 +3796,19 @@ function renderDrawingList() {
     button.className = [
       entry.id === activeDrawingId ? "active" : "",
       entry.error ? "has-error" : "",
-      isOpeningDrawing ? "opening-candidate" : ""
+      isOpeningDrawing ? "opening-candidate" : "",
+      hasConfiguredScale(entry) ? "scale-configured" : ""
     ].filter(Boolean).join(" ");
     button.title = entry.name;
-    const badge = drawingListBadge(entry, drawingNumber, isOpeningDrawing);
+    const badges = drawingListBadges(entry, isOpeningDrawing);
+    const status = entry.error
+      ? '<span class="drawing-badge error-badge">失敗</span>'
+      : badges.length
+        ? badges.map((badge) => `<span class="drawing-badge ${badge.className}">${badge.label}</span>`).join("")
+        : `<span class="drawing-count">${escapeHtml(drawingNumber || String((entry.records || []).length))}</span>`;
     button.innerHTML = `
       <span class="drawing-name">${escapeHtml(entry.name)}</span>
-      <span class="drawing-count">${entry.error ? "失敗" : escapeHtml(badge)}</span>
+      <span class="drawing-badges">${status}</span>
     `;
     button.addEventListener("click", () => {
       loadDrawingEntry(entry).catch(handleFileLoadError);
