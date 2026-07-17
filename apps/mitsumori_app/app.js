@@ -1526,7 +1526,8 @@
       openDataFileInput("Dropbox共有データ: mitsumori_data.json を選択してください。");
       return;
     }
-    const response = await fetch("mitsumori_data.json", { cache: "no-store" });
+    const response = await fetch("api/latest-data", { cache: "no-store" }).catch(() => null)
+      || await fetch("mitsumori_data.json", { cache: "no-store" });
     if (!response.ok) {
       throw new Error("保存済みデータが見つかりません");
     }

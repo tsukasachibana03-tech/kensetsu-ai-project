@@ -5,6 +5,7 @@ const path = require("path");
 const root = __dirname;
 const projectRoot = path.resolve(root, "..", "..");
 const dropboxRoot = path.resolve(projectRoot, "..");
+const dropboxDataPath = path.join(dropboxRoot, "mitsumori_data.json");
 const port = Number(process.argv[2] || process.env.PORT || 8766);
 
 const mimeTypes = {
@@ -76,9 +77,9 @@ async function handleSave(request, response) {
     const content = await readBody(request);
     validatePayload(content);
     const targets = [
+      dropboxDataPath,
       path.join(root, "mitsumori_data.json"),
-      path.join(projectRoot, "data", "mitsumori_data.json"),
-      path.join(dropboxRoot, "mitsumori_data.json")
+      path.join(projectRoot, "data", "mitsumori_data.json")
     ];
     for (const target of targets) {
       if (!isInside(dropboxRoot, target)) throw new Error(`invalid target: ${target}`);
@@ -92,6 +93,17 @@ async function handleSave(request, response) {
     }), "application/json; charset=utf-8");
   } catch (error) {
     send(response, 500, `save failed: ${error.message}`);
+  }
+}
+
+async function handleLoad(request, response) {
+  try {
+    if (!isInside(dropboxRoot, dropboxDataPath)) throw new Error(`invalid target: ${dropboxDataPath}`);
+    const content = await fs.promises.readFile(dropboxDataPath, "utf8");
+    validatePayload(content);
+    send(response, 200, content, "application/json; charset=utf-8");
+  } catch (error) {
+    send(response, 404, `load failed: ${error.message}`);
   }
 }
 
@@ -127,6 +139,10 @@ const server = http.createServer((request, response) => {
   }
   if (request.method === "POST" && request.url === "/api/save-data") {
     handleSave(request, response);
+    return;
+  }
+  if (request.method === "GET" && request.url === "/api/latest-data") {
+    handleLoad(request, response);
     return;
   }
   if (request.method === "GET" || request.method === "HEAD") {
