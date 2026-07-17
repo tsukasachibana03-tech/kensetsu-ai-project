@@ -593,11 +593,16 @@ function displayTrimInputValue(value) {
 }
 
 function wainscotAvailability(value) {
-  return value === "yes" ? "yes" : "no";
+  if (value === "yes") return "yes";
+  if (value === "no") return "no";
+  return "";
 }
 
 function wainscotAvailabilityLabel(value) {
-  return wainscotAvailability(value) === "yes" ? "あり" : "なし";
+  const availability = wainscotAvailability(value);
+  if (availability === "yes") return "あり";
+  if (availability === "no") return "なし";
+  return "部材なし";
 }
 
 function roomSettingKey(floor, room) {
@@ -836,7 +841,9 @@ function roomSettingSummary(setting) {
   const ceilingTrim = trimSettingValue(setting.ceilingTrim);
   parts.push(baseboard === "no" ? "巾木なし" : baseboard === "yes" ? "巾木あり" : `巾木 ${baseboard}`);
   parts.push(ceilingTrim === "no" ? "廻り縁なし" : ceilingTrim === "yes" ? "廻り縁あり" : `廻り縁 ${ceilingTrim}`);
-  if (wainscotAvailability(setting.wainscot) === "yes") parts.push("腰壁あり");
+  const wainscot = wainscotAvailability(setting.wainscot);
+  if (wainscot === "yes") parts.push("腰壁あり");
+  if (!wainscot) parts.push("腰壁部材なし");
   if (hasPositiveNumber(setting.lastPerimeterM)) parts.push(`周長 ${numberText(setting.lastPerimeterM)}m`);
   if (hasPositiveNumber(setting.lastAreaM2)) parts.push(`面積 ${numberText(setting.lastAreaM2)}m2`);
   if (hasPositiveNumber(setting.deductLength)) parts.push(`幅控除 ${numberText(setting.deductLength)}m`);
@@ -1974,9 +1981,9 @@ function serializableAppState(state = {}) {
     finishTables: normalizeFinishTables(state.finishTables, state.finishSchedule, currentRoom),
     activeFinishTab: state.activeFinishTab === "external" ? "external" : "internal",
     substrateSettings: {
-      wallType: state.substrateSettings?.wallType || "partition",
-      wallSubstrate: state.substrateSettings?.wallSubstrate || defaultWallSubstrate(state.substrateSettings?.wallType || "partition"),
-      ceilingSubstrate: state.substrateSettings?.ceilingSubstrate || "石膏ボード下地"
+      wallType: String(state.substrateSettings?.wallType || "").trim(),
+      wallSubstrate: String(state.substrateSettings?.wallSubstrate || "").trim(),
+      ceilingSubstrate: String(state.substrateSettings?.ceilingSubstrate || "").trim()
     },
     records: cloneRecords(state.records || []),
     roomSettings: normalizeRoomSettings(state.roomSettings || state.rooms || []),
@@ -2341,11 +2348,14 @@ function unitForFormula(value) {
 }
 
 function wallTypeLabel(value) {
-  return {
+  const labels = {
     partition: "間仕切り壁",
     "concrete-gl": "コンクリートGL",
     "concrete-direct": "コンクリート直"
-  }[value] || "間仕切り壁";
+  };
+  const type = String(value || "").trim();
+  if (!type) return "部材なし";
+  return labels[type] || type;
 }
 
 function defaultWallSubstrate(value) {
@@ -2374,32 +2384,32 @@ function setSelectValue(select, value) {
 }
 
 function currentSubstrateSettings() {
-  const wallType = els.wallTypeInput?.value || "partition";
   return {
-    wallType,
-    wallSubstrate: (els.wallSubstrateInput?.value || defaultWallSubstrate(wallType)).trim(),
-    ceilingSubstrate: (els.ceilingSubstrateInput?.value || "石膏ボード下地").trim()
+    wallType: (els.wallTypeInput?.value || "").trim(),
+    wallSubstrate: (els.wallSubstrateInput?.value || "").trim(),
+    ceilingSubstrate: (els.ceilingSubstrateInput?.value || "").trim()
   };
 }
 
 function applySubstrateSettings(settings = {}) {
-  const wallType = settings.wallType || "partition";
-  if (els.wallTypeInput) els.wallTypeInput.value = wallType;
+  const wallType = String(settings.wallType || "").trim();
+  setSelectValue(els.wallTypeInput, wallType);
   if (els.wallTypeInput) els.wallTypeInput.dataset.previousValue = wallType;
-  setSelectValue(els.wallSubstrateInput, settings.wallSubstrate || defaultWallSubstrate(wallType));
-  setSelectValue(els.ceilingSubstrateInput, settings.ceilingSubstrate || "石膏ボード下地");
+  setSelectValue(els.wallSubstrateInput, String(settings.wallSubstrate || "").trim());
+  setSelectValue(els.ceilingSubstrateInput, String(settings.ceilingSubstrate || "").trim());
 }
 
 function syncWallSubstrateDefault() {
   if (!els.wallTypeInput || !els.wallSubstrateInput) return;
-  const previousType = els.wallTypeInput.dataset.previousValue || "partition";
-  const previousDefault = defaultWallSubstrate(previousType);
+  const previousType = els.wallTypeInput.dataset.previousValue || "";
+  const previousDefault = previousType ? defaultWallSubstrate(previousType) : "";
   const currentValue = els.wallSubstrateInput.value.trim();
-  const nextDefault = defaultWallSubstrate(els.wallTypeInput.value);
-  if (!currentValue || currentValue === previousDefault) {
+  const nextType = els.wallTypeInput.value;
+  const nextDefault = nextType ? defaultWallSubstrate(nextType) : "";
+  if (!currentValue || (previousDefault && currentValue === previousDefault)) {
     setSelectValue(els.wallSubstrateInput, nextDefault);
   }
-  els.wallTypeInput.dataset.previousValue = els.wallTypeInput.value;
+  els.wallTypeInput.dataset.previousValue = nextType;
 }
 
 function finishSummaryInputs() {
@@ -2789,6 +2799,9 @@ function trimMaterialForTarget(target) {
 function finishSelectionForRecord() {
   const selection = currentFinishSelection();
   if (selection.material) return selection;
+  if (selection.tab === "internal" && ["wall", "ceiling"].includes(selection.key)) {
+    return { ...selection, material: "部材なし" };
+  }
   setHint(`${selection.tab === "external" ? "外部" : "内部"}仕上げ表の「${selection.label}」を入力してください。`);
   return null;
 }
@@ -2797,24 +2810,29 @@ function substrateInfoForRecord(formula, part, material) {
   const settings = currentSubstrateSettings();
   const kind = recordSurfaceKind(formula, part, material);
   if (kind === "ceiling") {
+    const ceilingSubstrate = settings.ceilingSubstrate || "部材なし";
     return {
       surfaceKind: "ceiling",
       wallType: "",
       wallTypeLabel: "",
       wallSubstrate: "",
-      ceilingSubstrate: settings.ceilingSubstrate,
-      substrateSummary: settings.ceilingSubstrate ? `天井下地: ${settings.ceilingSubstrate}` : ""
+      ceilingSubstrate,
+      substrateSummary: `天井下地: ${ceilingSubstrate}`
     };
   }
   if (kind === "wall") {
     const label = wallTypeLabel(settings.wallType);
+    const wallSubstrate = settings.wallSubstrate || "部材なし";
     return {
       surfaceKind: "wall",
       wallType: settings.wallType,
       wallTypeLabel: label,
-      wallSubstrate: settings.wallSubstrate,
+      wallSubstrate,
       ceilingSubstrate: "",
-      substrateSummary: [label, settings.wallSubstrate ? `壁下地: ${settings.wallSubstrate}` : ""].filter(Boolean).join(" / ")
+      substrateSummary: [
+        settings.wallType ? label : `壁種: ${label}`,
+        `壁下地: ${wallSubstrate}`
+      ].join(" / ")
     };
   }
   return {
