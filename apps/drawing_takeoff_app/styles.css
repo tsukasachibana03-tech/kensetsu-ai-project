@@ -231,6 +231,11 @@ label span {
   color: var(--accent);
 }
 
+.drawing-list button.scale-configured:not(.active) {
+  border-left: 4px solid #1f8a5b;
+  padding-left: 6px;
+}
+
 .drawing-list button.opening-candidate {
   border-color: #b8d7c6;
   background: #f3fbf6;
@@ -248,9 +253,52 @@ label span {
   white-space: nowrap;
 }
 
-.drawing-list .drawing-count {
+.drawing-list .drawing-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.drawing-list .drawing-count,
+.drawing-list .drawing-badge {
   font-size: 12px;
   font-weight: 800;
+}
+
+.drawing-list .drawing-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.drawing-list .opening-badge {
+  color: #1b6e4b;
+  border-color: #b8d7c6;
+  background: #f3fbf6;
+}
+
+.drawing-list .scale-badge {
+  color: #0a6b45;
+  border-color: #79c7a2;
+  background: #dff6e8;
+}
+
+.drawing-list .error-badge {
+  color: #9a3c22;
+  border-color: #e0c6be;
+  background: #fff6f3;
+}
+
+.drawing-list button.active .drawing-badge {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 label {
