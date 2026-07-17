@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>図面積算アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260718-room-content">
+  <link rel="stylesheet" href="styles.css?v=20260718-hardware-takeoff">
 </head>
 <body>
   <div class="app">
@@ -208,6 +208,13 @@
                 <input id="ceilingTrimSummaryInput" class="finish-summary-input" type="text" placeholder="概要">
               </label>
               <label><span>高さ m</span><input id="heightInput" type="number" min="0" step="0.01" value="2.4"></label>
+              <section id="hardwareFinishSection" class="hardware-finish-section" aria-label="金物">
+                <div class="hardware-finish-head">
+                  <strong>金物</strong>
+                  <button id="addHardwareFinishButton" class="hardware-finish-add" type="button" title="金物を追加" aria-label="金物を追加">+</button>
+                </div>
+                <div id="hardwareFinishRows" class="hardware-finish-rows"></div>
+              </section>
             </div>
             <div id="externalFinishPanel" class="finish-table-panel" role="tabpanel" aria-labelledby="externalFinishTab" hidden>
               <div id="externalFinishCategories" class="external-finish-categories">
@@ -334,6 +341,6 @@
     </section>
   </div>
 
-  <script type="module" src="app.js?v=20260718-no-undo"></script>
+  <script type="module" src="app.js?v=20260718-hardware-takeoff"></script>
 </body>
 </html>
