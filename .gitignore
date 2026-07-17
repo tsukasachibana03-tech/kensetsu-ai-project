@@ -1,2 +1,65 @@
+# APIキー・秘密情報
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+credentials/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Unreal Engine
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ログ・一時ファイル
+*.log
+*.tmp
+*.temp
+.cache/
+
+# 個人情報や業務資料はGitHubへ送らない
+*.pdf
+*.xlsx
+*.xls
+*.csv
+*.zip
+
+# 見積・業務データ
+**/mitsumori_data.json
+**/mitsumori_data.json.*
+data/
+
+# 見積書の実データ
 apps/mitsumori_app/mitsumori_data.json
-*.last-good
+apps/mitsumori_app/mitsumori_data.json.*
+data/mitsumori_data.json
+data/mitsumori_data.json.*

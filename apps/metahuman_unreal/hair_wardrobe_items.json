@@ -1,0 +1,477 @@
+[
+  {
+    "asset_name": "WI_Beard_L_Full",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_L_Full",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_L_Full.WI_Beard_L_Full"
+  },
+  {
+    "asset_name": "WI_Beard_L_Messy",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_L_Messy",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_L_Messy.WI_Beard_L_Messy"
+  },
+  {
+    "asset_name": "WI_Beard_M_Curly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_M_Curly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_M_Curly.WI_Beard_M_Curly"
+  },
+  {
+    "asset_name": "WI_Beard_M_MuttonChops",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_M_MuttonChops",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_M_MuttonChops.WI_Beard_M_MuttonChops"
+  },
+  {
+    "asset_name": "WI_Beard_M_Stubble",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_M_Stubble",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_M_Stubble.WI_Beard_M_Stubble"
+  },
+  {
+    "asset_name": "WI_Beard_S_Curly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_Curly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_Curly.WI_Beard_S_Curly"
+  },
+  {
+    "asset_name": "WI_Beard_S_Full",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_Full",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_Full.WI_Beard_S_Full"
+  },
+  {
+    "asset_name": "WI_Beard_S_PencilThin",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_PencilThin",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_PencilThin.WI_Beard_S_PencilThin"
+  },
+  {
+    "asset_name": "WI_Beard_S_Stubble",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_Stubble",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_Stubble.WI_Beard_S_Stubble"
+  },
+  {
+    "asset_name": "WI_Beard_S_Uneven",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_Uneven",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Beard_S_Uneven.WI_Beard_S_Uneven"
+  },
+  {
+    "asset_name": "WI_Eyebrows_L_Scraggly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_L_Scraggly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_L_Scraggly.WI_Eyebrows_L_Scraggly"
+  },
+  {
+    "asset_name": "WI_Eyebrows_L_Shaded",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_L_Shaded",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_L_Shaded.WI_Eyebrows_L_Shaded"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Dense",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Dense",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Dense.WI_Eyebrows_M_Dense"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Fine",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Fine",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Fine.WI_Eyebrows_M_Fine"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_FlatThick",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_FlatThick",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_FlatThick.WI_Eyebrows_M_FlatThick"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Full",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Full",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Full.WI_Eyebrows_M_Full"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Messy",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Messy",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Messy.WI_Eyebrows_M_Messy"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Natural",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Natural",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Natural.WI_Eyebrows_M_Natural"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Shaded",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Shaded",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Shaded.WI_Eyebrows_M_Shaded"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_SlightArch",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_SlightArch",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_SlightArch.WI_Eyebrows_M_SlightArch"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Slit",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Slit",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Slit.WI_Eyebrows_M_Slit"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Swept",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Swept",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Swept.WI_Eyebrows_M_Swept"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Thick",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Thick",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Thick.WI_Eyebrows_M_Thick"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Thin",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Thin",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Thin.WI_Eyebrows_M_Thin"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Unruly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Unruly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Unruly.WI_Eyebrows_M_Unruly"
+  },
+  {
+    "asset_name": "WI_Eyebrows_M_Wide",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Wide",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_M_Wide.WI_Eyebrows_M_Wide"
+  },
+  {
+    "asset_name": "WI_Eyebrows_S_FlatThin",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_S_FlatThin",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_S_FlatThin.WI_Eyebrows_S_FlatThin"
+  },
+  {
+    "asset_name": "WI_Eyebrows_S_Shaded",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_S_Shaded",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyebrows/WI_Eyebrows_S_Shaded.WI_Eyebrows_S_Shaded"
+  },
+  {
+    "asset_name": "WI_Eyelashes_L_Curl",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_L_Curl",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_L_Curl.WI_Eyelashes_L_Curl"
+  },
+  {
+    "asset_name": "WI_Eyelashes_L_SlightCurl",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_L_SlightCurl",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_L_SlightCurl.WI_Eyelashes_L_SlightCurl"
+  },
+  {
+    "asset_name": "WI_Eyelashes_L_ThickCurl",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_L_ThickCurl",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_L_ThickCurl.WI_Eyelashes_L_ThickCurl"
+  },
+  {
+    "asset_name": "WI_Eyelashes_S_Fine",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_S_Fine",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_S_Fine.WI_Eyelashes_S_Fine"
+  },
+  {
+    "asset_name": "WI_Eyelashes_S_Sparse",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_S_Sparse",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_S_Sparse.WI_Eyelashes_S_Sparse"
+  },
+  {
+    "asset_name": "WI_Eyelashes_S_Thin",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_S_Thin",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Eyelashes/WI_Eyelashes_S_Thin.WI_Eyelashes_S_Thin"
+  },
+  {
+    "asset_name": "WI_Goatee_L_Scraggly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_L_Scraggly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_L_Scraggly.WI_Goatee_L_Scraggly"
+  },
+  {
+    "asset_name": "WI_Goatee_L_Wavy",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_L_Wavy",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_L_Wavy.WI_Goatee_L_Wavy"
+  },
+  {
+    "asset_name": "WI_Goatee_M_Pointed",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_M_Pointed",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_M_Pointed.WI_Goatee_M_Pointed"
+  },
+  {
+    "asset_name": "WI_Goatee_M_Soulpatch",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_M_Soulpatch",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_M_Soulpatch.WI_Goatee_M_Soulpatch"
+  },
+  {
+    "asset_name": "WI_Goatee_S_ChinStrap",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_S_ChinStrap",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_S_ChinStrap.WI_Goatee_S_ChinStrap"
+  },
+  {
+    "asset_name": "WI_Goatee_S_SoulpatchStrip",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_S_SoulpatchStrip",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Beards/WI_Goatee_S_SoulpatchStrip.WI_Goatee_S_SoulpatchStrip"
+  },
+  {
+    "asset_name": "WI_Hair_L_AfroCurly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_AfroCurly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_AfroCurly.WI_Hair_L_AfroCurly"
+  },
+  {
+    "asset_name": "WI_Hair_L_MessyClumps",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_MessyClumps",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_MessyClumps.WI_Hair_L_MessyClumps"
+  },
+  {
+    "asset_name": "WI_Hair_L_Straight",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_Straight",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_Straight.WI_Hair_L_Straight"
+  },
+  {
+    "asset_name": "WI_Hair_L_StraightBangs",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_StraightBangs",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_StraightBangs.WI_Hair_L_StraightBangs"
+  },
+  {
+    "asset_name": "WI_Hair_M_BobBangs",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobBangs",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobBangs.WI_Hair_M_BobBangs"
+  },
+  {
+    "asset_name": "WI_Hair_M_BobCurly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobCurly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobCurly.WI_Hair_M_BobCurly"
+  },
+  {
+    "asset_name": "WI_Hair_M_BobMessy",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobMessy",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobMessy.WI_Hair_M_BobMessy"
+  },
+  {
+    "asset_name": "WI_Hair_M_BobSlick",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobSlick",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobSlick.WI_Hair_M_BobSlick"
+  },
+  {
+    "asset_name": "WI_Hair_M_BobStraight",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobStraight",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_BobStraight.WI_Hair_M_BobStraight"
+  },
+  {
+    "asset_name": "WI_Hair_M_FauxMohawk",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_FauxMohawk",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_FauxMohawk.WI_Hair_M_FauxMohawk"
+  },
+  {
+    "asset_name": "WI_Hair_M_Layered",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_Layered",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_Layered.WI_Hair_M_Layered"
+  },
+  {
+    "asset_name": "WI_Hair_M_Mohawk",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_Mohawk",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_Mohawk.WI_Hair_M_Mohawk"
+  },
+  {
+    "asset_name": "WI_Hair_M_SideSweptFringe",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_SideSweptFringe",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_SideSweptFringe.WI_Hair_M_SideSweptFringe"
+  },
+  {
+    "asset_name": "WI_Hair_M_TwistedBraids",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_TwistedBraids",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_M_TwistedBraids.WI_Hair_M_TwistedBraids"
+  },
+  {
+    "asset_name": "WI_Hair_S_360Waves",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_360Waves",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_360Waves.WI_Hair_S_360Waves"
+  },
+  {
+    "asset_name": "WI_Hair_S_AfroFade",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_AfroFade",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_AfroFade.WI_Hair_S_AfroFade"
+  },
+  {
+    "asset_name": "WI_Hair_S_BaldingStubble",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_BaldingStubble",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_BaldingStubble.WI_Hair_S_BaldingStubble"
+  },
+  {
+    "asset_name": "WI_Hair_S_BobLayered",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_BobLayered",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_BobLayered.WI_Hair_S_BobLayered"
+  },
+  {
+    "asset_name": "WI_Hair_S_BrushCut",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_BrushCut",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_BrushCut.WI_Hair_S_BrushCut"
+  },
+  {
+    "asset_name": "WI_Hair_S_BuzzCut",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_BuzzCut",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_BuzzCut.WI_Hair_S_BuzzCut"
+  },
+  {
+    "asset_name": "WI_Hair_S_Casual",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Casual",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Casual.WI_Hair_S_Casual"
+  },
+  {
+    "asset_name": "WI_Hair_S_Clean",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Clean",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Clean.WI_Hair_S_Clean"
+  },
+  {
+    "asset_name": "WI_Hair_S_Coil",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Coil",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Coil.WI_Hair_S_Coil"
+  },
+  {
+    "asset_name": "WI_Hair_S_CoilBuzzCut",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_CoilBuzzCut",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_CoilBuzzCut.WI_Hair_S_CoilBuzzCut"
+  },
+  {
+    "asset_name": "WI_Hair_S_Cornrows",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Cornrows",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Cornrows.WI_Hair_S_Cornrows"
+  },
+  {
+    "asset_name": "WI_Hair_S_CurlyFade",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_CurlyFade",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_CurlyFade.WI_Hair_S_CurlyFade"
+  },
+  {
+    "asset_name": "WI_Hair_S_HairLoss",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_HairLoss",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_HairLoss.WI_Hair_S_HairLoss"
+  },
+  {
+    "asset_name": "WI_Hair_S_LowPonytail",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_LowPonytail",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_LowPonytail.WI_Hair_S_LowPonytail"
+  },
+  {
+    "asset_name": "WI_Hair_S_Messy",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Messy",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Messy.WI_Hair_S_Messy"
+  },
+  {
+    "asset_name": "WI_Hair_S_Pixie",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Pixie",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Pixie.WI_Hair_S_Pixie"
+  },
+  {
+    "asset_name": "WI_Hair_S_PulledBack",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_PulledBack",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_PulledBack.WI_Hair_S_PulledBack"
+  },
+  {
+    "asset_name": "WI_Hair_S_RecedeMessy",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_RecedeMessy",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_RecedeMessy.WI_Hair_S_RecedeMessy"
+  },
+  {
+    "asset_name": "WI_Hair_S_SideSweptFringe",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_SideSweptFringe",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_SideSweptFringe.WI_Hair_S_SideSweptFringe"
+  },
+  {
+    "asset_name": "WI_Hair_S_SlickBack",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_SlickBack",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_SlickBack.WI_Hair_S_SlickBack"
+  },
+  {
+    "asset_name": "WI_Hair_S_SweptUp",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_SweptUp",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_SweptUp.WI_Hair_S_SweptUp"
+  },
+  {
+    "asset_name": "WI_Hair_S_Updo",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Updo",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_Updo.WI_Hair_S_Updo"
+  },
+  {
+    "asset_name": "WI_Hair_S_UpdoBraids",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_UpdoBraids",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_UpdoBraids.WI_Hair_S_UpdoBraids"
+  },
+  {
+    "asset_name": "WI_Hair_S_UpdoBuns",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_UpdoBuns",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_S_UpdoBuns.WI_Hair_S_UpdoBuns"
+  },
+  {
+    "asset_name": "WI_Mustache_L_Full",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Full",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Full.WI_Mustache_L_Full"
+  },
+  {
+    "asset_name": "WI_Mustache_L_Handlebar",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Handlebar",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Handlebar.WI_Mustache_L_Handlebar"
+  },
+  {
+    "asset_name": "WI_Mustache_L_Messy",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Messy",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Messy.WI_Mustache_L_Messy"
+  },
+  {
+    "asset_name": "WI_Mustache_L_Scraggly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Scraggly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Scraggly.WI_Mustache_L_Scraggly"
+  },
+  {
+    "asset_name": "WI_Mustache_L_Stubble",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Stubble",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Stubble.WI_Mustache_L_Stubble"
+  },
+  {
+    "asset_name": "WI_Mustache_L_Wavy",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Wavy",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_L_Wavy.WI_Mustache_L_Wavy"
+  },
+  {
+    "asset_name": "WI_Mustache_M_Curly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_M_Curly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_M_Curly.WI_Mustache_M_Curly"
+  },
+  {
+    "asset_name": "WI_Mustache_M_Gunslinger",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_M_Gunslinger",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_M_Gunslinger.WI_Mustache_M_Gunslinger"
+  },
+  {
+    "asset_name": "WI_Mustache_M_Stubble",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_M_Stubble",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_M_Stubble.WI_Mustache_M_Stubble"
+  },
+  {
+    "asset_name": "WI_Mustache_S_ChinStrap",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_ChinStrap",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_ChinStrap.WI_Mustache_S_ChinStrap"
+  },
+  {
+    "asset_name": "WI_Mustache_S_Curly",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Curly",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Curly.WI_Mustache_S_Curly"
+  },
+  {
+    "asset_name": "WI_Mustache_S_Full",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Full",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Full.WI_Mustache_S_Full"
+  },
+  {
+    "asset_name": "WI_Mustache_S_Horseshoe",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Horseshoe",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Horseshoe.WI_Mustache_S_Horseshoe"
+  },
+  {
+    "asset_name": "WI_Mustache_S_PencilThin",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_PencilThin",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_PencilThin.WI_Mustache_S_PencilThin"
+  },
+  {
+    "asset_name": "WI_Mustache_S_Stubble",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Stubble",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Stubble.WI_Mustache_S_Stubble"
+  },
+  {
+    "asset_name": "WI_Mustache_S_Uneven",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Uneven",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Mustaches/WI_Mustache_S_Uneven.WI_Mustache_S_Uneven"
+  },
+  {
+    "asset_name": "WI_Peachfuzz_M_Thin",
+    "package_name": "/MetaHumanCharacter/Optional/Grooms/Bindings/Peachfuzz/WI_Peachfuzz_M_Thin",
+    "object_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Peachfuzz/WI_Peachfuzz_M_Thin.WI_Peachfuzz_M_Thin"
+  }
+]
