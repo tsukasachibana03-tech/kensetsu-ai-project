@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>図面積算アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260718-scale-badge">
+  <link rel="stylesheet" href="styles.css?v=20260718-room-content">
 </head>
 <body>
   <div class="app">
@@ -118,6 +118,14 @@
                     <button id="roomMenuButton" class="room-menu-button" type="button" aria-label="部屋を選択">▼</button>
                   </div>
                   <div id="roomMenu" class="room-menu" hidden></div>
+                </label>
+              </div>
+              <div class="room-registration">
+                <button id="saveRoomContentButton" type="button">内容登録</button>
+                <label>登録済みの内容
+                  <select id="registeredRoomSelect" disabled>
+                    <option value="">階数・部屋を選択</option>
+                  </select>
                 </label>
               </div>
               <p id="roomStatus" class="status room-status">部屋設定未登録</p>
@@ -323,6 +331,6 @@
     </section>
   </div>
 
-  <script type="module" src="app.js?v=20260718-scale-badge"></script>
+  <script type="module" src="app.js?v=20260718-room-content"></script>
 </body>
 </html>
