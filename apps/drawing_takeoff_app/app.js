@@ -164,15 +164,16 @@ const externalFinishCategories = [
 ];
 
 const internalFinishItems = [
+  { key: "partitionWallSubstrate", label: "間仕切壁 下地" },
   { key: "floor", label: "床仕上" },
-  { key: "floorSubstrate", label: "床下地" },
+  { key: "floorBacking", label: "床下張り" },
+  { key: "floorSubstrate", label: "床下地組" },
   { key: "baseboard", label: "巾木" },
   { key: "wall", label: "外壁側壁 仕上" },
   { key: "wallBacking", label: "外壁側壁 下張り" },
   { key: "wallSubstrate", label: "外壁側壁 下地" },
   { key: "partitionWall", label: "間仕切壁 仕上" },
   { key: "partitionWallBacking", label: "間仕切壁 下張り" },
-  { key: "partitionWallSubstrate", label: "間仕切壁 下地" },
   { key: "plywoodReinforcement", label: "ベニヤ補強" },
   { key: "exteriorWainscotUpperFinish", label: "外壁側壁 腰上仕上" },
   { key: "exteriorWainscotUpperSubstrate", label: "外壁側壁 腰上下地" },
@@ -190,6 +191,7 @@ const internalFinishItems = [
 const finishFormulaValues = ["floor", "perimeter", "wall", "count"];
 const internalFinishFormulaDefaults = {
   floor: "floor",
+  floorBacking: "floor",
   floorSubstrate: "floor",
   baseboard: "perimeter",
   wall: "wall",
@@ -211,6 +213,7 @@ const internalFinishFormulaDefaults = {
   ceilingSubstrate: "floor",
   ceilingTrim: "perimeter"
 };
+const sharedInternalFinishKeys = new Set(["partitionWallSubstrate"]);
 const finishFormulaOptionLabels = {
   floor: "面積",
   perimeter: "長さ",
@@ -2084,6 +2087,7 @@ function captureAppState(options = {}) {
     currentRoom: finishTableLocation(),
     finishSchedule: currentFinishSchedule(),
     finishTables: normalizeFinishTables(finishTables),
+    sharedInternalFinish: currentSharedInternalFinishSettings(),
     activeFinishTab,
     substrateSettings: currentSubstrateSettings(),
     records: cloneRecords(records),
@@ -2109,6 +2113,9 @@ function serializableAppState(state = {}) {
     currentRoom,
     finishSchedule: normalizeFinishSchedule(state.finishSchedule || {}),
     finishTables: normalizeFinishTables(state.finishTables, state.finishSchedule, currentRoom),
+    sharedInternalFinish: normalizeSharedInternalFinishSettings(
+      state.sharedInternalFinish ?? state.sharedFinishSettings ?? state.finishSchedule ?? {}
+    ),
     activeFinishTab: state.activeFinishTab === "external" ? "external" : "internal",
     substrateSettings: {
       wallType: String(state.substrateSettings?.wallType || "").trim(),
@@ -2264,6 +2271,9 @@ function applyAppState(data = {}) {
   roomSuggestions = normalizeRoomSuggestions(data.roomSuggestions || []);
   materialSuggestions = normalizeMaterialSuggestions(data.materialSuggestions || []);
   finishTables = normalizeFinishTables(data.finishTables, data.finishSchedule, savedRoom);
+  applySharedInternalFinishSettings(
+    data.sharedInternalFinish ?? data.sharedFinishSettings ?? data.finishSchedule ?? {}
+  );
   activeFinishTableLocation = null;
   activeFinishTab = data.activeFinishTab === "external" ? "external" : "internal";
   const roomSetting = findRoomSetting();
@@ -2578,7 +2588,43 @@ function normalizeFinishItemSummaries(values = {}) {
 function applyFinishItemSummaries(values = {}) {
   const normalized = normalizeFinishItemSummaries(values);
   Object.entries(finishSummaryInputs()).forEach(([key, input]) => {
+    if (sharedInternalFinishKeys.has(key)) return;
     if (input) input.value = normalized[key] || "";
+  });
+}
+
+function currentSharedInternalFinishSettings() {
+  return {
+    itemSummaries: Object.fromEntries(Array.from(sharedInternalFinishKeys).map((key) => [
+      key,
+      (finishSummaryInputs()[key]?.value || "").trim()
+    ])),
+    materials: Object.fromEntries(Array.from(sharedInternalFinishKeys).map((key) => [key, internalFinishValue(key)]))
+  };
+}
+
+function normalizeSharedInternalFinishSettings(settings = {}) {
+  const source = settings || {};
+  return {
+    itemSummaries: Object.fromEntries(Array.from(sharedInternalFinishKeys).map((key) => [
+      key,
+      String(source.itemSummaries?.[key] ?? source.summaries?.[key] ?? "").trim()
+    ])),
+    materials: Object.fromEntries(Array.from(sharedInternalFinishKeys).map((key) => {
+      const value = source.materials?.[key] ?? source.items?.[key] ?? source[key] ?? "";
+      return [key, normalizeWallSubstrateValue(value, { partition: true })];
+    }))
+  };
+}
+
+function applySharedInternalFinishSettings(settings = {}) {
+  const normalized = normalizeSharedInternalFinishSettings(settings);
+  Array.from(sharedInternalFinishKeys).forEach((key) => {
+    const input = internalFinishInput(key);
+    if (input?.tagName === "SELECT") setSelectValue(input, normalized.materials[key]);
+    else if (input) input.value = normalized.materials[key] || "";
+    const summary = finishSummaryInputs()[key];
+    if (summary) summary.value = normalized.itemSummaries[key] || "";
   });
 }
 
@@ -2616,7 +2662,7 @@ function internalFinishInput(key) {
 
 function initializeFinishSummaryInputs() {
   const keys = [
-    "floor", "baseboard", "wall", "wallBacking", "wallSubstrate",
+    "floor", "floorBacking", "floorSubstrate", "baseboard", "wall", "wallBacking", "wallSubstrate",
     "partitionWall", "partitionWallBacking", "partitionWallSubstrate", "plywoodReinforcement",
     "exteriorWainscotUpperFinish", "exteriorWainscotUpperSubstrate",
     "exteriorWainscotLowerFinish", "exteriorWainscotLowerSubstrate",
@@ -2704,6 +2750,7 @@ function normalizeInternalFinishMaterials(values = {}, schedule = {}) {
 
 function applyInternalFinishMaterials(materials = {}) {
   internalFinishItems.forEach(({ key }) => {
+    if (sharedInternalFinishKeys.has(key)) return;
     const input = internalFinishInput(key);
     if (!input) return;
     const value = materials[key] || "";
