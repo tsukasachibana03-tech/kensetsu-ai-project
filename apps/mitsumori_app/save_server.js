@@ -1,11 +1,23 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
+
+const execFileAsync = promisify(execFile);
 
 const root = __dirname;
 const projectRoot = path.resolve(root, "..", "..");
 const dropboxRoot = path.resolve(projectRoot, "..");
 const port = Number(process.argv[2] || process.env.PORT || 8766);
+const gitExecutable = process.env.GIT_EXE || "git";
+const gitSyncBranch = process.env.GITHUB_SYNC_BRANCH || "main";
+const gitSyncPaths = [
+  "apps/mitsumori_app",
+  "data/mitsumori_data.json",
+  "index.html",
+  "README.md"
+];
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -63,6 +75,41 @@ async function writeAtomic(filePath, content) {
   }
 }
 
+async function runGit(args) {
+  const result = await execFileAsync(gitExecutable, ["-c", `safe.directory=${projectRoot}`, ...args], {
+    cwd: projectRoot,
+    windowsHide: true,
+    timeout: 60000,
+    maxBuffer: 1024 * 1024
+  });
+  return `${result.stdout || ""}${result.stderr || ""}`.trim();
+}
+
+async function syncToGitHub() {
+  if (process.env.DISABLE_GITHUB_SYNC === "1") {
+    return { ok: true, skipped: true, reason: "disabled" };
+  }
+
+  const branch = (await runGit(["branch", "--show-current"])).trim();
+  if (branch && branch !== gitSyncBranch) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: `current branch is ${branch}; set GITHUB_SYNC_BRANCH=${branch} to push it`
+    };
+  }
+
+  const status = await runGit(["status", "--porcelain", "--", ...gitSyncPaths]);
+  if (!status) {
+    return { ok: true, skipped: true, reason: "no changes" };
+  }
+
+  await runGit(["add", "--", ...gitSyncPaths]);
+  await runGit(["commit", "-m", "Save latest estimate app data"]);
+  await runGit(["push", "origin", `HEAD:${gitSyncBranch}`]);
+  return { ok: true, skipped: false, branch: gitSyncBranch };
+}
+
 function send(response, status, body, contentType = "text/plain; charset=utf-8") {
   response.writeHead(status, {
     "Content-Type": contentType,
@@ -84,11 +131,21 @@ async function handleSave(request, response) {
       if (!isInside(dropboxRoot, target)) throw new Error(`invalid target: ${target}`);
       await writeAtomic(target, content);
     }
+
+    let githubSync;
+    try {
+      githubSync = await syncToGitHub();
+    } catch (error) {
+      githubSync = { ok: false, error: error.message };
+      console.error(`GitHub sync failed: ${error.message}`);
+    }
+
     send(response, 200, JSON.stringify({
       ok: true,
       fileName: "mitsumori_data.json",
       savedAt: new Date().toISOString(),
-      targets
+      targets,
+      githubSync
     }), "application/json; charset=utf-8");
   } catch (error) {
     send(response, 500, `save failed: ${error.message}`);
