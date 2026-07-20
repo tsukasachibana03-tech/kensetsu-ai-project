@@ -9,7 +9,7 @@
       window.location.replace("http://127.0.0.1:8766/index.html");
     }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20260720-vendor-pdf-ocr">
+  <link rel="stylesheet" href="styles.css?v=20260720-vendor-net-tax">
 </head>
 <body>
   <div class="app-shell">
@@ -272,6 +272,19 @@
               <h3>OCR結果</h3>
               <button type="button" id="vendorAddRowButton" class="ghost">明細追加</button>
             </div>
+            <div class="vendor-net-settings">
+              <label>NET税区分
+                <select id="vendorNetTaxMode">
+                  <option value="auto">自動判定</option>
+                  <option value="inclusive">税込NET</option>
+                  <option value="exclusive">税抜NET</option>
+                </select>
+              </label>
+              <label>消費税率（%）
+                <input id="vendorNetTaxRate" type="number" min="0" max="100" step="0.1" value="10">
+              </label>
+              <p class="vendor-net-status is-neutral" id="vendorNetTaxStatus">OCR後にNET税区分を判定します。</p>
+            </div>
             <div class="vendor-review-table-wrap">
               <table class="vendor-review-table">
                 <thead>
@@ -281,6 +294,7 @@
                     <th>数量</th>
                     <th>単位</th>
                     <th>単価</th>
+                    <th>NET</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -297,6 +311,6 @@
     </div>
   </section>
 
-  <script src="app.js?v=20260720-vendor-pdf-ocr"></script>
+  <script src="app.js?v=20260720-vendor-net-tax"></script>
 </body>
 </html>
