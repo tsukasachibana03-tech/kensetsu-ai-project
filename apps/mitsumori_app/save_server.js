@@ -14,7 +14,12 @@ const port = Number(process.argv[2] || process.env.PORT || 8766);
 const gitExecutable = process.env.GIT_EXE || "git";
 const gitSyncBranch = process.env.GITHUB_SYNC_BRANCH || "main";
 const gitSyncIntervalMs = Math.max(5000, Number(process.env.GITHUB_SYNC_INTERVAL_MS || 15000));
+const gitSyncQuietMs = Math.max(gitSyncIntervalMs, Number(process.env.GITHUB_SYNC_QUIET_MS || 45000));
 let gitSyncPromise = null;
+let gitSyncCheckActive = false;
+let lastGitSyncFingerprint = null;
+let lastGitSyncChangeAt = Date.now();
+let lastGitSyncedFingerprint = null;
 const gitSyncPathspecs = [
   "apps/mitsumori_app",
   "index.html",
@@ -124,15 +129,59 @@ function queueAppGitHubSync() {
   return gitSyncPromise;
 }
 
+async function appendFileFingerprints(directory, entries) {
+  const children = await fs.promises.readdir(directory, { withFileTypes: true });
+  for (const child of children) {
+    const filePath = path.join(directory, child.name);
+    if (child.isDirectory()) {
+      await appendFileFingerprints(filePath, entries);
+      continue;
+    }
+    if (!child.isFile() || /^mitsumori_data\.json(?:\.|$)/i.test(child.name)) continue;
+    const stat = await fs.promises.stat(filePath);
+    entries.push(`${path.relative(projectRoot, filePath)}:${stat.size}:${Math.floor(stat.mtimeMs)}`);
+  }
+}
+
+async function appFileFingerprint() {
+  const entries = [];
+  await appendFileFingerprints(root, entries);
+  for (const fileName of ["index.html", "README.md"]) {
+    const filePath = path.join(projectRoot, fileName);
+    try {
+      const stat = await fs.promises.stat(filePath);
+      entries.push(`${fileName}:${stat.size}:${Math.floor(stat.mtimeMs)}`);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  return entries.sort().join("|");
+}
+
+async function checkGitHubAutoSync() {
+  if (gitSyncCheckActive) return;
+  gitSyncCheckActive = true;
+  try {
+    const fingerprint = await appFileFingerprint();
+    if (fingerprint !== lastGitSyncFingerprint) {
+      lastGitSyncFingerprint = fingerprint;
+      lastGitSyncChangeAt = Date.now();
+      return;
+    }
+    if (fingerprint === lastGitSyncedFingerprint || Date.now() - lastGitSyncChangeAt < gitSyncQuietMs) return;
+    const result = await queueAppGitHubSync();
+    lastGitSyncedFingerprint = fingerprint;
+    if (!result.skipped) console.log(`GitHub app sync completed: ${result.branch}`);
+  } catch (error) {
+    console.error(`GitHub app sync failed: ${error.message}`);
+  } finally {
+    gitSyncCheckActive = false;
+  }
+}
+
 function startGitHubAutoSync() {
   if (process.env.DISABLE_GITHUB_SYNC === "1") return;
-  const timer = setInterval(() => {
-    queueAppGitHubSync()
-      .then((result) => {
-        if (!result.skipped) console.log(`GitHub app sync completed: ${result.branch}`);
-      })
-      .catch((error) => console.error(`GitHub app sync failed: ${error.message}`));
-  }, gitSyncIntervalMs);
+  const timer = setInterval(checkGitHubAutoSync, gitSyncIntervalMs);
   timer.unref();
 }
 
@@ -154,13 +203,11 @@ async function handleSave(request, response) {
       await writeAtomic(target, content);
     }
 
-    let githubSync;
-    try {
-      githubSync = await queueAppGitHubSync();
-    } catch (error) {
-      githubSync = { ok: false, error: error.message };
-      console.error(`GitHub app sync failed: ${error.message}`);
-    }
+    const githubSync = {
+      ok: true,
+      skipped: true,
+      reason: "app changes are synced after the edit quiet period"
+    };
 
     send(response, 200, JSON.stringify({
       ok: true,

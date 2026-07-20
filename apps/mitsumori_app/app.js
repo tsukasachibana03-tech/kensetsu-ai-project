@@ -3214,7 +3214,7 @@
   }
 
   function isVendorUnit(value) {
-    return /^(式|m2|㎡|m3|㎥|m|枚|本|kg|t|箇所|ヶ所|個|台|人工|日|回|袋|組|セット)$/i.test(normalizeVendorUnit(value));
+    return /^(式|set|lot|ea|m2|㎡|m3|㎥|m|枚|本|kg|t|箇所|ヶ所|個|台|人工|日|回|袋|組|セット)$/i.test(normalizeVendorUnit(value));
   }
 
   function hasVendorNetLabel(value) {
