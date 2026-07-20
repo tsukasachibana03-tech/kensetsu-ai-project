@@ -1278,6 +1278,8 @@
   let dataFileName = "";
   let dataSaveTimer = null;
   let isWritingDataFile = false;
+  let dataRevision = "";
+  let suppressDataAutosave = false;
   let pendingImportTradeName = "";
   let lastConcreteReadSummary = [];
   let vendorPdfSession = null;
@@ -1385,9 +1387,10 @@
   function saveState() {
     const record = activeEstimateRecord();
     record.state = state;
-    record.updatedAt = new Date().toISOString();
+    if (!suppressDataAutosave) record.updatedAt = new Date().toISOString();
     localStorage.setItem(bookStorageKey, JSON.stringify(estimateBook));
     localStorage.setItem(storageKey, JSON.stringify(state));
+    if (suppressDataAutosave) return;
     try {
       rememberSaveBackup(JSON.stringify(dataFilePayload(), null, 2));
     } catch (error) {
@@ -1422,7 +1425,7 @@
   }
 
   function scheduleDataFileAutosave() {
-    if (isWritingDataFile) return;
+    if (isWritingDataFile || suppressDataAutosave) return;
     clearTimeout(dataSaveTimer);
     dataSaveTimer = setTimeout(() => {
       saveDataFile({ silent: true }).catch(() => {
@@ -1501,7 +1504,7 @@
     await ensureFilePermission(handle, "readwrite");
   }
 
-  async function loadDataFileText(text, fileName = "見積データ.json") {
+  async function loadDataFileText(text, fileName = "見積データ.json", options = {}) {
     const payload = JSON.parse(text);
     const book = payload.book || payload;
     if (!Array.isArray(book.estimates) || !book.estimates.length) {
@@ -1519,9 +1522,15 @@
     if (!estimateBook.estimates.some((item) => item.id === estimateBook.activeId)) {
       estimateBook.activeId = estimateBook.estimates[0].id;
     }
+    dataRevision = options.revision || "";
     state = activeEstimateRecord().state;
-    saveState();
-    render();
+    const previousSuppressState = suppressDataAutosave;
+    suppressDataAutosave = true;
+    try {
+      render();
+    } finally {
+      suppressDataAutosave = previousSuppressState;
+    }
     setDataFileStatus(`Dropbox共有データ: ${fileName} を読み込みました`);
   }
 
@@ -1535,10 +1544,12 @@
     if (!response.ok) {
       throw new Error("保存済みデータが見つかりません");
     }
-    await loadDataFileText(await response.text(), "mitsumori_data.json");
+    const revision = response.headers.get("X-Mitsumori-Data-Revision") || "";
+    const sourceCount = Math.max(1, toNumber(response.headers.get("X-Mitsumori-Data-Source-Count")));
+    await loadDataFileText(await response.text(), "mitsumori_data.json", { revision });
     dataFileHandle = null;
     dataFileName = "mitsumori_data.json";
-    setDataFileStatus("Dropbox共有データ: 保存済みデータを読み込みました");
+    setDataFileStatus(`Dropbox共有データ: ${sourceCount}か所を確認し、他のPCを含む最新版を読み込みました`);
   }
 
   function canUseLocalSaveServer() {
@@ -1546,17 +1557,33 @@
   }
 
   async function saveDataFileToLocalServer(content) {
+    const headers = { "Content-Type": "application/json;charset=utf-8" };
+    if (dataRevision) headers["X-Mitsumori-Data-Revision"] = dataRevision;
     const response = await fetch("api/save-data", {
       method: "POST",
-      headers: { "Content-Type": "application/json;charset=utf-8" },
+      headers,
       body: content,
       cache: "no-store"
     });
     if (!response.ok) {
-      const message = await response.text().catch(() => "");
-      throw new Error(message || "保存サーバーに接続できません");
+      const body = await response.text().catch(() => "");
+      let message = body;
+      let code = "";
+      try {
+        const parsed = JSON.parse(body);
+        message = parsed.message || message;
+        code = parsed.code || "";
+      } catch (error) {
+        // Plain-text server errors remain readable.
+      }
+      const saveError = new Error(message || "保存サーバーに接続できません");
+      saveError.status = response.status;
+      saveError.code = code;
+      throw saveError;
     }
-    return response.json().catch(() => ({}));
+    const result = await response.json().catch(() => ({}));
+    dataRevision = result.revision || response.headers.get("X-Mitsumori-Data-Revision") || dataRevision;
+    return result;
   }
 
   function timestampedDataFileName() {
@@ -1583,6 +1610,11 @@
         if (!silent) setDataFileStatus("Dropbox共有データ: 安全保存しました。");
         return;
       } catch (error) {
+        if (error.status === 409 || error.code === "dropbox_data_conflict") {
+          setDataFileStatus("Dropbox共有データ: 他のPCの新しい編集を検出しました。「保存済みデータ読込」で確認してください。");
+          if (!silent) alert("他のPCで更新された見積りがあります。\n「保存済みデータ読込」で最新版を確認してください。");
+          return;
+        }
         if (!silent) {
           downloadFile(content, timestampedDataFileName(), "application/json;charset=utf-8");
           setDataFileStatus("Dropbox共有データ: アプリ内バックアップへ保存しました。安全保存版URLから開いてください。");
@@ -5767,5 +5799,19 @@ ${worksheets}
   });
 
   bindFields();
-  render();
+  if (canUseLocalSaveServer()) {
+    setDataFileStatus("Dropbox共有データ: 他のPCを含む最新版を確認中です。");
+    loadBundledDataFile().catch((error) => {
+      const previousSuppressState = suppressDataAutosave;
+      suppressDataAutosave = true;
+      try {
+        render();
+      } finally {
+        suppressDataAutosave = previousSuppressState;
+      }
+      setDataFileStatus(`Dropbox共有データ: 最新版を確認できませんでした（${error.message}）`);
+    });
+  } else {
+    render();
+  }
 })();

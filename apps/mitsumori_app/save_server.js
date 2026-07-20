@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 
@@ -9,6 +10,7 @@ const execFileAsync = promisify(execFile);
 const root = __dirname;
 const projectRoot = path.resolve(root, "..", "..");
 const dropboxRoot = path.resolve(projectRoot, "..");
+const dropboxAccountRoot = path.dirname(dropboxRoot);
 const dropboxDataPath = path.join(dropboxRoot, "mitsumori_data.json");
 const port = Number(process.argv[2] || process.env.PORT || 8766);
 const gitExecutable = process.env.GIT_EXE || "git";
@@ -120,6 +122,114 @@ async function syncAppToGitHub() {
   return { ok: true, skipped: false, branch: gitSyncBranch };
 }
 
+function dataRevision(text) {
+  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+function timestampValue(value) {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function estimateIdentity(record) {
+  const projectName = String(record?.state?.projectName || "").normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+  const clientName = String(record?.state?.clientName || "").normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+  if (projectName) return `project:${projectName}|client:${clientName}`;
+  return `id:${record?.id || ""}`;
+}
+
+async function discoverDropboxDataPaths() {
+  const candidates = new Set([dropboxDataPath]);
+  try {
+    const files = await fs.promises.readdir(dropboxRoot, { withFileTypes: true });
+    files.forEach((entry) => {
+      if (entry.isFile() && /^mitsumori_data.*\.json$/i.test(entry.name)) {
+        candidates.add(path.join(dropboxRoot, entry.name));
+      }
+    });
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  try {
+    const siblings = await fs.promises.readdir(dropboxAccountRoot, { withFileTypes: true });
+    siblings.forEach((entry) => {
+      if (entry.isDirectory() && /^OPENAI(?:$|[-_ ].+)/i.test(entry.name)) {
+        candidates.add(path.join(dropboxAccountRoot, entry.name, "mitsumori_data.json"));
+      }
+    });
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  return Array.from(candidates);
+}
+
+async function readDropboxDataSources() {
+  const sources = [];
+  for (const filePath of await discoverDropboxDataPaths()) {
+    try {
+      const [content, stat] = await Promise.all([
+        fs.promises.readFile(filePath, "utf8"),
+        fs.promises.stat(filePath)
+      ]);
+      validatePayload(content);
+      const payload = JSON.parse(content);
+      const book = payload.book || payload;
+      const recordTimestamp = book.estimates.reduce((latest, record) => (
+        Math.max(latest, timestampValue(record.updatedAt), timestampValue(record.createdAt))
+      ), 0);
+      sources.push({
+        filePath,
+        payload,
+        book,
+        freshness: Math.max(stat.mtimeMs, timestampValue(payload.savedAt), recordTimestamp)
+      });
+    } catch (error) {
+      if (error.code !== "ENOENT") console.error(`Ignored invalid Dropbox data source ${filePath}: ${error.message}`);
+    }
+  }
+  return sources;
+}
+
+function mergeDropboxDataSources(sources) {
+  if (!sources.length) throw new Error("estimate data not found");
+  const ordered = [...sources].sort((left, right) => left.freshness - right.freshness);
+  const records = new Map();
+  ordered.forEach((source) => {
+    source.book.estimates.forEach((record) => {
+      const key = estimateIdentity(record);
+      const freshness = Math.max(timestampValue(record.updatedAt), timestampValue(record.createdAt));
+      const current = records.get(key);
+      if (!current || freshness > current.freshness || (freshness === current.freshness && source.freshness >= current.sourceFreshness)) {
+        records.set(key, { record: JSON.parse(JSON.stringify(record)), freshness, sourceFreshness: source.freshness });
+      }
+    });
+  });
+
+  const latestSource = ordered[ordered.length - 1];
+  const latestActiveRecord = latestSource.book.estimates.find((record) => record.id === latestSource.book.activeId);
+  const activeKey = latestActiveRecord ? estimateIdentity(latestActiveRecord) : "";
+  const estimates = Array.from(records.values()).map((entry) => entry.record);
+  const activeRecord = records.get(activeKey)?.record || estimates[0];
+  const payload = JSON.parse(JSON.stringify(latestSource.payload));
+  payload.book = {
+    activeId: activeRecord?.id || "",
+    estimates
+  };
+  return {
+    content: `${JSON.stringify(payload, null, 2)}\n`,
+    sourcePaths: ordered.map((source) => source.filePath),
+    latestSourcePath: latestSource.filePath
+  };
+}
+
+async function latestDropboxData() {
+  const merged = mergeDropboxDataSources(await readDropboxDataSources());
+  return {
+    ...merged,
+    revision: dataRevision(merged.content)
+  };
+}
+
 function queueAppGitHubSync() {
   if (!gitSyncPromise) {
     gitSyncPromise = syncAppToGitHub().finally(() => {
@@ -185,10 +295,11 @@ function startGitHubAutoSync() {
   timer.unref();
 }
 
-function send(response, status, body, contentType = "text/plain; charset=utf-8") {
+function send(response, status, body, contentType = "text/plain; charset=utf-8", headers = {}) {
   response.writeHead(status, {
     "Content-Type": contentType,
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    ...headers
   });
   response.end(body);
 }
@@ -197,6 +308,24 @@ async function handleSave(request, response) {
   try {
     const content = await readBody(request);
     validatePayload(content);
+    const requestedRevision = String(request.headers["x-mitsumori-data-revision"] || "");
+    let currentRevision = "";
+    try {
+      currentRevision = (await latestDropboxData()).revision;
+    } catch (error) {
+      if (error.code !== "ENOENT" && error.message !== "estimate data not found") throw error;
+    }
+    if (currentRevision && requestedRevision !== currentRevision) {
+      send(response, 409, JSON.stringify({
+        ok: false,
+        code: "dropbox_data_conflict",
+        message: "他のPCで更新されたDropboxデータがあります。保存済みデータを読み込んで内容を確認してください。",
+        revision: currentRevision
+      }), "application/json; charset=utf-8", {
+        "X-Mitsumori-Data-Revision": currentRevision
+      });
+      return;
+    }
     const targets = [dropboxDataPath];
     for (const target of targets) {
       if (!isInside(dropboxRoot, target)) throw new Error(`invalid target: ${target}`);
@@ -209,13 +338,17 @@ async function handleSave(request, response) {
       reason: "app changes are synced after the edit quiet period"
     };
 
+    const revision = (await latestDropboxData()).revision;
     send(response, 200, JSON.stringify({
       ok: true,
       fileName: "mitsumori_data.json",
       savedAt: new Date().toISOString(),
       targets,
+      revision,
       githubSync
-    }), "application/json; charset=utf-8");
+    }), "application/json; charset=utf-8", {
+      "X-Mitsumori-Data-Revision": revision
+    });
   } catch (error) {
     send(response, 500, `save failed: ${error.message}`);
   }
@@ -223,9 +356,12 @@ async function handleSave(request, response) {
 
 async function handleLatestData(response) {
   try {
-    const content = await fs.promises.readFile(dropboxDataPath, "utf8");
-    validatePayload(content);
-    send(response, 200, content, "application/json; charset=utf-8");
+    const latest = await latestDropboxData();
+    send(response, 200, latest.content, "application/json; charset=utf-8", {
+      "X-Mitsumori-Data-Revision": latest.revision,
+      "X-Mitsumori-Data-Source-Count": String(latest.sourcePaths.length),
+      "X-Mitsumori-Data-Source": encodeURIComponent(path.relative(dropboxAccountRoot, latest.latestSourcePath))
+    });
   } catch (error) {
     send(response, 404, `latest data not found: ${error.message}`);
   }
