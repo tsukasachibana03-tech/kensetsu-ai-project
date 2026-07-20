@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
@@ -64,6 +64,47 @@ async function readBody(request) {
     chunks.push(chunk);
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readBinaryBody(request, maxBytes = 100 * 1024 * 1024) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > maxBytes) throw new Error("file too large");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+function safePrintFileName(value) {
+  let decoded = String(value || "");
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch (error) {
+    // Keep the original header value when it is not URI encoded.
+  }
+  const name = path.basename(decoded, path.extname(decoded))
+    .replace(/[\\/:*?"<>|\x00-\x1f]/g, "_")
+    .trim()
+    .slice(0, 80);
+  return name || "estimate";
+}
+
+function openSystemFile(filePath) {
+  const command = process.platform === "win32" ? "explorer.exe" : (process.platform === "darwin" ? "open" : "xdg-open");
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, [filePath], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false
+    });
+    child.once("error", reject);
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
 }
 
 async function writeAtomic(filePath, content) {
@@ -367,6 +408,30 @@ async function handleLatestData(response) {
   }
 }
 
+async function handleOpenPrintPdf(request, response) {
+  try {
+    const content = await readBinaryBody(request);
+    if (content.length < 5 || content.subarray(0, 5).toString("ascii") !== "%PDF-") {
+      throw new Error("invalid PDF data");
+    }
+    const printDirectory = path.join(dropboxRoot, "mitsumori_prints");
+    if (!isInside(dropboxRoot, printDirectory)) throw new Error("invalid print directory");
+    await fs.promises.mkdir(printDirectory, { recursive: true });
+    const requestedName = safePrintFileName(request.headers["x-mitsumori-print-name"]);
+    const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "-");
+    const filePath = path.join(printDirectory, `${requestedName}-${timestamp}.pdf`);
+    await fs.promises.writeFile(filePath, content);
+    await openSystemFile(filePath);
+    send(response, 200, JSON.stringify({
+      ok: true,
+      fileName: path.basename(filePath),
+      filePath
+    }), "application/json; charset=utf-8");
+  } catch (error) {
+    send(response, 500, `open print PDF failed: ${error.message}`);
+  }
+}
+
 async function serveStatic(request, response) {
   const url = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
   const decodedPath = decodeURIComponent(url.pathname);
@@ -403,6 +468,10 @@ const server = http.createServer((request, response) => {
   }
   if (request.method === "POST" && request.url === "/api/save-data") {
     handleSave(request, response);
+    return;
+  }
+  if (request.method === "POST" && request.url === "/api/open-print-pdf") {
+    handleOpenPrintPdf(request, response);
     return;
   }
   if (request.method === "GET" || request.method === "HEAD") {
