@@ -428,11 +428,13 @@ textarea:focus {
 
 .items-table .small { width: 78px; }
 .items-table .money { width: 110px; }
-.items-table .qty-cell {
+.items-table .qty-cell,
+.items-table .price-cell {
   vertical-align: top;
 }
 
-.items-table .qty-formula {
+.items-table .qty-formula,
+.items-table .price-formula {
   display: none;
   min-width: 220px;
   margin-top: 6px;
@@ -447,7 +449,8 @@ textarea:focus {
   text-decoration: none;
 }
 
-.items-table .qty-cell.has-formula:focus-within .qty-formula {
+.items-table .qty-cell.has-formula:focus-within .qty-formula,
+.items-table .price-cell.has-formula:focus-within .price-formula {
   display: block;
 }
 

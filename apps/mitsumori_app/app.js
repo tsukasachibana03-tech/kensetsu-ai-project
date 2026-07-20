@@ -2898,6 +2898,10 @@
       ranges: [],
       rows: [],
       notes: "",
+      netEntries: [],
+      netTaxDetection: null,
+      netTaxMode: "auto",
+      netTaxRate: toNumber(state.taxRate) || 10,
       renderToken: 0,
       pageRendering: false,
       processing: false
