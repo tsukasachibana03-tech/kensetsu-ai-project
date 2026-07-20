@@ -1362,6 +1362,7 @@
       items: Array.isArray(sheet.items) ? sheet.items.map((item) => ({
         ...item,
         printRemarks: item.printRemarks || "",
+        priceFormula: item.priceFormula || "",
         hidden: Boolean(item.hidden),
         manualVisibility: Boolean(item.manualVisibility)
       })) : []
@@ -1878,7 +1879,9 @@
       tr.dataset.index = String(index);
       const rowVisible = isRowVisible(item);
       const quantityFormula = quantityFormulaForItem(item);
+      const priceFormula = priceFormulaForItem(item);
       const qtyCellClass = ["qty-cell", quantityFormula ? "has-formula" : ""].filter(Boolean).join(" ");
+      const priceCellClass = ["price-cell", priceFormula ? "has-formula" : ""].filter(Boolean).join(" ");
       tr.className = [item.type === "section" ? "section-row" : "", rowVisible ? "" : "is-hidden"].filter(Boolean).join(" ");
       tr.innerHTML = `
         <td><input data-key="category" value="${escapeAttr(item.category)}" aria-label="区分"></td>
@@ -1889,7 +1892,10 @@
           <div class="qty-formula" role="note">${escapeHtml(quantityFormula)}</div>
         </td>
         <td><input class="small" data-key="unit" value="${escapeAttr(item.unit)}" aria-label="単位"></td>
-        <td><input class="money" data-key="price" type="text" inputmode="numeric" value="${escapeAttr(item.price)}" aria-label="単価"></td>
+        <td class="${priceCellClass}">
+          <input class="money" data-key="price" type="text" inputmode="numeric" value="${escapeAttr(item.price)}" aria-label="単価">
+          <div class="price-formula" role="note">${escapeHtml(priceFormula)}</div>
+        </td>
         <td class="line-amount">${item.type === "item" ? (rowVisible ? yen(lineAmount(item)) : "対象外") : ""}</td>
         <td><input data-key="printRemarks" value="${escapeAttr(item.printRemarks)}" aria-label="印刷備考"></td>
         <td><input data-key="remarks" value="${escapeAttr(item.remarks)}" aria-label="備考"></td>
@@ -1976,6 +1982,7 @@
       value = normalizeNumericInput(value);
     }
     if (key === "qty") item.manualQty = true;
+    if (key === "price") item.priceFormula = "";
     item[key] = value;
     if (key === "qty" && options.adjustDirectConcreteQty !== false && applyDirectConcreteQuantityAdjustment(item, value)) {
       input.value = item.qty;
@@ -2039,6 +2046,13 @@
         const quantityFormula = quantityFormulaForItem(item);
         formulaElement.textContent = quantityFormula;
         qtyCell.classList.toggle("has-formula", Boolean(quantityFormula));
+      }
+      const priceCell = detailRowElement.querySelector(".price-cell");
+      const priceFormulaElement = detailRowElement.querySelector(".price-formula");
+      if (priceCell && priceFormulaElement) {
+        const priceFormula = priceFormulaForItem(item);
+        priceFormulaElement.textContent = priceFormula;
+        priceCell.classList.toggle("has-formula", Boolean(priceFormula));
       }
     });
     const subtotalValue = $("itemsBody")?.querySelector(".subtotal-value");
