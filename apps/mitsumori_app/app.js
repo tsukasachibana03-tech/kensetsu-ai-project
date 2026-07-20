@@ -3630,7 +3630,7 @@
 
   function addVendorReviewRow() {
     if (!vendorPdfSession) return;
-    vendorPdfSession.rows.push({ name: "", summary: "", qty: 1, unit: "式", price: 0 });
+    vendorPdfSession.rows.push({ name: "", summary: "", qty: 1, unit: "式", price: 0, sourcePrice: 0, isNetPrice: false, netBasis: "unit" });
     renderVendorOcrReview();
   }
 
