@@ -1,0 +1,11 @@
+{
+  "source": "/Game/MetaHumans/ChibatenSecretary/BP_ChibatenSecretary",
+  "styled": "/Game/MetaHumans/ChibatenSecretary/BP_ChibatenSecretary_StyledPreview",
+  "component_count": 0,
+  "slots": [],
+  "errors": [
+    {
+      "compile": "module 'unreal' has no attribute 'KismetEditorUtilities'"
+    }
+  ]
+}

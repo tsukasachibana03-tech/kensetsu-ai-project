@@ -1,0 +1,17 @@
+{
+  "character_path": "/Game/Characters/MetaHumans/ChibatenSecretary.ChibatenSecretary",
+  "hair_candidates": [
+    {
+      "path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_Straight.WI_Hair_L_Straight",
+      "loaded": true
+    }
+  ],
+  "hair_path": "/MetaHumanCharacter/Optional/Grooms/Bindings/Hair/WI_Hair_L_Straight.WI_Hair_L_Straight",
+  "hair_key": "<Struct 'MetaHumanPaletteItemKey' (0x000001F096977700) {references_external_wardrobe_item: True}>",
+  "selection_result": "True",
+  "hair_parameters": [],
+  "object_added": true,
+  "can_build": true,
+  "assembled_preview": true,
+  "errors": []
+}

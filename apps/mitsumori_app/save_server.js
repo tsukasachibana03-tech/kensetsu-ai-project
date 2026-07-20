@@ -1,12 +1,26 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
+
+const execFileAsync = promisify(execFile);
 
 const root = __dirname;
 const projectRoot = path.resolve(root, "..", "..");
 const dropboxRoot = path.resolve(projectRoot, "..");
 const dropboxDataPath = path.join(dropboxRoot, "mitsumori_data.json");
 const port = Number(process.argv[2] || process.env.PORT || 8766);
+const gitExecutable = process.env.GIT_EXE || "git";
+const gitSyncBranch = process.env.GITHUB_SYNC_BRANCH || "main";
+const gitSyncPathspecs = [
+  "apps/mitsumori_app",
+  "index.html",
+  "README.md",
+  ":(exclude)apps/mitsumori_app/mitsumori_data.json",
+  ":(exclude)data/mitsumori_data.json",
+  ":(exclude)mitsumori_data.json"
+];
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -64,6 +78,41 @@ async function writeAtomic(filePath, content) {
   }
 }
 
+async function runGit(args) {
+  const result = await execFileAsync(gitExecutable, ["-c", `safe.directory=${projectRoot}`, ...args], {
+    cwd: projectRoot,
+    windowsHide: true,
+    timeout: 60000,
+    maxBuffer: 1024 * 1024
+  });
+  return `${result.stdout || ""}${result.stderr || ""}`.trim();
+}
+
+async function syncAppToGitHub() {
+  if (process.env.DISABLE_GITHUB_SYNC === "1") {
+    return { ok: true, skipped: true, reason: "disabled" };
+  }
+
+  const branch = (await runGit(["branch", "--show-current"])).trim();
+  if (branch && branch !== gitSyncBranch) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: `current branch is ${branch}; set GITHUB_SYNC_BRANCH=${branch} to push it`
+    };
+  }
+
+  const status = await runGit(["status", "--porcelain", "--", ...gitSyncPathspecs]);
+  if (!status) {
+    return { ok: true, skipped: true, reason: "no app changes" };
+  }
+
+  await runGit(["add", "--", ...gitSyncPathspecs]);
+  await runGit(["commit", "-m", "Save latest estimate app"]);
+  await runGit(["push", "origin", `HEAD:${gitSyncBranch}`]);
+  return { ok: true, skipped: false, branch: gitSyncBranch };
+}
+
 function send(response, status, body, contentType = "text/plain; charset=utf-8") {
   response.writeHead(status, {
     "Content-Type": contentType,
@@ -76,34 +125,39 @@ async function handleSave(request, response) {
   try {
     const content = await readBody(request);
     validatePayload(content);
-    const targets = [
-      dropboxDataPath,
-      path.join(root, "mitsumori_data.json"),
-      path.join(projectRoot, "data", "mitsumori_data.json")
-    ];
+    const targets = [dropboxDataPath];
     for (const target of targets) {
       if (!isInside(dropboxRoot, target)) throw new Error(`invalid target: ${target}`);
       await writeAtomic(target, content);
     }
+
+    let githubSync;
+    try {
+      githubSync = await syncAppToGitHub();
+    } catch (error) {
+      githubSync = { ok: false, error: error.message };
+      console.error(`GitHub app sync failed: ${error.message}`);
+    }
+
     send(response, 200, JSON.stringify({
       ok: true,
       fileName: "mitsumori_data.json",
       savedAt: new Date().toISOString(),
-      targets
+      targets,
+      githubSync
     }), "application/json; charset=utf-8");
   } catch (error) {
     send(response, 500, `save failed: ${error.message}`);
   }
 }
 
-async function handleLoad(request, response) {
+async function handleLatestData(response) {
   try {
-    if (!isInside(dropboxRoot, dropboxDataPath)) throw new Error(`invalid target: ${dropboxDataPath}`);
     const content = await fs.promises.readFile(dropboxDataPath, "utf8");
     validatePayload(content);
     send(response, 200, content, "application/json; charset=utf-8");
   } catch (error) {
-    send(response, 404, `load failed: ${error.message}`);
+    send(response, 404, `latest data not found: ${error.message}`);
   }
 }
 
@@ -137,12 +191,12 @@ const server = http.createServer((request, response) => {
     send(response, 200, JSON.stringify({ ok: true }), "application/json; charset=utf-8");
     return;
   }
-  if (request.method === "POST" && request.url === "/api/save-data") {
-    handleSave(request, response);
+  if (request.method === "GET" && request.url === "/api/latest-data") {
+    handleLatestData(response);
     return;
   }
-  if (request.method === "GET" && request.url === "/api/latest-data") {
-    handleLoad(request, response);
+  if (request.method === "POST" && request.url === "/api/save-data") {
+    handleSave(request, response);
     return;
   }
   if (request.method === "GET" || request.method === "HEAD") {

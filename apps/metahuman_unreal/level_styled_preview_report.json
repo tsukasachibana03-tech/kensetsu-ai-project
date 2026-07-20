@@ -1,0 +1,320 @@
+{
+  "bp_path": "/Game/MetaHumans/ChibatenSecretary/BP_ChibatenSecretary",
+  "actor_label": "Chibaten_Styled_MetaHuman_Preview",
+  "spawned": false,
+  "actor_count": 1,
+  "components": [
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "Body",
+      "class": "SkeletalMeshComponent",
+      "materials": 1
+    },
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "materials": 15
+    },
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "materials": 8
+    },
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "Hair",
+      "class": "GroomComponent",
+      "materials": 3
+    },
+    {
+      "component": "Hair",
+      "class": "GroomComponent",
+      "action": "hidden_component"
+    },
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "Eyebrows",
+      "class": "GroomComponent",
+      "materials": 1
+    },
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "Fuzz",
+      "class": "GroomComponent",
+      "materials": 1
+    },
+    {
+      "component": "Fuzz",
+      "class": "GroomComponent",
+      "action": "hidden_component"
+    },
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "Eyelashes",
+      "class": "GroomComponent",
+      "materials": 1
+    },
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "Mustache",
+      "class": "GroomComponent",
+      "materials": 1
+    },
+    {
+      "component": "Mustache",
+      "class": "GroomComponent",
+      "action": "hidden_component"
+    },
+    {
+      "actor": "Chibaten_Styled_MetaHuman_Preview",
+      "component": "Beard",
+      "class": "GroomComponent",
+      "materials": 1
+    },
+    {
+      "component": "Beard",
+      "class": "GroomComponent",
+      "action": "hidden_component"
+    }
+  ],
+  "slots": [
+    {
+      "component": "Body",
+      "class": "SkeletalMeshComponent",
+      "slot": "body_shader_shader",
+      "index": 0,
+      "before": "MI_Body_Baked",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "head_shader_shader",
+      "index": 0,
+      "before": "MID_MI_Face_Skin_Baked_LOD0_0",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "teeth_shader_shader",
+      "index": 1,
+      "before": "MI_Teeth_Baked",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "saliva_shader_shader",
+      "index": 2,
+      "before": "M_Hide",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "eyeLeft_shader_shader",
+      "index": 3,
+      "before": "MI_EyeL_Baked",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "eyeRight_shader_shader",
+      "index": 4,
+      "before": "MI_EyeR_Baked",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "eyeshell_shader_shader",
+      "index": 5,
+      "before": "MI_Face_EyeShell",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "eyelashes_shader_shader",
+      "index": 6,
+      "before": "MI_Face_Eyelashes",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "eyeEdge_shader_shader",
+      "index": 7,
+      "before": "MI_Face_LacrimalFluid",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "cartilage_shader_shader",
+      "index": 8,
+      "before": "M_Hide",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "head_LOD1_shader_shader",
+      "index": 9,
+      "before": "MID_MI_Face_Skin_Baked_LOD1_0",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "head_LOD2_shader_shader",
+      "index": 10,
+      "before": "MID_MI_Face_Skin_Baked_LOD2_0",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "eyelashes_HiLOD_shader_shader",
+      "index": 11,
+      "before": "MI_Face_EyelashesHiLODs",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "head_LOD3_shader_shader",
+      "index": 12,
+      "before": "MID_MI_Face_Skin_Baked_LOD3_0",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "head_LOD4_shader_shader",
+      "index": 13,
+      "before": "MID_MI_Face_Skin_Baked_LOD4_0",
+      "action": "kept"
+    },
+    {
+      "component": "Face",
+      "class": "SkeletalMeshComponent",
+      "slot": "head_LOD57_shader_shader",
+      "index": 14,
+      "before": "MID_MI_Face_Skin_Baked_LOD5to7_0",
+      "action": "kept"
+    },
+    {
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "slot": "M_DG_bodyShapeE_Shirt",
+      "index": 0,
+      "before": "cropped_red_jacket",
+      "action": "styled",
+      "material": "red"
+    },
+    {
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "slot": "M_DG_bodyShapeE_Short",
+      "index": 1,
+      "before": "fitted_black_dress",
+      "action": "styled",
+      "material": "black"
+    },
+    {
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "slot": "M_DG_bodyShapeE_Shirt",
+      "index": 2,
+      "before": "cropped_red_jacket",
+      "action": "styled",
+      "material": "red"
+    },
+    {
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "slot": "M_DG_bodyShapeE_Short",
+      "index": 3,
+      "before": "fitted_black_dress",
+      "action": "styled",
+      "material": "black"
+    },
+    {
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "slot": "M_DG_bodyShapeE_Shirt",
+      "index": 4,
+      "before": "cropped_red_jacket",
+      "action": "styled",
+      "material": "red"
+    },
+    {
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "slot": "M_DG_bodyShapeE_Short",
+      "index": 5,
+      "before": "fitted_black_dress",
+      "action": "styled",
+      "material": "black"
+    },
+    {
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "slot": "M_DG_bodyShapeE_Shirt",
+      "index": 6,
+      "before": "cropped_red_jacket",
+      "action": "styled",
+      "material": "red"
+    },
+    {
+      "component": "SkeletalMesh",
+      "class": "SkeletalMeshComponent",
+      "slot": "M_DG_bodyShapeE_Short",
+      "index": 7,
+      "before": "fitted_black_dress",
+      "action": "styled",
+      "material": "black"
+    },
+    {
+      "component": "Eyebrows",
+      "class": "GroomComponent",
+      "slot": "slot_0",
+      "index": 0,
+      "before": "HairDefaultMaterial",
+      "action": "kept"
+    },
+    {
+      "component": "Eyelashes",
+      "class": "GroomComponent",
+      "slot": "slot_0",
+      "index": 0,
+      "before": "HairDefaultMaterial",
+      "action": "kept"
+    }
+  ],
+  "errors": [],
+  "bounds": {
+    "origin": [
+      -4.772082561999014e-06,
+      8.44718435840311,
+      306.3710245401438
+    ],
+    "extent": [
+      57.619592849386045,
+      20.781838284364547,
+      87.888178339972
+    ]
+  },
+  "active_viewport_key": "FourPanes2x2.Viewport 1.Viewport1",
+  "viewport_keys": [
+    "FourPanes2x2.Viewport 1.Viewport0",
+    "FourPanes2x2.Viewport 1.Viewport1",
+    "FourPanes2x2.Viewport 1.Viewport2",
+    "FourPanes2x2.Viewport 1.Viewport3"
+  ]
+}

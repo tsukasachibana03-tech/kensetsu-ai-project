@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chibaten 3D VRM Avatar Viewer</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111418;
+      color: #f4f7fb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #toolbar {
+      position: fixed;
+      left: 16px;
+      top: 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(20, 24, 30, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(10px);
+    }
+
+    #emotionbar {
+      position: fixed;
+      left: 16px;
+      top: 78px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(20, 24, 30, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(10px);
+    }
+
+    body.desktop-mode #toolbar,
+    body.desktop-mode #emotionbar,
+    body.desktop-mode #status {
+      display: none;
+    }
+
+    #status {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      max-width: min(520px, calc(100vw - 32px));
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(20, 24, 30, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: #2f7f86;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #3a949c;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.1.3/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <canvas id="canvas"></canvas>
+    <div id="toolbar">
+      <input id="file" type="file" accept=".vrm" />
+      <button id="reset" type="button">Reset View</button>
+    </div>
+    <div id="emotionbar">
+      <button type="button" data-expression="normal">Normal</button>
+      <button type="button" data-expression="smile">Smile</button>
+      <button type="button" data-expression="soft">Soft</button>
+      <button type="button" data-expression="surprised">Surprise</button>
+      <button type="button" data-expression="talk">Talk</button>
+    </div>
+    <div id="status">VRMファイルを選んでください。推奨ファイル名: models/chibaten_field_secretary_accessories_v1.vrm</div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
+
+    const canvas = document.getElementById("canvas");
+    const status = document.getElementById("status");
+    const fileInput = document.getElementById("file");
+    const resetButton = document.getElementById("reset");
+    const expressionButtons = document.querySelectorAll("[data-expression]");
+    const desktopMode = new URLSearchParams(window.location.search).has("desktop");
+    if (desktopMode) {
+      document.body.classList.add("desktop-mode");
+    }
+
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+    camera.position.set(0, 1.35, 4.2);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.25, 0);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x20242c, 2.1);
+    scene.add(hemiLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    keyLight.position.set(1.8, 3.2, 2.5);
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x9ee8ff, 0.65);
+    fillLight.position.set(-2, 2.2, 1.5);
+    scene.add(fillLight);
+
+    const grid = new THREE.GridHelper(4, 20, 0x2f7f86, 0x273039);
+    grid.position.y = 0;
+    grid.visible = !desktopMode;
+    scene.add(grid);
+
+    let currentVrm = null;
+    let clock = new THREE.Clock();
+    const modelFaceRotation = 0;
+    const poseBlendSpeed = 8;
+    const naturalPose = {
+      leftUpperArm: { x: 0.10, y: 0.03, z: -1.08 },
+      leftLowerArm: { x: 0.02, y: 0.05, z: -0.18 },
+      leftHand: { x: -0.08, y: 0.00, z: 0.04 },
+      rightUpperArm: { x: 0.10, y: -0.03, z: 1.08 },
+      rightLowerArm: { x: 0.02, y: -0.05, z: 0.18 },
+      rightHand: { x: -0.08, y: 0.00, z: -0.04 },
+      neck: { x: 0.02, y: 0.00, z: 0.00 },
+      head: { x: 0.03, y: 0.00, z: 0.00 },
+    };
+    const expressionSets = {
+      normal: {},
+      smile: { happy: 0.75, relaxed: 0.18 },
+      soft: { relaxed: 0.60, happy: 0.22 },
+      surprised: { surprised: 0.72 },
+      talk: { happy: 0.30, relaxed: 0.18 },
+    };
+    let currentExpression = "normal";
+    let expressionValues = {};
+    let blinkUntil = 0;
+    let nextBlinkAt = 2.0;
+
+    function resize() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+
+    function resetView() {
+      if (desktopMode) {
+        camera.position.set(0, 1.30, 3.45);
+        controls.target.set(0, 1.18, 0);
+      } else {
+        camera.position.set(0, 1.35, 4.2);
+        controls.target.set(0, 1.25, 0);
+      }
+      controls.update();
+    }
+
+    function findBone(name) {
+      if (!currentVrm || !currentVrm.humanoid) return null;
+      return currentVrm.humanoid.getNormalizedBoneNode(name)
+        || currentVrm.humanoid.getRawBoneNode(name)
+        || null;
+    }
+
+    function applyNaturalPose(delta, immediate = false) {
+      const blend = immediate ? 1 : Math.min(delta * poseBlendSpeed, 1);
+      for (const [boneName, target] of Object.entries(naturalPose)) {
+        const bone = findBone(boneName);
+        if (!bone) continue;
+        bone.rotation.x += (target.x - bone.rotation.x) * blend;
+        bone.rotation.y += (target.y - bone.rotation.y) * blend;
+        bone.rotation.z += (target.z - bone.rotation.z) * blend;
+      }
+    }
+
+    function setExpression(expression) {
+      currentExpression = expressionSets[expression] ? expression : "normal";
+      for (const button of expressionButtons) {
+        button.style.background = button.dataset.expression === currentExpression ? "#3a949c" : "#2f7f86";
+      }
+    }
+
+    function expressionNameExists(name) {
+      if (!currentVrm || !currentVrm.expressionManager) return false;
+      const manager = currentVrm.expressionManager;
+      if (manager.expressionMap && typeof manager.expressionMap.has === "function") {
+        return manager.expressionMap.has(name);
+      }
+      if (manager._expressionMap && typeof manager._expressionMap.has === "function") {
+        return manager._expressionMap.has(name);
+      }
+      return true;
+    }
+
+    function setExpressionValue(name, value, delta) {
+      if (!expressionNameExists(name)) return;
+      const blend = Math.min(delta * 10, 1);
+      const current = expressionValues[name] || 0;
+      const next = current + (value - current) * blend;
+      expressionValues[name] = next;
+      currentVrm.expressionManager.setValue(name, next);
+    }
+
+    function applyStableExpressions(delta, elapsed) {
+      if (!currentVrm || !currentVrm.expressionManager) return;
+
+      if (elapsed > nextBlinkAt) {
+        blinkUntil = elapsed + 0.12;
+        nextBlinkAt = elapsed + 3.2 + Math.random() * 2.2;
+      }
+
+      const target = { ...(expressionSets[currentExpression] || {}) };
+      target.blink = elapsed < blinkUntil ? 1 : 0;
+
+      if (currentExpression === "talk") {
+        const mouthCycle = Math.sin(elapsed * 9.0) * 0.5 + 0.5;
+        target.aa = 0.12 + mouthCycle * 0.45;
+        target.ih = Math.max(0, Math.sin(elapsed * 7.0 + 1.2)) * 0.18;
+        target.ou = Math.max(0, Math.sin(elapsed * 5.5 + 2.0)) * 0.16;
+      }
+
+      for (const name of ["happy", "relaxed", "surprised", "blink", "aa", "ih", "ou", "ee", "oh"]) {
+        setExpressionValue(name, target[name] || 0, delta);
+      }
+      currentVrm.expressionManager.update();
+    }
+
+    async function loadVrmFromUrl(url, label) {
+      status.textContent = "VRMを読み込み中です...";
+
+      const loader = new GLTFLoader();
+      loader.register((parser) => new VRMLoaderPlugin(parser));
+
+      const gltf = await loader.loadAsync(url);
+      const vrm = gltf.userData.vrm;
+
+      VRMUtils.removeUnnecessaryVertices(gltf.scene);
+      VRMUtils.removeUnnecessaryJoints(gltf.scene);
+
+      if (currentVrm) {
+        scene.remove(currentVrm.scene);
+        VRMUtils.deepDispose(currentVrm.scene);
+      }
+
+      currentVrm = vrm;
+      currentVrm.scene.rotation.y = modelFaceRotation;
+      window.chibatenVrm = currentVrm;
+      window.chibatenExpressions = currentVrm.expressionManager;
+      expressionValues = {};
+      setExpression(currentExpression);
+      applyNaturalPose(0, true);
+      scene.add(currentVrm.scene);
+      status.textContent = `${label} を読み込みました。`;
+      resetView();
+    }
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      loadVrmFromUrl(url, file.name).finally(() => URL.revokeObjectURL(url));
+    });
+
+    resetButton.addEventListener("click", resetView);
+    expressionButtons.forEach((button) => {
+      button.addEventListener("click", () => setExpression(button.dataset.expression));
+    });
+    window.addEventListener("resize", resize);
+    resize();
+    setExpression("normal");
+
+    async function tryLoadDefaultModel() {
+      try {
+        await loadVrmFromUrl("../models/chibaten_field_secretary_accessories_v1.vrm", "chibaten_field_secretary_accessories_v1.vrm");
+      } catch (_error) {
+        status.textContent = "VRMファイルを選んでください。まだ models/chibaten_field_secretary_accessories_v1.vrm は見つかりません。";
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const elapsed = clock.elapsedTime;
+
+      if (currentVrm) {
+        applyNaturalPose(delta);
+        applyStableExpressions(delta, elapsed);
+        currentVrm.update(delta);
+        currentVrm.scene.position.y = 0;
+        currentVrm.scene.rotation.y = modelFaceRotation;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    tryLoadDefaultModel();
+    animate();
+  </script>
+</body>
+</html>

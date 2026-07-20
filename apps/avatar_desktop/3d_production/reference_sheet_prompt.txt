@@ -1,0 +1,9 @@
+Create a clean 3D anime character reference sheet for an original desktop AI assistant avatar, based on the provided adopted character image.
+
+The character is a Japanese construction-company field support secretary: young adult woman, long brown ponytail, headset microphone, teal and white construction-office jacket, dark inner shirt, light gray utility pants, teal and black work sneakers, ID card, tablet, utility pockets, friendly confident expression.
+
+Create front view, side view, back view, and a small face-expression row. Keep the same character identity and outfit details from the reference image. Use a clean white or very light studio background.
+
+Style: polished anime-inspired 3D model sheet, VRM/VRoid production reference, full body, clear proportions, consistent outfit across all views.
+
+Constraints: original character only, no resemblance to existing anime/game characters, no logos, no readable text, no watermark, no weapons, workplace appropriate.
