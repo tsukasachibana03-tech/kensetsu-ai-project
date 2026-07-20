@@ -4833,8 +4833,16 @@
 
   function subjectSummaryPage() {
     const rows = visibleSheets().map((sheet) => [sheet.name, 1, "式", subtotalForSheet(sheet), ""]);
-    rows.push(["計", 1, "式", rows.reduce((sum, row) => sum + row[3], 0), ""]);
-    return tablePage("科　目　別　内　訳　書", "summary-table", ["名　称", "数　量", "単　位", "金　額", "備　考"], rows.map(summaryRow), 25);
+    const totalRow = ["計", 1, "式", rows.reduce((sum, row) => sum + row[3], 0), ""];
+    return tablePage(
+      "科　目　別　内　訳　書",
+      "summary-table",
+      ["名　称", "数　量", "単　位", "金　額", "備　考"],
+      rows.map(summaryRow),
+      25,
+      false,
+      [summaryTotalRow(totalRow)]
+    );
   }
 
   function simpleDetailPage(total) {
@@ -4890,8 +4898,21 @@
   }
 
   function summaryRow(row) {
+    return summaryRowMarkup(row, "section-line");
+  }
+
+  function summaryTotalRow(row) {
+    return summaryRowMarkup(row, "total-line");
+  }
+
+  function summaryRowMarkup(row, className) {
     const [name, qty, unit, price, remarks] = row;
-    return `<tr class="section-line"><td>${escapeHtml(name)}</td><td>${qty.toLocaleString("ja-JP", { maximumFractionDigits: 2 })}</td><td class="center">${escapeHtml(unit)}</td><td>¥ ${Math.round(price).toLocaleString("ja-JP")}</td><td>${escapeHtml(remarks)}</td></tr>`;
+    return `<tr class="${className}"><td>${escapeHtml(name)}</td><td>${qty.toLocaleString("ja-JP", { maximumFractionDigits: 2 })}</td><td class="center">${escapeHtml(unit)}</td><td>¥ ${Math.round(price).toLocaleString("ja-JP")}</td><td>${escapeHtml(remarks)}</td></tr>`;
+  }
+
+  function printableDetailName(item) {
+    const name = String(item?.name || "").trim();
+    return name || String(item?.category || "").trim();
   }
 
   function detailRow(item) {
@@ -4900,7 +4921,7 @@
     }
     return `
       <tr${isAdjustmentItem(item) ? ' class="adjustment-line"' : ""}>
-        <td class="section-line">${escapeHtml(item.name)}</td>
+        <td class="section-line">${escapeHtml(printableDetailName(item))}</td>
         <td>${escapeHtml(item.summary)}</td>
         <td class="num">${toNumber(item.qty).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}</td>
         <td class="center">${escapeHtml(item.unit)}</td>
@@ -5018,11 +5039,18 @@
   }
 
   function openPrintPdf() {
+    commitPendingDetailNamesForPrint();
     renderPrint();
     $("pdfPreviewPages").innerHTML = $("printPages").innerHTML;
     $("pdfPreview").classList.add("is-open");
     $("pdfPreview").setAttribute("aria-hidden", "false");
     document.body.classList.add("preview-open");
+  }
+
+  function commitPendingDetailNamesForPrint() {
+    $("itemsBody")?.querySelectorAll('input[data-key="name"]').forEach((input) => {
+      commitDetailInput(input, { adjustDirectConcreteQty: false });
+    });
   }
 
   function closePrintPreview() {
@@ -5032,6 +5060,7 @@
   }
 
   function printPreview() {
+    commitPendingDetailNamesForPrint();
     renderPrint();
     window.print();
   }
@@ -5047,6 +5076,7 @@
     button.disabled = true;
     button.textContent = "PDF作成中...";
     try {
+      commitPendingDetailNamesForPrint();
       renderPrint();
       const pageImages = await renderPdfPageImages();
       const pdfBlob = buildImagePdf(pageImages);
@@ -5243,8 +5273,8 @@
 
   function drawPdfSubjectSummaryPage(ctx, metrics) {
     const rows = visibleSheets().map((sheet) => [sheet.name, 1, "式", subtotalForSheet(sheet), ""]);
-    rows.push(["計", 1, "式", rows.reduce((sum, row) => sum + row[3], 0), ""]);
-    drawPdfSummaryTable(ctx, metrics, "科　目　別　内　訳　書", rows);
+    const totalRow = ["計", 1, "式", rows.reduce((sum, row) => sum + row[3], 0), ""];
+    drawPdfSummaryTable(ctx, metrics, "科　目　別　内　訳　書", rows, [totalRow]);
   }
 
   function drawPdfSimpleDetailPage(ctx, metrics, total) {
@@ -5276,7 +5306,7 @@
   function pdfDetailRow(item) {
     return {
       cells: [
-        item.name,
+        printableDetailName(item),
         item.summary,
         pdfQty(item.qty),
         item.unit,
@@ -5295,18 +5325,20 @@
     };
   }
 
-  function drawPdfSummaryTable(ctx, metrics, title, rows) {
+  function drawPdfSummaryTable(ctx, metrics, title, rows, bottomRows = []) {
     const { mm } = metrics;
     pdfText(ctx, metrics, title, metrics.width / 2, mm(20), { size: 20, align: "center" });
-    const mapped = rows.map((row) => ({
-      cells: [row[0], pdfQty(row[1]), row[2], pdfMoney(row[3]), row[4] || ""]
-    }));
+    const mapRow = (row, total = false) => ({
+      cells: [row[0], pdfQty(row[1]), row[2], pdfMoney(row[3]), row[4] || ""],
+      total
+    });
     drawPdfTable(ctx, metrics, {
       x: mm(15),
       y: mm(43),
       heads: ["名称", "数量", "単位", "金額", "備考"],
       widths: [52, 34, 14, 36, 40].map(mm),
-      rows: mapped,
+      rows: rows.map((row) => mapRow(row)),
+      bottomRows: bottomRows.map((row) => mapRow(row, true)),
       minRows: 25,
       align: ["left", "right", "center", "right", "left"]
     });
