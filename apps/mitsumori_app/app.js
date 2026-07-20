@@ -1280,6 +1280,9 @@
   let isWritingDataFile = false;
   let pendingImportTradeName = "";
   let lastConcreteReadSummary = [];
+  let vendorPdfSession = null;
+  let vendorPdfResolve = null;
+  let vendorSelectionDraft = null;
   let pendingItemFocus = null;
 
   function clone(value) {
@@ -2854,6 +2857,582 @@
     return match ? match.name : "未分類";
   }
 
+  async function ensurePdfJs() {
+    if (window.pdfjsLib) return window.pdfjsLib;
+    const pdfjs = await import("./pdf.min.mjs");
+    window.pdfjsLib = pdfjs;
+    pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.min.mjs";
+    return pdfjs;
+  }
+
+  async function openVendorPdfImporter(file) {
+    const pdfjs = await ensurePdfJs();
+    const pdf = await pdfjs.getDocument({
+      data: await file.arrayBuffer(),
+      disableWorker: location.protocol === "file:"
+    }).promise;
+    vendorPdfSession = {
+      file,
+      pdf,
+      pageNo: 1,
+      ranges: [],
+      rows: [],
+      notes: "",
+      renderToken: 0,
+      pageRendering: false,
+      processing: false
+    };
+    const completion = new Promise((resolve) => {
+      vendorPdfResolve = resolve;
+    });
+    $("vendorPdfFileName").textContent = file.name;
+    $("vendorPdfStatus").textContent = "PDF上で取り込む範囲をドラッグしてください。複数選択できます。";
+    $("vendorOcrReview").hidden = true;
+    $("vendorOcrRows").replaceChildren();
+    $("vendorOcrNotes").value = "";
+    $("vendorPdfImportModal").classList.add("is-open");
+    $("vendorPdfImportModal").setAttribute("aria-hidden", "false");
+    document.body.classList.add("vendor-import-open");
+    renderVendorRangeList();
+    try {
+      await renderVendorPdfPage();
+    } catch (error) {
+      closeVendorPdfImporter();
+      throw error;
+    }
+    return completion;
+  }
+
+  function closeVendorPdfImporter(result = { applied: false }) {
+    if (!vendorPdfSession || vendorPdfSession.processing) return;
+    $("vendorPdfImportModal").classList.remove("is-open");
+    $("vendorPdfImportModal").setAttribute("aria-hidden", "true");
+    document.body.classList.remove("vendor-import-open");
+    const resolve = vendorPdfResolve;
+    vendorPdfResolve = null;
+    vendorPdfSession = null;
+    vendorSelectionDraft = null;
+    if (resolve) resolve(result);
+  }
+
+  async function renderVendorPdfPage() {
+    const session = vendorPdfSession;
+    if (!session || session.pageRendering) return;
+    session.pageRendering = true;
+    $("vendorPdfPrevButton").disabled = true;
+    $("vendorPdfNextButton").disabled = true;
+    const token = ++session.renderToken;
+    try {
+      const page = await session.pdf.getPage(session.pageNo);
+      const viewport = page.getViewport({ scale: 1.45 });
+      const canvas = $("vendorPdfCanvas");
+      const context = canvas.getContext("2d", { alpha: false });
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      $("vendorPdfStage").style.width = `${canvas.width}px`;
+      $("vendorPdfStage").style.aspectRatio = `${canvas.width} / ${canvas.height}`;
+      await page.render({ canvasContext: context, viewport }).promise;
+      if (!vendorPdfSession || token !== session.renderToken) return;
+      $("vendorPdfPageLabel").textContent = `${session.pageNo} / ${session.pdf.numPages}`;
+      renderVendorSelectionBoxes();
+    } finally {
+      session.pageRendering = false;
+      if (vendorPdfSession === session) {
+        $("vendorPdfPrevButton").disabled = session.pageNo <= 1;
+        $("vendorPdfNextButton").disabled = session.pageNo >= session.pdf.numPages;
+      }
+    }
+  }
+
+  function normalizedPointerPosition(event) {
+    const bounds = $("vendorPdfSelectionLayer").getBoundingClientRect();
+    return {
+      x: Math.min(1, Math.max(0, (event.clientX - bounds.left) / Math.max(bounds.width, 1))),
+      y: Math.min(1, Math.max(0, (event.clientY - bounds.top) / Math.max(bounds.height, 1)))
+    };
+  }
+
+  function vendorSelectionPointerDown(event) {
+    if (!vendorPdfSession || vendorPdfSession.processing || event.button !== 0) return;
+    const point = normalizedPointerPosition(event);
+    vendorSelectionDraft = { pageNo: vendorPdfSession.pageNo, startX: point.x, startY: point.y, x: point.x, y: point.y, width: 0, height: 0 };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function vendorSelectionPointerMove(event) {
+    if (!vendorSelectionDraft || !vendorPdfSession) return;
+    const point = normalizedPointerPosition(event);
+    vendorSelectionDraft.x = Math.min(vendorSelectionDraft.startX, point.x);
+    vendorSelectionDraft.y = Math.min(vendorSelectionDraft.startY, point.y);
+    vendorSelectionDraft.width = Math.abs(point.x - vendorSelectionDraft.startX);
+    vendorSelectionDraft.height = Math.abs(point.y - vendorSelectionDraft.startY);
+    renderVendorSelectionBoxes();
+  }
+
+  function vendorSelectionPointerUp(event) {
+    if (!vendorSelectionDraft || !vendorPdfSession) return;
+    vendorSelectionPointerMove(event);
+    const draft = vendorSelectionDraft;
+    vendorSelectionDraft = null;
+    if (draft.width >= 0.015 && draft.height >= 0.015) {
+      vendorPdfSession.ranges.push({
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        pageNo: draft.pageNo,
+        x: draft.x,
+        y: draft.y,
+        width: draft.width,
+        height: draft.height,
+        role: "details"
+      });
+      invalidateVendorOcrReview();
+      renderVendorRangeList();
+    }
+    renderVendorSelectionBoxes();
+  }
+
+  function vendorSelectionStyle(range) {
+    return `left:${range.x * 100}%;top:${range.y * 100}%;width:${range.width * 100}%;height:${range.height * 100}%`;
+  }
+
+  function renderVendorSelectionBoxes() {
+    const layer = $("vendorPdfSelectionLayer");
+    if (!vendorPdfSession) {
+      layer.replaceChildren();
+      return;
+    }
+    const visible = vendorPdfSession.ranges
+      .map((range, index) => ({ ...range, number: index + 1 }))
+      .filter((range) => range.pageNo === vendorPdfSession.pageNo);
+    if (vendorSelectionDraft?.pageNo === vendorPdfSession.pageNo) {
+      visible.push({ ...vendorSelectionDraft, number: "+", role: "details" });
+    }
+    layer.innerHTML = visible.map((range) => (
+      `<div class="vendor-selection-box ${range.role === "notes" ? "notes" : ""}" style="${vendorSelectionStyle(range)}"><span>${range.number}</span></div>`
+    )).join("");
+  }
+
+  function invalidateVendorOcrReview() {
+    if (!vendorPdfSession) return;
+    vendorPdfSession.rows = [];
+    vendorPdfSession.notes = "";
+    $("vendorOcrReview").hidden = true;
+  }
+
+  function renderVendorRangeList() {
+    const list = $("vendorPdfRangeList");
+    list.replaceChildren();
+    if (!vendorPdfSession?.ranges.length) {
+      const empty = document.createElement("p");
+      empty.className = "vendor-range-empty";
+      empty.textContent = "PDF上で範囲を選択してください";
+      list.appendChild(empty);
+      return;
+    }
+    vendorPdfSession.ranges.forEach((range, index) => {
+      const row = document.createElement("div");
+      row.className = "vendor-range-row";
+
+      const pageButton = document.createElement("button");
+      pageButton.type = "button";
+      pageButton.className = "vendor-range-page";
+      pageButton.textContent = `範囲 ${index + 1}・${range.pageNo}ページ`;
+      pageButton.addEventListener("click", async () => {
+        if (!vendorPdfSession || vendorPdfSession.pageRendering) return;
+        vendorPdfSession.pageNo = range.pageNo;
+        await renderVendorPdfPage();
+      });
+
+      const role = document.createElement("select");
+      [["details", "明細"], ["notes", "備考"]].forEach(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        option.selected = range.role === value;
+        role.appendChild(option);
+      });
+      role.setAttribute("aria-label", `範囲 ${index + 1} の取込先`);
+      role.addEventListener("change", () => {
+        range.role = role.value;
+        invalidateVendorOcrReview();
+        renderVendorSelectionBoxes();
+      });
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "vendor-range-remove";
+      remove.title = "この範囲を削除";
+      remove.textContent = "×";
+      remove.addEventListener("click", () => {
+        if (!vendorPdfSession) return;
+        vendorPdfSession.ranges = vendorPdfSession.ranges.filter((item) => item.id !== range.id);
+        invalidateVendorOcrReview();
+        renderVendorRangeList();
+        renderVendorSelectionBoxes();
+      });
+      row.append(pageButton, role, remove);
+      list.appendChild(row);
+    });
+  }
+
+  function setVendorPdfProcessing(active, message = "") {
+    if (!vendorPdfSession) return;
+    vendorPdfSession.processing = active;
+    ["vendorPdfCloseButton", "vendorPdfPrevButton", "vendorPdfNextButton", "vendorPdfClearButton", "vendorPdfOcrButton", "vendorApplyButton"]
+      .forEach((id) => {
+        const button = $(id);
+        if (button) button.disabled = active;
+      });
+    if (message) $("vendorPdfStatus").textContent = message;
+  }
+
+  async function createVendorOcrWorker(mode) {
+    const Tesseract = await loadTesseract();
+    const options = {
+      workerPath: "./tesseract-worker.min.js",
+      logger: (message) => {
+        if (!vendorPdfSession || !message.status || typeof message.progress !== "number") return;
+        const percent = Math.round(message.progress * 100);
+        $("vendorPdfStatus").textContent = `OCR中: ${message.status} ${percent}%`;
+        setProgress(message.progress * 90, `OCR中 ${percent}%`);
+      }
+    };
+    if (mode === "fast") return Tesseract.createWorker("eng", 1, options);
+    try {
+      return await Tesseract.createWorker(["jpn", "eng"], 1, options);
+    } catch (error) {
+      $("vendorPdfStatus").textContent = "日本語OCRを準備できないため、英数字OCRで続行します。";
+      return Tesseract.createWorker("eng", 1, options);
+    }
+  }
+
+  async function renderVendorOcrSourcePage(page, mode) {
+    const viewport = page.getViewport({ scale: mode === "fast" ? 1.8 : 2.25 });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.floor(viewport.width));
+    canvas.height = Math.max(1, Math.floor(viewport.height));
+    await page.render({ canvasContext: canvas.getContext("2d", { willReadFrequently: true }), viewport }).promise;
+    return canvas;
+  }
+
+  function cropVendorPdfRange(sourceCanvas, range) {
+    const sx = Math.max(0, Math.floor(range.x * sourceCanvas.width));
+    const sy = Math.max(0, Math.floor(range.y * sourceCanvas.height));
+    const sw = Math.max(1, Math.min(sourceCanvas.width - sx, Math.ceil(range.width * sourceCanvas.width)));
+    const sh = Math.max(1, Math.min(sourceCanvas.height - sy, Math.ceil(range.height * sourceCanvas.height)));
+    const canvas = document.createElement("canvas");
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext("2d", { willReadFrequently: true }).drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    return canvas;
+  }
+
+  async function extractEmbeddedPdfText(page, range) {
+    const content = await page.getTextContent();
+    const [viewX, viewY, viewRight, viewTop] = page.view;
+    const pageWidth = Math.max(1, viewRight - viewX);
+    const pageHeight = Math.max(1, viewTop - viewY);
+    const entries = content.items.map((item) => {
+      const x = (item.transform[4] - viewX + toNumber(item.width) / 2) / pageWidth;
+      const y = 1 - ((item.transform[5] - viewY + toNumber(item.height) / 2) / pageHeight);
+      return { text: String(item.str || "").trim(), x, y };
+    }).filter((item) => (
+      item.text &&
+      item.x >= range.x && item.x <= range.x + range.width &&
+      item.y >= range.y && item.y <= range.y + range.height
+    ));
+    entries.sort((a, b) => Math.abs(a.y - b.y) < 0.006 ? a.x - b.x : a.y - b.y);
+    const rows = [];
+    entries.forEach((entry) => {
+      const lastRow = rows[rows.length - 1];
+      const row = lastRow && Math.abs(lastRow.y - entry.y) < 0.008 ? lastRow : null;
+      if (row) {
+        row.items.push(entry);
+      } else {
+        rows.push({ y: entry.y, items: [entry] });
+      }
+    });
+    return rows
+      .sort((a, b) => a.y - b.y)
+      .map((row) => row.items.sort((a, b) => a.x - b.x).map((item) => item.text).join("\t"))
+      .join("\n");
+  }
+
+  function normalizedVendorText(value) {
+    return String(value || "")
+      .normalize("NFKC")
+      .replace(/[|｜]/g, " ")
+      .replace(/[¥￥]/g, "¥")
+      .replace(/m\s*[2²]/gi, "㎡")
+      .replace(/m\s*[3³]/gi, "㎥")
+      .replace(/[‐‑‒–—―]/g, "-")
+      .replace(/\u3000/g, " ");
+  }
+
+  function vendorNumber(value) {
+    const raw = normalizedVendorText(value).trim();
+    if (!raw) return null;
+    const negative = /^\(.*\)$/.test(raw);
+    const cleaned = raw.replace(/[(),，¥￥円]/g, "").replace(/△/g, "-");
+    if (!/^-?\d+(?:\.\d+)?$/.test(cleaned)) return null;
+    const number = Number(cleaned);
+    return Number.isFinite(number) ? (negative ? -Math.abs(number) : number) : null;
+  }
+
+  function normalizeVendorUnit(value) {
+    const unit = normalizedVendorText(value).replace(/\s/g, "");
+    if (/^m2$/i.test(unit)) return "㎡";
+    if (/^m3$/i.test(unit)) return "㎥";
+    return unit;
+  }
+
+  function isVendorUnit(value) {
+    return /^(式|m2|㎡|m3|㎥|m|枚|本|kg|t|箇所|ヶ所|個|台|人工|日|回|袋|組|セット)$/i.test(normalizeVendorUnit(value));
+  }
+
+  function isVendorHeaderOrTotal(line) {
+    const compact = line.replace(/\s/g, "").toLowerCase();
+    if (!compact) return true;
+    if (/(名称|品名|項目|内容).*(数量|qty).*(単価|価格)/i.test(compact)) return true;
+    return /^(小計|合計|総合計|消費税|税抜|税込|値引|net|total|ページ|page)/i.test(compact);
+  }
+
+  function parseVendorEstimateLine(rawLine) {
+    const line = normalizedVendorText(rawLine).trim();
+    if (!line || isVendorHeaderOrTotal(line)) return null;
+    const tokens = line.replace(/,/g, "").split(/\s+/).filter(Boolean);
+    const unitIndex = tokens.findIndex(isVendorUnit);
+    let qty = null;
+    let price = null;
+    let prefixTokens = [];
+
+    if (unitIndex > 0 && vendorNumber(tokens[unitIndex - 1]) !== null) {
+      qty = vendorNumber(tokens[unitIndex - 1]);
+      prefixTokens = tokens.slice(0, unitIndex - 1);
+      const valuesAfterUnit = tokens.slice(unitIndex + 1).map(vendorNumber).filter((value) => value !== null);
+      price = valuesAfterUnit[0] ?? 0;
+    } else {
+      const numbers = tokens.map((token, index) => ({ index, value: vendorNumber(token) })).filter((item) => item.value !== null);
+      if (numbers.length < 2) return null;
+      const qtyNumber = numbers.length >= 3 ? numbers[numbers.length - 3] : numbers[numbers.length - 2];
+      const priceNumber = numbers.length >= 3 ? numbers[numbers.length - 2] : numbers[numbers.length - 1];
+      qty = qtyNumber.value;
+      price = priceNumber.value;
+      prefixTokens = tokens.slice(0, qtyNumber.index);
+    }
+
+    while (prefixTokens.length && vendorNumber(prefixTokens[0]) !== null) prefixTokens.shift();
+    const prefixText = prefixTokens.join(" ").trim();
+    if (!prefixText || qty === null) return null;
+
+    const coarseColumns = line.split(/\t+|\s{2,}/).map((part) => part.trim()).filter(Boolean);
+    const textColumns = [];
+    for (const column of coarseColumns) {
+      const columnTokens = column.replace(/,/g, "").split(/\s+/).filter(Boolean);
+      if (columnTokens.some(isVendorUnit) || (columnTokens.length === 1 && vendorNumber(columnTokens[0]) !== null)) break;
+      textColumns.push(column);
+    }
+    const name = (textColumns[0] || prefixText).trim();
+    const summary = textColumns.length > 1 ? textColumns.slice(1).join(" ").trim() : "";
+    if (!name || isVendorHeaderOrTotal(name)) return null;
+    return {
+      name,
+      summary,
+      qty,
+      unit: unitIndex >= 0 ? normalizeVendorUnit(tokens[unitIndex]) : "式",
+      price: price ?? 0
+    };
+  }
+
+  function parseVendorDetailText(text) {
+    const rows = [];
+    const notes = [];
+    normalizedVendorText(text).split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
+      if (isVendorHeaderOrTotal(line)) return;
+      const item = parseVendorEstimateLine(line);
+      if (item) {
+        rows.push(item);
+      } else if (/^[※*・]/.test(line) || isNoteLine(line)) {
+        notes.push(cleanNoteLine(line));
+      }
+    });
+    return { rows, notes };
+  }
+
+  function renderVendorOcrReview() {
+    if (!vendorPdfSession) return;
+    const body = $("vendorOcrRows");
+    body.replaceChildren();
+    vendorPdfSession.rows.forEach((item, index) => {
+      const row = document.createElement("tr");
+      [["name", "text"], ["summary", "text"], ["qty", "number"], ["unit", "text"], ["price", "number"]].forEach(([key, type]) => {
+        const cell = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = type;
+        if (type === "number") input.step = "any";
+        input.value = item[key] ?? "";
+        input.setAttribute("aria-label", `${index + 1}行目 ${key}`);
+        input.addEventListener("input", () => {
+          item[key] = type === "number" ? toNumber(input.value) : input.value;
+        });
+        cell.appendChild(input);
+        row.appendChild(cell);
+      });
+      const actionCell = document.createElement("td");
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "vendor-review-remove";
+      remove.title = "この明細を削除";
+      remove.textContent = "×";
+      remove.addEventListener("click", () => {
+        if (!vendorPdfSession) return;
+        vendorPdfSession.rows.splice(index, 1);
+        renderVendorOcrReview();
+      });
+      actionCell.appendChild(remove);
+      row.appendChild(actionCell);
+      body.appendChild(row);
+    });
+    $("vendorOcrNotes").value = vendorPdfSession.notes;
+    $("vendorOcrReview").hidden = false;
+  }
+
+  async function runVendorSelectionOcr() {
+    const session = vendorPdfSession;
+    if (!session || !session.ranges.length) {
+      $("vendorPdfStatus").textContent = "先にPDF上で取込範囲を選択してください。";
+      return;
+    }
+    const mode = selectedOcrMode() === "fast" ? "fast" : "jpn";
+    const sourcePages = new Map();
+    const rows = [];
+    const notes = [];
+    const embeddedTexts = new Map();
+    let worker = null;
+    let workerError = null;
+    setVendorPdfProcessing(true, "OCRを準備しています。");
+    setProgress(0, "OCR準備中");
+    try {
+      for (const range of session.ranges) {
+        const page = await session.pdf.getPage(range.pageNo);
+        embeddedTexts.set(range.id, await extractEmbeddedPdfText(page, range));
+      }
+      const needsImageOcr = session.ranges.some((range) => (embeddedTexts.get(range.id) || "").replace(/\s/g, "").length < 8);
+      if (needsImageOcr) {
+        try {
+          worker = await withTimeout(createVendorOcrWorker(mode), 60000, "OCRの準備が60秒を超えました。");
+          await worker.setParameters({ preserve_interword_spaces: "1" });
+        } catch (error) {
+          workerError = error;
+        }
+      }
+
+      for (let index = 0; index < session.ranges.length; index += 1) {
+        const range = session.ranges[index];
+        const page = await session.pdf.getPage(range.pageNo);
+        $("vendorPdfStatus").textContent = `範囲 ${index + 1}/${session.ranges.length} をOCR中です。`;
+        const embeddedText = embeddedTexts.get(range.id) || "";
+        let ocrText = "";
+        if (worker && embeddedText.replace(/\s/g, "").length < 8) {
+          try {
+            let sourceCanvas = sourcePages.get(range.pageNo);
+            if (!sourceCanvas) {
+              sourceCanvas = await renderVendorOcrSourcePage(page, mode);
+              sourcePages.set(range.pageNo, sourceCanvas);
+            }
+            const result = await withTimeout(worker.recognize(cropVendorPdfRange(sourceCanvas, range)), 60000, `範囲 ${index + 1} のOCRが60秒を超えました。`);
+            ocrText = result.data.text || "";
+          } catch (error) {
+            workerError = error;
+          }
+        }
+        const embeddedLength = embeddedText.replace(/\s/g, "").length;
+        const selectedText = embeddedLength >= 8 ? embeddedText : ocrText;
+        if (range.role === "notes") {
+          if (selectedText.trim()) notes.push(selectedText.trim());
+        } else {
+          const parsed = parseVendorDetailText(selectedText);
+          rows.push(...parsed.rows);
+          notes.push(...parsed.notes);
+        }
+        setProgress(((index + 1) / session.ranges.length) * 100, `範囲 ${index + 1}/${session.ranges.length}`);
+        await nextPaint();
+      }
+
+      if (!rows.length && !notes.join("").trim() && workerError) {
+        throw new Error(workerError.message || workerError);
+      }
+
+      const uniqueRows = [];
+      const rowKeys = new Set();
+      rows.forEach((item) => {
+        const key = `${normalizedText(item.name)}|${normalizedText(item.summary)}|${item.qty}|${item.unit}|${item.price}`;
+        if (rowKeys.has(key)) return;
+        rowKeys.add(key);
+        uniqueRows.push(item);
+      });
+      session.rows = uniqueRows;
+      session.notes = Array.from(new Set(notes.flatMap((text) => String(text).split(/\r?\n/)).map(cleanNoteLine).filter(Boolean))).join("\n");
+      renderVendorOcrReview();
+      const fallbackMessage = workerError && !worker ? " PDF内の文字情報から読み取りました。" : "";
+      $("vendorPdfStatus").textContent = `明細 ${session.rows.length}件、備考 ${session.notes ? session.notes.split("\n").length : 0}件を読み取りました。内容を確認して反映してください。${fallbackMessage}`;
+    } finally {
+      if (worker) await worker.terminate().catch(() => {});
+      setVendorPdfProcessing(false);
+      $("vendorPdfPrevButton").disabled = session.pageNo <= 1;
+      $("vendorPdfNextButton").disabled = session.pageNo >= session.pdf.numPages;
+    }
+  }
+
+  function addVendorReviewRow() {
+    if (!vendorPdfSession) return;
+    vendorPdfSession.rows.push({ name: "", summary: "", qty: 1, unit: "式", price: 0 });
+    renderVendorOcrReview();
+  }
+
+  function applyVendorOcrResult() {
+    const session = vendorPdfSession;
+    if (!session) return;
+    session.notes = $("vendorOcrNotes").value.trim();
+    const importRows = session.rows.filter((item) => String(item.name || "").trim());
+    if (!importRows.length && !session.notes) {
+      $("vendorPdfStatus").textContent = "反映する明細または備考がありません。";
+      return;
+    }
+
+    state.estimateMode = "byTrade";
+    tradePresets.forEach((trade) => ensureSheet(trade.name));
+    const forcedTradeName = selectedImportTrade();
+    const counts = {};
+    const firstTradeNames = [];
+    const importBatchKeys = new Set();
+    importRows.forEach((row) => {
+      const tradeName = forcedTradeName || classifyTrade(`${session.file.name} ${row.name} ${row.summary}`);
+      const sheet = ensureSheet(tradeName);
+      upsertImportedItem(sheet, {
+        type: "item",
+        category: "取り込み",
+        name: String(row.name || "").trim(),
+        summary: String(row.summary || "").trim(),
+        qty: toNumber(row.qty),
+        unit: String(row.unit || "式").trim() || "式",
+        price: toNumber(row.price),
+        printRemarks: "",
+        remarks: `業者見積OCR: ${session.file.name}`
+      }, importBatchKeys);
+      counts[tradeName] = (counts[tradeName] || 0) + 1;
+      if (!firstTradeNames.includes(tradeName)) firstTradeNames.push(tradeName);
+    });
+    if (session.notes) appendImportedNotes(session.notes.split(/\r?\n/));
+    if (firstTradeNames.length) {
+      state.activeSheetIndex = Math.max(0, state.sheets.findIndex((sheet) => sheet.name === firstTradeNames[0]));
+    }
+    render();
+    const countText = Object.entries(counts).map(([name, count]) => `${name}:${count}件`).join(" / ");
+    const result = { applied: true, rowCount: importRows.length, noteCount: session.notes ? session.notes.split(/\r?\n/).filter(Boolean).length : 0 };
+    closeVendorPdfImporter(result);
+    $("importResult").textContent = `業者見積PDFを反映しました。${countText}${result.noteCount ? ` / 備考:${result.noteCount}件` : ""} 金額は数量×単価で自動計算されます。`;
+  }
+
   async function handleFiles(files) {
     const list = Array.from(files || []);
     if (!list.length) return;
@@ -2863,6 +3442,8 @@
     const texts = [];
     const failures = [];
     const fileTradeHints = new Set();
+    let pdfRowsApplied = 0;
+    let pdfNotesApplied = 0;
     lastConcreteReadSummary = [];
 
     for (let fileIndex = 0; fileIndex < list.length; fileIndex += 1) {
@@ -2874,7 +3455,12 @@
         const fileBase = (fileIndex / list.length) * 100;
         const fileSpan = 100 / list.length;
         if (ext === "pdf") {
-          texts.push(await withTimeout(readPdfFile(file, fileBase, fileSpan), 45000, `${file.name}: PDF読み取りが45秒を超えました。OCR設定を「OCRしない」にして再試行してください。`));
+          setProgress(fileBase, `${file.name} 範囲指定待ち`);
+          const result = await openVendorPdfImporter(file);
+          if (result.applied) {
+            pdfRowsApplied += result.rowCount || 0;
+            pdfNotesApplied += result.noteCount || 0;
+          }
         } else if (ext === "csv" || ext === "tsv") {
           setProgress(fileBase + fileSpan * 0.5, `${file.name} を読み取り中`);
           texts.push(await withTimeout(readDelimitedFile(file, ext === "tsv" ? "\t" : ","), 15000, `${file.name}: CSV読み取りが15秒を超えました。`));
@@ -2904,6 +3490,9 @@
     }
     if (lastConcreteReadSummary.length) {
       $("importResult").textContent += ` / Excel読取: ${lastConcreteReadSummary.slice(0, 8).join("、")}`;
+    }
+    if (pdfRowsApplied || pdfNotesApplied) {
+      $("importResult").textContent += ` / PDF反映: 明細${pdfRowsApplied}件・備考${pdfNotesApplied}件`;
     }
     setProgress(100, failures.length ? "一部失敗あり" : "完了");
   }
@@ -4673,7 +5262,11 @@ ${worksheets}
   $("createPresetTradesButton").addEventListener("click", ensurePresetTrades);
   $("loadUeharaButton").addEventListener("click", loadUeharaEstimate);
   $("importTextButton").addEventListener("click", importText);
-  $("fileInput").addEventListener("change", (event) => handleFiles(event.target.files));
+  $("fileInput").addEventListener("change", (event) => {
+    handleFiles(event.target.files).finally(() => {
+      event.target.value = "";
+    });
+  });
   $("fileDropZone").addEventListener("dragover", (event) => {
     event.preventDefault();
     $("fileDropZone").classList.add("dragging");
@@ -4683,6 +5276,40 @@ ${worksheets}
     event.preventDefault();
     $("fileDropZone").classList.remove("dragging");
     handleFiles(event.dataTransfer.files);
+  });
+  $("vendorPdfCloseButton").addEventListener("click", () => closeVendorPdfImporter());
+  $("vendorPdfPrevButton").addEventListener("click", async () => {
+    if (!vendorPdfSession || vendorPdfSession.pageRendering || vendorPdfSession.pageNo <= 1) return;
+    vendorPdfSession.pageNo -= 1;
+    await renderVendorPdfPage();
+  });
+  $("vendorPdfNextButton").addEventListener("click", async () => {
+    if (!vendorPdfSession || vendorPdfSession.pageRendering || vendorPdfSession.pageNo >= vendorPdfSession.pdf.numPages) return;
+    vendorPdfSession.pageNo += 1;
+    await renderVendorPdfPage();
+  });
+  $("vendorPdfClearButton").addEventListener("click", () => {
+    if (!vendorPdfSession) return;
+    vendorPdfSession.ranges = [];
+    invalidateVendorOcrReview();
+    renderVendorRangeList();
+    renderVendorSelectionBoxes();
+    $("vendorPdfStatus").textContent = "PDF上で取り込む範囲をドラッグしてください。複数選択できます。";
+  });
+  $("vendorPdfOcrButton").addEventListener("click", () => {
+    runVendorSelectionOcr().catch((error) => {
+      setVendorPdfProcessing(false);
+      $("vendorPdfStatus").textContent = `OCR読込に失敗しました: ${error.message || error}`;
+    });
+  });
+  $("vendorAddRowButton").addEventListener("click", addVendorReviewRow);
+  $("vendorApplyButton").addEventListener("click", applyVendorOcrResult);
+  $("vendorPdfSelectionLayer").addEventListener("pointerdown", vendorSelectionPointerDown);
+  $("vendorPdfSelectionLayer").addEventListener("pointermove", vendorSelectionPointerMove);
+  $("vendorPdfSelectionLayer").addEventListener("pointerup", vendorSelectionPointerUp);
+  $("vendorPdfSelectionLayer").addEventListener("pointercancel", () => {
+    vendorSelectionDraft = null;
+    renderVendorSelectionBoxes();
   });
   $("printButton").addEventListener("click", openPrintPdf);
   $("previewCloseButton").addEventListener("click", closePrintPreview);
@@ -4694,6 +5321,10 @@ ${worksheets}
     });
   });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && $("vendorPdfImportModal").classList.contains("is-open")) {
+      closeVendorPdfImporter();
+      return;
+    }
     if (event.key === "Escape" && $("pdfPreview").classList.contains("is-open")) {
       closePrintPreview();
     }
