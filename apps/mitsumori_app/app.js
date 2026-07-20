@@ -1847,15 +1847,29 @@
     const tabs = $("sheetTabs");
     tabs.innerHTML = "";
     state.sheets.forEach((sheet, index) => {
+      const tab = document.createElement("div");
+      tab.className = `sheet-tab ${index === state.activeSheetIndex ? "active" : ""}`;
+
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = sheet.name || `工種${index + 1}`;
-      button.className = index === state.activeSheetIndex ? "active" : "";
+      button.className = "sheet-tab-select";
       button.addEventListener("click", () => {
         state.activeSheetIndex = index;
         render();
       });
-      tabs.appendChild(button);
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "sheet-tab-delete";
+      deleteButton.textContent = "×";
+      deleteButton.title = `${sheet.name || `工種${index + 1}`}を削除`;
+      deleteButton.setAttribute("aria-label", `${sheet.name || `工種${index + 1}`}シートを削除`);
+      deleteButton.disabled = state.sheets.length <= 1;
+      deleteButton.addEventListener("click", () => deleteSheetAt(index));
+
+      tab.append(button, deleteButton);
+      tabs.appendChild(tab);
     });
     $("sheetName").value = activeSheet().name;
     $("deleteSheetButton").disabled = state.sheets.length <= 1;
@@ -4949,12 +4963,27 @@
     render();
   }
 
-  function deleteSheet() {
-    if (state.sheets.length <= 1) return;
-    if (!confirm("現在の工種シートを削除しますか？")) return;
-    state.sheets.splice(state.activeSheetIndex, 1);
-    state.activeSheetIndex = Math.max(0, state.activeSheetIndex - 1);
+  function deleteSheetAt(index) {
+    if (state.sheets.length <= 1) {
+      $("projectStatus").textContent = "最後の工種シートは削除できません。";
+      return;
+    }
+    const sheet = state.sheets[index];
+    if (!sheet) return;
+    const sheetName = sheet.name || `工種${index + 1}`;
+    if (!confirm(`工種シート「${sheetName}」を削除しますか？\nシート内の明細も削除されます。`)) return;
+    state.sheets.splice(index, 1);
+    if (state.activeSheetIndex > index) {
+      state.activeSheetIndex -= 1;
+    } else if (state.activeSheetIndex === index) {
+      state.activeSheetIndex = Math.min(index, state.sheets.length - 1);
+    }
     render();
+    $("projectStatus").textContent = `工種シート「${sheetName}」を削除しました。`;
+  }
+
+  function deleteSheet() {
+    deleteSheetAt(state.activeSheetIndex);
   }
 
   function openPrintPdf() {

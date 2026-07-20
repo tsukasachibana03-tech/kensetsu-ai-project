@@ -155,9 +155,55 @@ h2 {
   gap: 8px;
 }
 
-.sheet-tabs button.active {
+.sheet-tab {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.sheet-tab button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 0;
+}
+
+.sheet-tab-select {
+  min-width: 88px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.sheet-tab.active .sheet-tab-select {
   color: #fff;
   background: var(--brand);
+}
+
+.sheet-tab-delete {
+  width: 32px;
+  padding: 0;
+  color: #9f3128;
+  font-size: 18px;
+  line-height: 1;
+  background: #fff;
+  border-left: 1px solid var(--line) !important;
+}
+
+.sheet-tab-delete:hover:not(:disabled) {
+  color: #fff;
+  background: #b23a30;
+}
+
+.sheet-tab-delete:disabled {
+  color: #9aa3a3;
+  background: #f2f4f4;
+}
+
+.ghost.danger-button {
+  color: #9f3128;
+  border-color: #d7aaa6;
 }
 
 .sheet-name {
