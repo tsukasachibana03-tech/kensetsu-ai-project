@@ -74,7 +74,7 @@
     useStamp: true,
     estimateMode: "simple",
     activeSheetIndex: 0,
-    sheets: [{ name: "簡易見積", items: defaultItems }]
+    sheets: [{ name: "全工種", items: defaultItems }]
   };
 
   const ueharaEstimateItems = [
@@ -1320,10 +1320,12 @@
   function normalizeState(value) {
     const next = { ...clone(defaults), ...value };
     if (!Array.isArray(next.sheets) || next.sheets.length === 0) {
-      next.sheets = [{ name: "簡易見積", items: Array.isArray(value.items) ? value.items : clone(defaultItems) }];
+      next.sheets = [{ name: "全工種", items: Array.isArray(value.items) ? value.items : clone(defaultItems) }];
     }
     next.sheets = next.sheets.map((sheet, index) => ({
-      name: sheet.name || (index === 0 ? "簡易見積" : `工種${index + 1}`),
+      name: ["簡易見積", "簡易見積り"].includes(String(sheet.name || "").trim())
+        ? "全工種"
+        : (sheet.name || (index === 0 ? "全工種" : `工種${index + 1}`)),
       suppressConcreteTemplate: Boolean(sheet.suppressConcreteTemplate),
       manualRowOrder: Boolean(sheet.manualRowOrder),
       items: Array.isArray(sheet.items) ? sheet.items.map((item) => ({
