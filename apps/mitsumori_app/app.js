@@ -3039,6 +3039,10 @@
     if (!vendorPdfSession) return;
     vendorPdfSession.rows = [];
     vendorPdfSession.notes = "";
+    vendorPdfSession.netEntries = [];
+    vendorPdfSession.netTaxDetection = null;
+    vendorPdfSession.netTaxMode = "auto";
+    vendorPdfSession.netTaxRate = toNumber(state.taxRate) || 10;
     $("vendorOcrReview").hidden = true;
   }
 
@@ -5558,6 +5562,20 @@ ${worksheets}
     });
   });
   $("vendorAddRowButton").addEventListener("click", addVendorReviewRow);
+  $("vendorNetTaxMode").addEventListener("change", (event) => {
+    if (!vendorPdfSession) return;
+    vendorPdfSession.netTaxMode = event.target.value;
+    renderVendorOcrReview();
+  });
+  $("vendorNetTaxRate").addEventListener("input", (event) => {
+    if (!vendorPdfSession) return;
+    vendorPdfSession.netTaxRate = Math.min(100, Math.max(0, toNumber(event.target.value)));
+    renderVendorNetTaxReview();
+    $("vendorOcrRows").querySelectorAll("tr").forEach((row, index) => {
+      const item = vendorPdfSession.rows[index];
+      if (item) renderVendorReviewPriceFormula(row, item);
+    });
+  });
   $("vendorApplyButton").addEventListener("click", applyVendorOcrResult);
   $("vendorPdfSelectionLayer").addEventListener("pointerdown", vendorSelectionPointerDown);
   $("vendorPdfSelectionLayer").addEventListener("pointermove", vendorSelectionPointerMove);
