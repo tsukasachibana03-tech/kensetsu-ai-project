@@ -2160,6 +2160,62 @@ function saveProjectBookQuietly() {
   localStorage.setItem(projectBookStorageKey, JSON.stringify(serializeProjectBook()));
 }
 
+const dropboxSaveEndpoint = "/api/save-data";
+const dropboxLoadEndpoint = "/api/latest-data";
+let dropboxSaveTimer = 0;
+let dropboxSaveInFlight = false;
+let dropboxSavePending = false;
+
+function canUseDropboxSaveServer() {
+  return location.protocol === "http:" && ["127.0.0.1", "localhost"].includes(location.hostname);
+}
+function dropboxPayload() {
+  return { format: "drawing-takeoff-project-book-v1", savedAt: new Date().toISOString(), book: serializeProjectBook() };
+}
+async function saveToDropboxNow() {
+  if (!canUseDropboxSaveServer()) return;
+  if (dropboxSaveInFlight) { dropboxSavePending = true; return; }
+  dropboxSaveInFlight = true;
+  try {
+    const response = await fetch(dropboxSaveEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dropboxPayload())
+    });
+    if (!response.ok) throw new Error(await response.text());
+  } catch (error) {
+    console.warn("Dropbox auto-save failed", error);
+  } finally {
+    dropboxSaveInFlight = false;
+    if (dropboxSavePending) { dropboxSavePending = false; scheduleDropboxSave(150); }
+  }
+}
+function scheduleDropboxSave(delay = 600) {
+  if (!canUseDropboxSaveServer()) return;
+  clearTimeout(dropboxSaveTimer);
+  dropboxSaveTimer = window.setTimeout(saveToDropboxNow, delay);
+}
+async function loadLatestFromDropbox() {
+  if (!canUseDropboxSaveServer()) return false;
+  try {
+    const response = await fetch(dropboxLoadEndpoint, { cache: "no-store" });
+    if (!response.ok) return false;
+    const payload = await response.json();
+    const book = payload?.book;
+    if (!book || !Array.isArray(book.projects) || book.projects.length === 0) return false;
+    localStorage.setItem(projectBookStorageKey, JSON.stringify(book));
+    loadSaved();
+    loadFinishTableForCurrentRoom();
+    updateRoomStatus();
+    renderRegisteredRoomSelect();
+    renderDrawing();
+    return true;
+  } catch (error) {
+    console.warn("Dropbox latest-data load failed", error);
+    return false;
+  }
+}
+
 function loadProjectBookFromStorage() {
   const raw = localStorage.getItem(projectBookStorageKey);
   if (!raw) return null;
@@ -4513,6 +4569,7 @@ function saveQuietly() {
   const payload = captureAppState();
   localStorage.setItem(storageKey, JSON.stringify(payload));
   if (!isApplyingProject) saveCurrentProjectState(payload);
+  scheduleDropboxSave();
   renderDrawingList();
 }
 
@@ -5555,5 +5612,5 @@ loadFinishTableForCurrentRoom();
 updateRoomStatus();
 renderRegisteredRoomSelect();
 renderDrawing();
-loadProjectFromQuery();
+loadLatestFromDropbox().then(() => loadProjectFromQuery());
 updateOpeningTradeButtons();
