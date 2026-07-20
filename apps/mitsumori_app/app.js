@@ -3031,7 +3031,7 @@
       visible.push({ ...vendorSelectionDraft, number: "+", role: "details" });
     }
     layer.innerHTML = visible.map((range) => (
-      `<div class="vendor-selection-box ${range.role === "notes" ? "notes" : ""}" style="${vendorSelectionStyle(range)}"><span>${range.number}</span></div>`
+      `<div class="vendor-selection-box ${range.role === "details" ? "" : range.role}" style="${vendorSelectionStyle(range)}"><span>${range.number}</span></div>`
     )).join("");
   }
 
@@ -3071,7 +3071,7 @@
       });
 
       const role = document.createElement("select");
-      [["details", "明細"], ["notes", "備考"]].forEach(([value, label]) => {
+      [["details", "明細"], ["pricing", "NET・小計"], ["notes", "備考"]].forEach(([value, label]) => {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = label;
@@ -3218,7 +3218,7 @@
   }
 
   function hasVendorNetLabel(value) {
-    return /(?:\bnet\b|ネット)/i.test(normalizedVendorText(value));
+    return /(?:^|[^A-Za-z])net(?=$|[^A-Za-z])|ネット/i.test(normalizedVendorText(value));
   }
 
   function vendorAmountsInText(value) {
@@ -3230,7 +3230,8 @@
   function vendorLabeledAmount(lines, pattern, options = {}) {
     for (let index = lines.length - 1; index >= 0; index -= 1) {
       const line = lines[index];
-      if (!pattern.test(line) || (options.excludeNet && hasVendorNetLabel(line))) continue;
+      const compactLine = line.replace(/\s/g, "");
+      if ((!pattern.test(line) && !pattern.test(compactLine)) || (options.excludeNet && hasVendorNetLabel(line))) continue;
       const amounts = vendorAmountsInText(line);
       if (amounts.length) return amounts[amounts.length - 1];
     }
@@ -3244,15 +3245,16 @@
 
   function detectVendorNetTax(text) {
     const normalized = normalizedVendorText(text);
+    const compactNormalized = normalized.replace(/[ \t]/g, "");
     const lines = normalized.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const netLines = lines.filter(hasVendorNetLabel);
     const netContext = netLines.join(" ");
     const inclusivePattern = /(?:税込(?:み)?|消費税込(?:み)?|内税|tax\s*(?:included|incl\.?))/i;
     const exclusivePattern = /(?:税抜(?:き)?|税別|外税|消費税別|tax\s*(?:excluded|excl\.?))/i;
-    const rateMatch = normalized.match(/(?:消費税(?:率)?|税率|tax(?:\s*rate)?)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*%/i)
-      || normalized.match(/(\d+(?:\.\d+)?)\s*%\s*(?:消費税|税)/i);
+    const rateMatch = compactNormalized.match(/(?:消費税(?:率)?|税率|tax(?:rate)?)\s*[(:：]?\s*(\d+(?:\.\d+)?)\s*%/i)
+      || compactNormalized.match(/(\d+(?:\.\d+)?)\s*%\s*(?:消費税|税)/i);
     const taxRate = rateMatch ? Number(rateMatch[1]) : (toNumber(state.taxRate) || 10);
-    const netAmount = vendorLabeledAmount(lines, /(?:\bnet\b|ネット)/i);
+    const netAmount = vendorLabeledAmount(lines, /(?:^|[^A-Za-z])net(?=$|[^A-Za-z])|ネット/i);
     const beforeTaxAmount = vendorLabeledAmount(lines, /(?:税抜(?:工事価格|金額)?|小計|subtotal)/i, { excludeNet: true });
     const taxAmount = vendorLabeledAmount(lines, /(?:消費税|tax\s*amount)/i, { excludeNet: true });
     const totalAmount = vendorLabeledAmount(lines, /(?:税込(?:合計|金額)?|総合計|合計|grand\s*total|total)/i, { excludeNet: true });
@@ -3394,18 +3396,89 @@
     return Math.round(toNumber(value)).toLocaleString("ja-JP");
   }
 
+  function vendorPriceMoney(value) {
+    return Number(toNumber(value).toFixed(2)).toLocaleString("ja-JP", { maximumFractionDigits: 2 });
+  }
+
+  function vendorNetFactorPlan(session = vendorPdfSession) {
+    const rows = session?.rows || [];
+    const detection = session?.netTaxDetection;
+    if (!detection || detection.netAmount === null || !rows.length || rows.some((row) => row.isNetPrice)) return null;
+    const sourceSubtotal = rows.reduce((sum, row) => (
+      sum + toNumber(row.qty) * toNumber(row.sourcePrice ?? row.price)
+    ), 0);
+    const statedSubtotal = toNumber(detection.beforeTaxAmount);
+    const baseSubtotal = statedSubtotal > 0 ? statedSubtotal : sourceSubtotal;
+    const mode = effectiveVendorNetTaxMode(session);
+    const taxRate = Math.max(0, toNumber(session?.netTaxRate ?? state.taxRate));
+    const multiplier = 1 + taxRate / 100;
+    const netAmount = toNumber(detection.netAmount);
+    const active = sourceSubtotal > 0 && baseSubtotal > 0 && netAmount > 0;
+    if (!active) return null;
+    if (statedSubtotal > 0 && !vendorAmountsClose(sourceSubtotal, statedSubtotal)) {
+      return {
+        active: true,
+        valid: false,
+        sourceSubtotal,
+        statedSubtotal,
+        netAmount,
+        error: `選択明細の合計${vendorMoney(sourceSubtotal)}円とPDF小計${vendorMoney(statedSubtotal)}円が一致しません。取込範囲を確認してください。`
+      };
+    }
+    if (mode === "unknown") {
+      return {
+        active: true,
+        valid: false,
+        sourceSubtotal,
+        statedSubtotal: baseSubtotal,
+        netAmount,
+        error: "NET金額の税込・税抜を確認してください。"
+      };
+    }
+    const targetBeforeTax = mode === "inclusive" ? netAmount / multiplier : netAmount;
+    const factor = targetBeforeTax / baseSubtotal;
+    return {
+      active: true,
+      valid: Number.isFinite(factor) && factor > 0,
+      mode,
+      taxRate,
+      multiplier,
+      sourceSubtotal,
+      statedSubtotal: baseSubtotal,
+      netAmount,
+      targetBeforeTax,
+      factor,
+      error: "NET掛け率を計算できませんでした。"
+    };
+  }
+
   function calculateVendorNetUnitPrice(item, session = vendorPdfSession) {
     const sourcePrice = toNumber(item.sourcePrice ?? item.price);
+    const factorPlan = vendorNetFactorPlan(session);
+    if (factorPlan?.active) {
+      if (!factorPlan.valid) {
+        return { valid: false, price: sourcePrice, formula: factorPlan.error, error: factorPlan.error };
+      }
+      const unitPrice = Number((sourcePrice * factorPlan.factor).toFixed(2));
+      const netExpression = factorPlan.mode === "inclusive"
+        ? `税込NET ${vendorMoney(factorPlan.netAmount)}円 ÷ ${formatNumber(factorPlan.multiplier)}`
+        : `税抜NET ${vendorMoney(factorPlan.netAmount)}円`;
+      return {
+        valid: true,
+        price: unitPrice,
+        formula: `元単価 ${vendorPriceMoney(sourcePrice)}円 × ${netExpression} ÷ 元小計 ${vendorMoney(factorPlan.statedSubtotal)}円（NET掛け率${formatNumber(factorPlan.factor * 100)}%） = 税抜単価 ${vendorPriceMoney(unitPrice)}円`
+      };
+    }
     if (!item.isNetPrice) return { valid: true, price: toNumber(item.price), formula: "" };
     const mode = effectiveVendorNetTaxMode(session);
     const taxRate = Math.max(0, toNumber(session?.netTaxRate ?? state.taxRate));
     const quantity = toNumber(item.qty);
     const totalBasis = item.netBasis === "total";
     if (mode === "unknown") {
-      return { valid: false, price: sourcePrice, formula: `NET ${vendorMoney(sourcePrice)}円（税込・税抜を確認）` };
+      return { valid: false, price: sourcePrice, formula: `NET ${vendorMoney(sourcePrice)}円（税込・税抜を確認）`, error: "NET金額の税込・税抜を確認してください。" };
     }
     if (totalBasis && quantity <= 0) {
-      return { valid: false, price: sourcePrice, formula: `NET総額 ${vendorMoney(sourcePrice)}円（数量を確認）` };
+      return { valid: false, price: sourcePrice, formula: `NET総額 ${vendorMoney(sourcePrice)}円（数量を確認）`, error: "NET総額を単価にするため数量を確認してください。" };
     }
 
     const multiplier = 1 + taxRate / 100;
@@ -3440,6 +3513,14 @@
       status.textContent = "NET金額は検出されませんでした。通常の単価として取り込みます。";
       return;
     }
+    const factorPlan = vendorNetFactorPlan(session);
+    if (factorPlan?.active) {
+      status.className = `vendor-net-status ${factorPlan.valid ? "is-ready" : "needs-review"}`;
+      status.textContent = factorPlan.valid
+        ? `税抜NET ${vendorMoney(factorPlan.targetBeforeTax)}円 / 元小計 ${vendorMoney(factorPlan.statedSubtotal)}円 / NET掛け率 ${formatNumber(factorPlan.factor * 100)}%。全${session.rows.length}明細の単価へ反映します。`
+        : factorPlan.error;
+      return;
+    }
     const mode = effectiveVendorNetTaxMode(session);
     const modeLabel = mode === "inclusive" ? "税込NET" : (mode === "exclusive" ? "税抜NET" : "判定要確認");
     const detectedAmount = session.netTaxDetection?.netAmount;
@@ -3452,8 +3533,17 @@
     const formula = row.querySelector(".vendor-price-formula");
     if (!formula) return;
     const calculation = calculateVendorNetUnitPrice(item);
-    formula.textContent = item.isNetPrice ? calculation.formula : "";
-    formula.hidden = !item.isNetPrice;
+    formula.textContent = calculation.formula;
+    formula.hidden = !calculation.formula;
+  }
+
+  function refreshVendorReviewCalculations() {
+    if (!vendorPdfSession) return;
+    renderVendorNetTaxReview();
+    $("vendorOcrRows").querySelectorAll("tr").forEach((row, index) => {
+      const item = vendorPdfSession.rows[index];
+      if (item) renderVendorReviewPriceFormula(row, item);
+    });
   }
 
   function renderVendorOcrReview() {
@@ -3468,13 +3558,15 @@
         const input = document.createElement("input");
         input.type = type;
         if (type === "number") input.step = "any";
-        input.value = key === "price" && item.isNetPrice ? (item.sourcePrice ?? item.price ?? "") : (item[key] ?? "");
+        input.value = key === "price" && (item.isNetPrice || vendorNetFactorPlan(vendorPdfSession)?.active)
+          ? (item.sourcePrice ?? item.price ?? "")
+          : (item[key] ?? "");
         input.setAttribute("aria-label", `${index + 1}行目 ${key}`);
         input.addEventListener("input", () => {
           const value = type === "number" ? toNumber(input.value) : input.value;
           item[key] = value;
-          if (key === "price" && item.isNetPrice) item.sourcePrice = value;
-          if (key === "qty" || key === "price") renderVendorReviewPriceFormula(row, item);
+          if (key === "price") item.sourcePrice = value;
+          if (key === "qty" || key === "price") refreshVendorReviewCalculations();
         });
         cell.appendChild(input);
         if (key === "price") {
@@ -3489,9 +3581,11 @@
       const netCell = document.createElement("td");
       netCell.className = "vendor-net-cell";
       const netCheckbox = document.createElement("input");
+      const factorPlan = vendorNetFactorPlan(vendorPdfSession);
       netCheckbox.type = "checkbox";
-      netCheckbox.checked = Boolean(item.isNetPrice);
-      netCheckbox.title = "この金額をNETとして税抜単価へ換算";
+      netCheckbox.checked = Boolean(item.isNetPrice || factorPlan?.active);
+      netCheckbox.disabled = Boolean(factorPlan?.active);
+      netCheckbox.title = factorPlan?.active ? "PDF全体のNET掛け率を反映" : "この金額をNETとして税抜単価へ換算";
       netCheckbox.setAttribute("aria-label", `${index + 1}行目をNET金額として換算`);
       netCheckbox.addEventListener("change", () => {
         item.isNetPrice = netCheckbox.checked;
@@ -3539,6 +3633,7 @@
     const notes = [];
     const netEntries = [];
     const selectedTexts = [];
+    const pageContextTexts = [];
     const embeddedTexts = new Map();
     let worker = null;
     let workerError = null;
@@ -3548,6 +3643,17 @@
       for (const range of session.ranges) {
         const page = await session.pdf.getPage(range.pageNo);
         embeddedTexts.set(range.id, await extractEmbeddedPdfText(page, range));
+      }
+      for (const pageNo of new Set(session.ranges.map((range) => range.pageNo))) {
+        const page = await session.pdf.getPage(pageNo);
+        const pageText = await extractEmbeddedPdfText(page, { x: 0, y: 0, width: 1, height: 1 });
+        if (pageText.trim()) {
+          pageContextTexts.push(pageText);
+          normalizedVendorText(pageText).split(/\r?\n/).forEach((line) => {
+            const entry = vendorNetEntryFromLine(line);
+            if (entry) netEntries.push(entry);
+          });
+        }
       }
       const needsImageOcr = session.ranges.some((range) => (embeddedTexts.get(range.id) || "").replace(/\s/g, "").length < 8);
       if (needsImageOcr) {
@@ -3589,7 +3695,7 @@
         }
         if (range.role === "notes") {
           if (selectedText.trim()) notes.push(selectedText.trim());
-        } else {
+        } else if (range.role === "details") {
           const parsed = parseVendorDetailText(selectedText);
           rows.push(...parsed.rows);
           notes.push(...parsed.notes);
@@ -3620,11 +3726,11 @@
         uniqueNetEntries.push(entry);
       });
       session.netEntries = uniqueNetEntries;
-      session.netTaxDetection = detectVendorNetTax(selectedTexts.join("\n"));
+      session.netTaxDetection = detectVendorNetTax([...pageContextTexts, ...selectedTexts].join("\n"));
       session.netTaxMode = "auto";
       session.netTaxRate = session.netTaxDetection.taxRate;
-      attachVendorNetEntries(uniqueRows, uniqueNetEntries);
       session.rows = uniqueRows;
+      if (!vendorNetFactorPlan(session)?.active) attachVendorNetEntries(uniqueRows, uniqueNetEntries);
       session.notes = Array.from(new Set(notes.flatMap((text) => String(text).split(/\r?\n/)).map(cleanNoteLine).filter(Boolean))).join("\n");
       renderVendorOcrReview();
       const fallbackMessage = workerError && !worker ? " PDF内の文字情報から読み取りました。" : "";
@@ -3643,6 +3749,21 @@
     renderVendorOcrReview();
   }
 
+  function removeExistingVendorPdfRows(fileName) {
+    const marker = `業者見積OCR: ${fileName}`;
+    state.sheets.forEach((sheet) => {
+      sheet.items = sheet.items.filter((item) => String(item.remarks || "") !== marker);
+      const hasImportedItems = sheet.items.some((item) => item.type === "item" && item.category === "取り込み");
+      let importSectionKept = false;
+      sheet.items = sheet.items.filter((item) => {
+        if (item.type !== "section" || item.category !== "取り込み") return true;
+        if (!hasImportedItems || importSectionKept) return false;
+        importSectionKept = true;
+        return true;
+      });
+    });
+  }
+
   function applyVendorOcrResult() {
     const session = vendorPdfSession;
     if (!session) return;
@@ -3655,20 +3776,21 @@
     const priceCalculations = importRows.map((row) => calculateVendorNetUnitPrice(row, session));
     const invalidCalculationIndex = priceCalculations.findIndex((calculation) => !calculation.valid);
     if (invalidCalculationIndex >= 0) {
-      $("vendorPdfStatus").textContent = `明細${invalidCalculationIndex + 1}のNET税区分または数量を確認してください。`;
-      $("vendorNetTaxMode")?.focus();
+      $("vendorPdfStatus").textContent = priceCalculations[invalidCalculationIndex].error || `明細${invalidCalculationIndex + 1}のNET計算を確認してください。`;
       return;
     }
 
     state.estimateMode = "byTrade";
     tradePresets.forEach((trade) => ensureSheet(trade.name));
     const forcedTradeName = selectedImportTrade();
+    const batchTradeName = forcedTradeName || classifyTrade(`${session.file.name} ${importRows.map((row) => `${row.name} ${row.summary}`).join(" ")}`);
+    removeExistingVendorPdfRows(session.file.name);
     const counts = {};
     const firstTradeNames = [];
     const importBatchKeys = new Set();
     importRows.forEach((row, rowIndex) => {
       const priceCalculation = priceCalculations[rowIndex];
-      const tradeName = forcedTradeName || classifyTrade(`${session.file.name} ${row.name} ${row.summary}`);
+      const tradeName = batchTradeName;
       const sheet = ensureSheet(tradeName);
       upsertImportedItem(sheet, {
         type: "item",
@@ -3693,7 +3815,7 @@
     const countText = Object.entries(counts).map(([name, count]) => `${name}:${count}件`).join(" / ");
     const result = { applied: true, rowCount: importRows.length, noteCount: session.notes ? session.notes.split(/\r?\n/).filter(Boolean).length : 0 };
     closeVendorPdfImporter(result);
-    const netCount = importRows.filter((row) => row.isNetPrice).length;
+    const netCount = priceCalculations.filter((calculation) => calculation.formula).length;
     $("importResult").textContent = `業者見積PDFを反映しました。${countText}${result.noteCount ? ` / 備考:${result.noteCount}件` : ""}${netCount ? ` / NET換算:${netCount}件` : ""} 金額は税抜単価×数量で自動計算されます。`;
   }
 
@@ -5575,11 +5697,7 @@ ${worksheets}
   $("vendorNetTaxRate").addEventListener("input", (event) => {
     if (!vendorPdfSession) return;
     vendorPdfSession.netTaxRate = Math.min(100, Math.max(0, toNumber(event.target.value)));
-    renderVendorNetTaxReview();
-    $("vendorOcrRows").querySelectorAll("tr").forEach((row, index) => {
-      const item = vendorPdfSession.rows[index];
-      if (item) renderVendorReviewPriceFormula(row, item);
-    });
+    refreshVendorReviewCalculations();
   });
   $("vendorApplyButton").addEventListener("click", applyVendorOcrResult);
   $("vendorPdfSelectionLayer").addEventListener("pointerdown", vendorSelectionPointerDown);

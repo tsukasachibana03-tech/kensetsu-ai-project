@@ -937,6 +937,11 @@ textarea:focus {
   background: rgba(15, 107, 101, 0.13);
 }
 
+.vendor-selection-box.pricing {
+  border-color: #a85f0d;
+  background: rgba(168, 95, 13, 0.14);
+}
+
 .vendor-selection-box span {
   position: absolute;
   top: 0;
@@ -952,6 +957,10 @@ textarea:focus {
 
 .vendor-selection-box.notes span {
   background: var(--brand);
+}
+
+.vendor-selection-box.pricing span {
+  background: #a85f0d;
 }
 
 .vendor-pdf-status {
