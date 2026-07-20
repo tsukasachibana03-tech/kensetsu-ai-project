@@ -273,6 +273,9 @@
               <button type="button" id="vendorAddRowButton" class="ghost">明細追加</button>
             </div>
             <div class="vendor-net-settings">
+              <label>NET金額（円）
+                <input id="vendorNetAmount" type="number" min="1" step="1" inputmode="decimal" placeholder="OCR検出または手入力">
+              </label>
               <label>NET税区分
                 <select id="vendorNetTaxMode">
                   <option value="auto">自動判定</option>
@@ -311,6 +314,6 @@
     </div>
   </section>
 
-  <script src="app.js?v=20260720-import-preserve-sheets"></script>
+  <script src="app.js?v=20260720-net-direct-input"></script>
 </body>
 </html>

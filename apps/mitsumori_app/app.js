@@ -2909,6 +2909,7 @@
       notes: "",
       netEntries: [],
       netTaxDetection: null,
+      netAmountOverride: null,
       netTaxMode: "auto",
       netTaxRate: toNumber(state.taxRate) || 10,
       renderToken: 0,
@@ -3050,6 +3051,7 @@
     vendorPdfSession.notes = "";
     vendorPdfSession.netEntries = [];
     vendorPdfSession.netTaxDetection = null;
+    vendorPdfSession.netAmountOverride = null;
     vendorPdfSession.netTaxMode = "auto";
     vendorPdfSession.netTaxRate = toNumber(state.taxRate) || 10;
     $("vendorOcrReview").hidden = true;
@@ -3409,12 +3411,27 @@
     return Number(toNumber(value).toFixed(2)).toLocaleString("ja-JP", { maximumFractionDigits: 2 });
   }
 
+  function hasVendorNetAmountOverride(session = vendorPdfSession) {
+    return session?.netAmountOverride !== null
+      && session?.netAmountOverride !== undefined
+      && session?.netAmountOverride !== "";
+  }
+
+  function effectiveVendorNetAmount(session = vendorPdfSession) {
+    if (!session) return null;
+    if (hasVendorNetAmountOverride(session)) return toNumber(session.netAmountOverride);
+    const detectedAmount = session.netTaxDetection?.netAmount;
+    return detectedAmount === null || detectedAmount === undefined ? null : toNumber(detectedAmount);
+  }
+
   function vendorNetFactorPlan(session = vendorPdfSession) {
     const rows = session?.rows || [];
-    const detection = session?.netTaxDetection;
-    if (!detection || detection.netAmount === null || !rows.length) return null;
+    const detection = session?.netTaxDetection || {};
+    const netAmountValue = effectiveVendorNetAmount(session);
+    const hasOverride = hasVendorNetAmountOverride(session);
+    if (netAmountValue === null || !rows.length) return null;
     const statedSubtotal = toNumber(detection.beforeTaxAmount);
-    if (rows.some((row) => row.isNetPrice) && statedSubtotal <= 0) return null;
+    if (!hasOverride && rows.some((row) => row.isNetPrice) && statedSubtotal <= 0) return null;
     const sourceSubtotal = rows.reduce((sum, row) => (
       sum + toNumber(row.qty) * toNumber(row.sourcePrice ?? row.price)
     ), 0);
@@ -3422,9 +3439,19 @@
     const mode = effectiveVendorNetTaxMode(session);
     const taxRate = Math.max(0, toNumber(session?.netTaxRate ?? state.taxRate));
     const multiplier = 1 + taxRate / 100;
-    const netAmount = toNumber(detection.netAmount);
-    const active = sourceSubtotal > 0 && baseSubtotal > 0 && netAmount > 0;
+    const netAmount = toNumber(netAmountValue);
+    const active = sourceSubtotal > 0 && baseSubtotal > 0 && (hasOverride || netAmount > 0);
     if (!active) return null;
+    if (netAmount <= 0) {
+      return {
+        active: true,
+        valid: false,
+        sourceSubtotal,
+        statedSubtotal: baseSubtotal,
+        netAmount,
+        error: "NET金額は1円以上で入力してください。"
+      };
+    }
     if (statedSubtotal > 0 && !vendorAmountsClose(sourceSubtotal, statedSubtotal)) {
       return {
         active: true,
@@ -3511,30 +3538,36 @@
   function renderVendorNetTaxReview() {
     const session = vendorPdfSession;
     if (!session) return;
+    const amountInput = $("vendorNetAmount");
     const modeSelect = $("vendorNetTaxMode");
     const rateInput = $("vendorNetTaxRate");
     const status = $("vendorNetTaxStatus");
-    if (!modeSelect || !rateInput || !status) return;
+    if (!amountInput || !modeSelect || !rateInput || !status) return;
+    if (document.activeElement !== amountInput) {
+      amountInput.value = effectiveVendorNetAmount(session) ?? "";
+    }
     modeSelect.value = session.netTaxMode || "auto";
     rateInput.value = session.netTaxRate ?? (toNumber(state.taxRate) || 10);
-    const hasNet = session.rows.some((row) => row.isNetPrice) || session.netEntries.length > 0;
+    const hasNet = effectiveVendorNetAmount(session) !== null
+      || session.rows.some((row) => row.isNetPrice)
+      || session.netEntries.length > 0;
     if (!hasNet) {
       status.className = "vendor-net-status is-neutral";
-      status.textContent = "NET金額は検出されませんでした。通常の単価として取り込みます。";
+      status.textContent = "NET金額は検出されませんでした。必要な場合はNET金額を直接入力してください。";
       return;
     }
     const factorPlan = vendorNetFactorPlan(session);
     if (factorPlan?.active) {
       status.className = `vendor-net-status ${factorPlan.valid ? "is-ready" : "needs-review"}`;
       status.textContent = factorPlan.valid
-        ? `税抜NET ${vendorMoney(factorPlan.targetBeforeTax)}円 / 元小計 ${vendorMoney(factorPlan.statedSubtotal)}円 / NET掛け率 ${formatNumber(factorPlan.factor * 100)}%。全${session.rows.length}明細の単価へ反映します。`
+        ? `${hasVendorNetAmountOverride(session) ? "手入力" : "OCR検出"}${factorPlan.mode === "inclusive" ? "税込" : "税抜"}NET ${vendorMoney(factorPlan.netAmount)}円 / 税抜反映額 ${vendorMoney(factorPlan.targetBeforeTax)}円 / 元小計 ${vendorMoney(factorPlan.statedSubtotal)}円 / NET掛け率 ${formatNumber(factorPlan.factor * 100)}%。全${session.rows.length}明細の単価へ反映します。`
         : factorPlan.error;
       return;
     }
     const mode = effectiveVendorNetTaxMode(session);
     const modeLabel = mode === "inclusive" ? "税込NET" : (mode === "exclusive" ? "税抜NET" : "判定要確認");
-    const detectedAmount = session.netTaxDetection?.netAmount;
-    const amountText = detectedAmount === null || detectedAmount === undefined ? "" : ` / NET ${vendorMoney(detectedAmount)}円`;
+    const netAmount = effectiveVendorNetAmount(session);
+    const amountText = netAmount === null ? "" : ` / NET ${vendorMoney(netAmount)}円`;
     status.className = `vendor-net-status ${mode === "unknown" ? "needs-review" : "is-ready"}`;
     status.textContent = `${modeLabel} / 税率${formatNumber(session.netTaxRate)}%${amountText}。${session.netTaxDetection?.reason || ""}`;
   }
@@ -3737,6 +3770,7 @@
       });
       session.netEntries = uniqueNetEntries;
       session.netTaxDetection = detectVendorNetTax([...pageContextTexts, ...selectedTexts].join("\n"));
+      session.netAmountOverride = null;
       session.netTaxMode = "auto";
       session.netTaxRate = session.netTaxDetection.taxRate;
       session.rows = uniqueRows;
@@ -5713,6 +5747,13 @@ ${worksheets}
     });
   });
   $("vendorAddRowButton").addEventListener("click", addVendorReviewRow);
+  $("vendorNetAmount").addEventListener("input", (event) => {
+    if (!vendorPdfSession) return;
+    const rawValue = event.target.value.trim();
+    vendorPdfSession.netAmountOverride = rawValue === "" ? null : Math.max(0, toNumber(rawValue));
+    refreshVendorReviewCalculations();
+  });
+  $("vendorNetAmount").addEventListener("blur", renderVendorNetTaxReview);
   $("vendorNetTaxMode").addEventListener("change", (event) => {
     if (!vendorPdfSession) return;
     vendorPdfSession.netTaxMode = event.target.value;
