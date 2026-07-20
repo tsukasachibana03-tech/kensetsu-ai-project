@@ -3451,6 +3451,7 @@
     if (!vendorPdfSession) return;
     const body = $("vendorOcrRows");
     body.replaceChildren();
+    renderVendorNetTaxReview();
     vendorPdfSession.rows.forEach((item, index) => {
       const row = document.createElement("tr");
       [["name", "text"], ["summary", "text"], ["qty", "number"], ["unit", "text"], ["price", "number"]].forEach(([key, type]) => {
@@ -3458,14 +3459,45 @@
         const input = document.createElement("input");
         input.type = type;
         if (type === "number") input.step = "any";
-        input.value = item[key] ?? "";
+        input.value = key === "price" && item.isNetPrice ? (item.sourcePrice ?? item.price ?? "") : (item[key] ?? "");
         input.setAttribute("aria-label", `${index + 1}行目 ${key}`);
         input.addEventListener("input", () => {
-          item[key] = type === "number" ? toNumber(input.value) : input.value;
+          const value = type === "number" ? toNumber(input.value) : input.value;
+          item[key] = value;
+          if (key === "price" && item.isNetPrice) item.sourcePrice = value;
+          if (key === "qty" || key === "price") renderVendorReviewPriceFormula(row, item);
         });
         cell.appendChild(input);
+        if (key === "price") {
+          const formula = document.createElement("div");
+          formula.className = "vendor-price-formula";
+          formula.hidden = !item.isNetPrice;
+          cell.appendChild(formula);
+        }
         row.appendChild(cell);
       });
+
+      const netCell = document.createElement("td");
+      netCell.className = "vendor-net-cell";
+      const netCheckbox = document.createElement("input");
+      netCheckbox.type = "checkbox";
+      netCheckbox.checked = Boolean(item.isNetPrice);
+      netCheckbox.title = "この金額をNETとして税抜単価へ換算";
+      netCheckbox.setAttribute("aria-label", `${index + 1}行目をNET金額として換算`);
+      netCheckbox.addEventListener("change", () => {
+        item.isNetPrice = netCheckbox.checked;
+        if (item.isNetPrice) {
+          const otherNetRow = vendorPdfSession.rows.some((other, otherIndex) => otherIndex !== index && other.isNetPrice);
+          const detectedNet = !otherNetRow && vendorPdfSession.netEntries.length === 1 ? vendorPdfSession.netEntries[0] : null;
+          item.sourcePrice = detectedNet ? detectedNet.amount : toNumber(item.sourcePrice ?? item.price);
+          item.price = item.sourcePrice;
+          item.netBasis = detectedNet ? "total" : (item.netBasis || "unit");
+        }
+        renderVendorOcrReview();
+      });
+      netCell.appendChild(netCheckbox);
+      row.appendChild(netCell);
+
       const actionCell = document.createElement("td");
       const remove = document.createElement("button");
       remove.type = "button";
@@ -3480,6 +3512,7 @@
       actionCell.appendChild(remove);
       row.appendChild(actionCell);
       body.appendChild(row);
+      renderVendorReviewPriceFormula(row, item);
     });
     $("vendorOcrNotes").value = vendorPdfSession.notes;
     $("vendorOcrReview").hidden = false;
