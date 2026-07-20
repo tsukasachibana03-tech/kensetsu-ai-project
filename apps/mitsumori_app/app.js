@@ -3258,12 +3258,17 @@
     const totalAmount = vendorLabeledAmount(lines, /(?:税込(?:合計|金額)?|総合計|合計|grand\s*total|total)/i, { excludeNet: true });
     const netSaysInclusive = inclusivePattern.test(netContext);
     const netSaysExclusive = exclusivePattern.test(netContext);
+    const documentSaysInclusive = inclusivePattern.test(normalized);
+    const documentSaysExclusive = exclusivePattern.test(normalized);
     let mode = "unknown";
     let reason = "NET金額の税込・税抜を自動判定できませんでした。";
 
     if (netSaysInclusive !== netSaysExclusive) {
       mode = netSaysInclusive ? "inclusive" : "exclusive";
       reason = netSaysInclusive ? "NET表記の近くに税込の記載があります。" : "NET表記の近くに税抜・税別の記載があります。";
+    } else if (netAmount !== null && documentSaysInclusive !== documentSaysExclusive) {
+      mode = documentSaysInclusive ? "inclusive" : "exclusive";
+      reason = documentSaysInclusive ? "選択範囲に税込の記載があります。" : "選択範囲に税抜・税別の記載があります。";
     } else if (netAmount !== null && vendorAmountsClose(netAmount, totalAmount)) {
       mode = "inclusive";
       reason = "NET金額が税込合計と一致しています。";
