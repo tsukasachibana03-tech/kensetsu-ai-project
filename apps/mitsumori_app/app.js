@@ -1234,35 +1234,7 @@
   }
 
   function restoreUeharaTemporaryContent(estimateState) {
-    if (!(estimateState.projectName || "").includes("上原")) return normalizeState(estimateState);
-    const next = normalizeState(estimateState);
-    if (!next.clientName || next.clientName.includes("知花") || next.clientName.includes("御中")) {
-      next.clientName = "上原 様";
-    }
-    next.siteAddress = next.siteAddress || "豊見城市字我那覇蔵無地原436-21";
-    next.siteArea = next.siteArea || ueharaAreas.siteArea;
-    next.buildingArea = next.buildingArea || ueharaAreas.buildingArea;
-    next.totalFloorArea = next.totalFloorArea || ueharaAreas.totalFloorArea;
-    next.estimateMode = "byTrade";
-    tradePresets.forEach((trade) => {
-      if (!next.sheets.some((sheet) => sheet.name === trade.name)) {
-        next.sheets.push({ name: trade.name, items: [] });
-      }
-    });
-    const temporarySheet = next.sheets.find((sheet) => sheet.name === "仮設工事");
-    mergeUeharaTemporaryItems(temporarySheet);
-    if (String(next.notes ?? "").trim()) {
-    const noteAdditions = [
-      "普久原工業PDFより仮設工事を取り込み。",
-      "見積書20260619 PDFより外部足場以外の仮設工事明細を取り込み。",
-      "台風時、台風対策は別途常用となります。",
-      "見積り外の足場等は、相談のうえ別途となります。"
-    ];
-    const currentNotes = next.notes || "";
-    next.notes = [currentNotes, ...noteAdditions.filter((line) => !currentNotes.includes(line))].filter(Boolean).join("\n");
-    }
-    next.activeSheetIndex = Math.max(0, next.sheets.findIndex((sheet) => sheet.name === "仮設工事"));
-    return next;
+    return normalizeState(estimateState);
   }
 
   const fields = [
@@ -1334,14 +1306,7 @@
           updatedAt: record.updatedAt || new Date().toISOString(),
           state: restoreUeharaTemporaryContent(record.state || defaults)
         }));
-        const hasUehara = estimates.some((record) => (record.state.projectName || "").includes("上原"));
-        let restoredUeharaId = "";
-        if (!hasUehara) {
-          const ueharaRecord = createEstimateRecord(createUeharaEstimateState());
-          estimates.push(ueharaRecord);
-          restoredUeharaId = ueharaRecord.id;
-        }
-        const activeId = restoredUeharaId || (estimates.some((record) => record.id === saved.activeId) ? saved.activeId : estimates[0].id);
+        const activeId = estimates.some((record) => record.id === saved.activeId) ? saved.activeId : estimates[0].id;
         return { activeId, estimates };
       }
     } catch (error) {
@@ -2345,8 +2310,6 @@
     }
 
     state.estimateMode = "byTrade";
-    tradePresets.forEach((trade) => ensureSheet(trade.name));
-
     const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const forcedTradeName = selectedImportTrade() || pendingImportTradeName;
     let imported = 0;
@@ -3449,11 +3412,12 @@
   function vendorNetFactorPlan(session = vendorPdfSession) {
     const rows = session?.rows || [];
     const detection = session?.netTaxDetection;
-    if (!detection || detection.netAmount === null || !rows.length || rows.some((row) => row.isNetPrice)) return null;
+    if (!detection || detection.netAmount === null || !rows.length) return null;
+    const statedSubtotal = toNumber(detection.beforeTaxAmount);
+    if (rows.some((row) => row.isNetPrice) && statedSubtotal <= 0) return null;
     const sourceSubtotal = rows.reduce((sum, row) => (
       sum + toNumber(row.qty) * toNumber(row.sourcePrice ?? row.price)
     ), 0);
-    const statedSubtotal = toNumber(detection.beforeTaxAmount);
     const baseSubtotal = statedSubtotal > 0 ? statedSubtotal : sourceSubtotal;
     const mode = effectiveVendorNetTaxMode(session);
     const taxRate = Math.max(0, toNumber(session?.netTaxRate ?? state.taxRate));
@@ -3827,7 +3791,6 @@
     }
 
     state.estimateMode = "byTrade";
-    tradePresets.forEach((trade) => ensureSheet(trade.name));
     const forcedTradeName = selectedImportTrade();
     const batchTradeName = forcedTradeName || classifyTrade(`${session.file.name} ${importRows.map((row) => `${row.name} ${row.summary}`).join(" ")}`);
     removeExistingVendorPdfRows(session.file.name);
