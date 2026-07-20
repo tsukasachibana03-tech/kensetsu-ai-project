@@ -3331,14 +3331,20 @@
       summary,
       qty,
       unit: unitIndex >= 0 ? normalizeVendorUnit(tokens[unitIndex]) : "式",
-      price: price ?? 0
+      price: price ?? 0,
+      sourcePrice: price ?? 0,
+      isNetPrice: hasVendorNetLabel(line),
+      netBasis: "unit"
     };
   }
 
   function parseVendorDetailText(text) {
     const rows = [];
     const notes = [];
+    const netEntries = [];
     normalizedVendorText(text).split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
+      const netEntry = vendorNetEntryFromLine(line);
+      if (netEntry) netEntries.push(netEntry);
       if (isVendorHeaderOrTotal(line)) return;
       const item = parseVendorEstimateLine(line);
       if (item) {
@@ -3347,7 +3353,7 @@
         notes.push(cleanNoteLine(line));
       }
     });
-    return { rows, notes };
+    return { rows, notes, netEntries };
   }
 
   function renderVendorOcrReview() {
