@@ -5234,7 +5234,7 @@
       pdfText(ctx, metrics, row[1], left + labelW + mm(2), y + mm(2), { size: 16, maxWidth: right - left - labelW - mm(4) });
       pdfLine(ctx, left, y + rowH, right, y + rowH);
     });
-    pdfText(ctx, metrics, `NET${pdfMoney(total.net)}（消費税込）`, metrics.width / 2, mm(152), { size: 31, align: "center", color: "#f02b16", weight: "700", family: '"Times New Roman", "Yu Mincho", serif' });
+    pdfText(ctx, metrics, `NET${pdfMoney(total.net)}（消費税込）`, metrics.width / 2, mm(152), { size: 36, align: "center", color: "#f02b16", weight: "700", family: '"Times New Roman", "Yu Mincho", serif' });
     const amountX = (metrics.width - mm(96)) / 2;
     const amountY = mm(166);
     ctx.strokeStyle = "#2d7fac";
