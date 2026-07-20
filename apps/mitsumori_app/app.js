@@ -3571,7 +3571,13 @@
         }
         const embeddedLength = embeddedText.replace(/\s/g, "").length;
         const selectedText = embeddedLength >= 8 ? embeddedText : ocrText;
-        if (selectedText.trim()) selectedTexts.push(selectedText);
+        if (selectedText.trim()) {
+          selectedTexts.push(selectedText);
+          normalizedVendorText(selectedText).split(/\r?\n/).forEach((line) => {
+            const entry = vendorNetEntryFromLine(line);
+            if (entry) netEntries.push(entry);
+          });
+        }
         if (range.role === "notes") {
           if (selectedText.trim()) notes.push(selectedText.trim());
         } else {
