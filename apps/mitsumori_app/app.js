@@ -4856,7 +4856,7 @@
 
   function simpleDetailPage(total) {
     const items = visibleItems(visibleSheets()[0]);
-    const rows = items.filter((item) => item.type === "item" && !isAdjustmentItem(item)).map(detailRow);
+    const rows = items.filter(isPrintableDetailRow).map(detailRow);
     const bottomRows = [
       ...items.filter(isAdjustmentItem).map(detailRow),
       totalDetailRow("小計", total.subtotal),
@@ -4873,7 +4873,7 @@
   function tradeDetailPages() {
     return visibleSheets().map((sheet) => {
       const items = visibleItems(sheet);
-      const rows = items.filter((item) => item.type === "item" && !isAdjustmentItem(item)).map(detailRow);
+      const rows = items.filter(isPrintableDetailRow).map(detailRow);
       const bottomRows = [
         ...items.filter(isAdjustmentItem).map(detailRow),
         totalDetailRow("計", subtotalForSheet(sheet))
@@ -4924,9 +4924,14 @@
     return name || String(item?.category || "").trim();
   }
 
+  function isPrintableDetailRow(item) {
+    if (item?.type === "section") return Boolean(printableDetailName(item));
+    return item?.type === "item" && !isAdjustmentItem(item);
+  }
+
   function detailRow(item) {
     if (item.type === "section") {
-      return `<tr class="section-line"><td>${escapeHtml(item.category || item.name)}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+      return `<tr class="section-line"><td>${escapeHtml(printableDetailName(item))}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
     }
     return `
       <tr${isAdjustmentItem(item) ? ' class="adjustment-line"' : ""}>
@@ -5288,7 +5293,7 @@
 
   function drawPdfSimpleDetailPage(ctx, metrics, total) {
     const items = visibleItems(visibleSheets()[0]);
-    const rows = items.filter((item) => item.type === "item" && !isAdjustmentItem(item)).map(pdfDetailRow);
+    const rows = items.filter(isPrintableDetailRow).map(pdfDetailRow);
     const bottomRows = [
       ...items.filter(isAdjustmentItem).map(pdfDetailRow),
       pdfTotalRow("小計", total.subtotal),
@@ -5304,7 +5309,7 @@
 
   function drawPdfTradeDetailPage(ctx, metrics, sheet) {
     const items = visibleItems(sheet);
-    const rows = items.filter((item) => item.type === "item" && !isAdjustmentItem(item)).map(pdfDetailRow);
+    const rows = items.filter(isPrintableDetailRow).map(pdfDetailRow);
     const bottomRows = [
       ...items.filter(isAdjustmentItem).map(pdfDetailRow),
       pdfTotalRow("計", subtotalForSheet(sheet))
@@ -5313,6 +5318,12 @@
   }
 
   function pdfDetailRow(item) {
+    if (item.type === "section") {
+      return {
+        cells: [printableDetailName(item), "", "", "", "", "", ""],
+        section: true
+      };
+    }
     return {
       cells: [
         printableDetailName(item),
