@@ -565,7 +565,7 @@
     sheet.items.forEach((item) => {
       if (item.type !== "item" || isAdjustmentItem(item)) return;
       if (item.manualVisibility) return;
-      item.hidden = toNumber(item.qty) <= 0;
+      item.hidden = toNumber(item.qty) <= 0 && !item.manualName;
     });
   }
 
@@ -1333,7 +1333,12 @@
         printRemarks: item.printRemarks || "",
         priceFormula: item.priceFormula || "",
         hidden: Boolean(item.hidden),
-        manualVisibility: Boolean(item.manualVisibility)
+        manualVisibility: Boolean(item.manualVisibility),
+        manualName: Boolean(item.manualName || (
+          item.type === "item"
+          && String(item.name || "").trim()
+          && !String(item.category || "").trim()
+        ))
       })) : []
     }));
     ensureConcreteTemplateRows(next.sheets);
@@ -1935,13 +1940,13 @@
         input.addEventListener("input", () => {
           delete input.dataset.skipNextChangeAdjust;
           input.dataset.directInputDirty = "1";
-          commitDetailInput(input, { adjustDirectConcreteQty: false });
+          commitDetailInput(input, { adjustDirectConcreteQty: false, markManualName: true });
           refreshDetailRowTotals(tr);
         });
         input.addEventListener("change", () => {
           const skipNextChangeAdjust = input.dataset.skipNextChangeAdjust === "1";
           delete input.dataset.skipNextChangeAdjust;
-          commitDetailInput(input, { adjustDirectConcreteQty: !skipNextChangeAdjust });
+          commitDetailInput(input, { adjustDirectConcreteQty: !skipNextChangeAdjust, markManualName: true });
           input.dataset.focusValue = input.value;
           delete input.dataset.directInputDirty;
           refreshDetailRowTotals(tr);
@@ -1951,7 +1956,7 @@
           if (event.key !== "Enter") return;
           event.preventDefault();
           const valueChanged = input.dataset.directInputDirty === "1" || input.value !== input.dataset.focusValue;
-          commitDetailInput(input, { adjustDirectConcreteQty: valueChanged });
+          commitDetailInput(input, { adjustDirectConcreteQty: valueChanged, markManualName: true });
           if (input.dataset.key === "qty" && valueChanged) input.dataset.skipNextChangeAdjust = "1";
           input.dataset.focusValue = input.value;
           delete input.dataset.directInputDirty;
@@ -1997,6 +2002,10 @@
     if (key === "qty") item.manualQty = true;
     if (key === "price") item.priceFormula = "";
     item[key] = value;
+    if (key === "name" && item.type === "item" && options.markManualName) {
+      item.manualName = Boolean(String(value).trim());
+      if (!item.manualVisibility) item.hidden = toNumber(item.qty) <= 0 && !item.manualName;
+    }
     if (key === "qty" && options.adjustDirectConcreteQty !== false && applyDirectConcreteQuantityAdjustment(item, value)) {
       input.value = item.qty;
     }
@@ -2004,7 +2013,7 @@
       applyConcreteCompressionTestPrice(item);
     }
     if (key === "qty" && item.type === "item" && !isAdjustmentItem(item) && !item.manualVisibility) {
-      item.hidden = toNumber(item.qty) <= 0;
+      item.hidden = toNumber(item.qty) <= 0 && !item.manualName;
     }
   }
 
@@ -5000,7 +5009,7 @@
     const sheet = activeSheet();
     const newItem = type === "section"
       ? { type: "section", category: "新しい区分", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", printRemarks: "", hidden: false }
-      : { type: "item", category: "", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", printRemarks: "", hidden: false };
+      : { type: "item", category: "", name: "", summary: "", qty: "", unit: "", price: "", remarks: "", printRemarks: "", hidden: false, manualName: false };
     const adjustmentIndex = sheet.items.findIndex(isAdjustmentItem);
     const insertIndex = adjustmentIndex >= 0 ? adjustmentIndex : sheet.items.length;
     sheet.items.splice(insertIndex, 0, newItem);
