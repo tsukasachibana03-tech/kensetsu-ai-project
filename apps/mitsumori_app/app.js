@@ -3213,6 +3213,74 @@
     return /^(式|m2|㎡|m3|㎥|m|枚|本|kg|t|箇所|ヶ所|個|台|人工|日|回|袋|組|セット)$/i.test(normalizeVendorUnit(value));
   }
 
+  function hasVendorNetLabel(value) {
+    return /(?:\bnet\b|ネット)/i.test(normalizedVendorText(value));
+  }
+
+  function vendorAmountsInText(value) {
+    const text = normalizedVendorText(value).replace(/\d+(?:\.\d+)?\s*%/g, "");
+    const matches = text.match(/\(?\s*-?\s*¥?\s*\d[\d,]*(?:\.\d+)?\s*\)?/g) || [];
+    return matches.map(vendorNumber).filter((amount) => amount !== null);
+  }
+
+  function vendorLabeledAmount(lines, pattern, options = {}) {
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      if (!pattern.test(line) || (options.excludeNet && hasVendorNetLabel(line))) continue;
+      const amounts = vendorAmountsInText(line);
+      if (amounts.length) return amounts[amounts.length - 1];
+    }
+    return null;
+  }
+
+  function vendorAmountsClose(left, right) {
+    if (left === null || right === null) return false;
+    return Math.abs(left - right) <= Math.max(2, Math.abs(right) * 0.005);
+  }
+
+  function detectVendorNetTax(text) {
+    const normalized = normalizedVendorText(text);
+    const lines = normalized.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const netLines = lines.filter(hasVendorNetLabel);
+    const netContext = netLines.join(" ");
+    const inclusivePattern = /(?:税込(?:み)?|消費税込(?:み)?|内税|tax\s*(?:included|incl\.?))/i;
+    const exclusivePattern = /(?:税抜(?:き)?|税別|外税|消費税別|tax\s*(?:excluded|excl\.?))/i;
+    const rateMatch = normalized.match(/(?:消費税(?:率)?|税率|tax(?:\s*rate)?)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*%/i)
+      || normalized.match(/(\d+(?:\.\d+)?)\s*%\s*(?:消費税|税)/i);
+    const taxRate = rateMatch ? Number(rateMatch[1]) : (toNumber(state.taxRate) || 10);
+    const netAmount = vendorLabeledAmount(lines, /(?:\bnet\b|ネット)/i);
+    const beforeTaxAmount = vendorLabeledAmount(lines, /(?:税抜(?:工事価格|金額)?|小計|subtotal)/i, { excludeNet: true });
+    const taxAmount = vendorLabeledAmount(lines, /(?:消費税|tax\s*amount)/i, { excludeNet: true });
+    const totalAmount = vendorLabeledAmount(lines, /(?:税込(?:合計|金額)?|総合計|合計|grand\s*total|total)/i, { excludeNet: true });
+    const netSaysInclusive = inclusivePattern.test(netContext);
+    const netSaysExclusive = exclusivePattern.test(netContext);
+    let mode = "unknown";
+    let reason = "NET金額の税込・税抜を自動判定できませんでした。";
+
+    if (netSaysInclusive !== netSaysExclusive) {
+      mode = netSaysInclusive ? "inclusive" : "exclusive";
+      reason = netSaysInclusive ? "NET表記の近くに税込の記載があります。" : "NET表記の近くに税抜・税別の記載があります。";
+    } else if (netAmount !== null && vendorAmountsClose(netAmount, totalAmount)) {
+      mode = "inclusive";
+      reason = "NET金額が税込合計と一致しています。";
+    } else if (netAmount !== null && vendorAmountsClose(netAmount, beforeTaxAmount)) {
+      mode = "exclusive";
+      reason = "NET金額が税抜金額または小計と一致しています。";
+    } else if (netAmount !== null && taxAmount !== null && totalAmount !== null && vendorAmountsClose(netAmount + taxAmount, totalAmount)) {
+      mode = "exclusive";
+      reason = "NET金額と消費税の合計が税込合計と一致しています。";
+    }
+
+    return { mode, taxRate, netAmount, beforeTaxAmount, taxAmount, totalAmount, reason };
+  }
+
+  function vendorNetEntryFromLine(line) {
+    if (!hasVendorNetLabel(line)) return null;
+    const amounts = vendorAmountsInText(line);
+    if (!amounts.length) return null;
+    return { amount: amounts[amounts.length - 1], line: normalizedVendorText(line).trim() };
+  }
+
   function isVendorHeaderOrTotal(line) {
     const compact = line.replace(/\s/g, "").toLowerCase();
     if (!compact) return true;
