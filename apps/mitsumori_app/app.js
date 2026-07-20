@@ -5076,7 +5076,55 @@
   function printPreview() {
     commitPendingDetailNamesForPrint();
     renderPrint();
-    window.print();
+    const printWindow = window.open("about:blank", "_blank");
+    if (!printWindow) {
+      alert("印刷画面を開けませんでした。PDF保存ボタンからPDFを開いて印刷してください。");
+      return;
+    }
+    const title = escapeHtml(`${state.projectName || "見積書"} 印刷`);
+    const styles = collectPdfStyles();
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html>
+      <html lang="ja">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>${title}</title>
+          <style>
+            ${styles}
+            html, body { margin: 0; padding: 0; background: #fff; }
+            .print-area { display: block !important; }
+            .quote-page { margin: 0 auto !important; box-shadow: none !important; }
+            @media screen { .quote-page + .quote-page { margin-top: 8mm !important; } }
+          </style>
+        </head>
+        <body>
+          <main class="print-area">${$("printPages").innerHTML}</main>
+        </body>
+      </html>`);
+    printWindow.document.close();
+
+    const openPrintDialog = async () => {
+      try {
+        if (printWindow.document.fonts?.ready) await printWindow.document.fonts.ready;
+        await Promise.all(Array.from(printWindow.document.images).map((image) => image.complete
+          ? Promise.resolve()
+          : new Promise((resolve) => {
+            image.onload = resolve;
+            image.onerror = resolve;
+          })));
+        printWindow.focus();
+        printWindow.print();
+      } catch (error) {
+        console.error(error);
+        printWindow.focus();
+      }
+    };
+    if (printWindow.document.readyState === "complete") {
+      openPrintDialog();
+    } else {
+      printWindow.addEventListener("load", openPrintDialog, { once: true });
+    }
   }
 
   async function savePdfFile() {
