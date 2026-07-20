@@ -3356,6 +3356,97 @@
     return { rows, notes, netEntries };
   }
 
+  function attachVendorNetEntries(rows, netEntries) {
+    rows.forEach((row) => {
+      if (row.sourcePrice === undefined) row.sourcePrice = row.price;
+    });
+    if (rows.some((row) => row.isNetPrice) || netEntries.length !== 1) return;
+    const entry = netEntries[0];
+    const entryText = normalizedText(entry.line);
+    const matchingRows = rows.filter((row) => {
+      const name = normalizedText(row.name);
+      return name && entryText.includes(name);
+    });
+    const target = matchingRows.length === 1 ? matchingRows[0] : (rows.length === 1 ? rows[0] : null);
+    if (!target) return;
+    target.sourcePrice = entry.amount;
+    target.price = entry.amount;
+    target.isNetPrice = true;
+    target.netBasis = "total";
+  }
+
+  function effectiveVendorNetTaxMode(session = vendorPdfSession) {
+    if (!session) return "unknown";
+    if (session.netTaxMode === "inclusive" || session.netTaxMode === "exclusive") return session.netTaxMode;
+    return session.netTaxDetection?.mode || "unknown";
+  }
+
+  function vendorMoney(value) {
+    return Math.round(toNumber(value)).toLocaleString("ja-JP");
+  }
+
+  function calculateVendorNetUnitPrice(item, session = vendorPdfSession) {
+    const sourcePrice = toNumber(item.sourcePrice ?? item.price);
+    if (!item.isNetPrice) return { valid: true, price: toNumber(item.price), formula: "" };
+    const mode = effectiveVendorNetTaxMode(session);
+    const taxRate = Math.max(0, toNumber(session?.netTaxRate ?? state.taxRate));
+    const quantity = toNumber(item.qty);
+    const totalBasis = item.netBasis === "total";
+    if (mode === "unknown") {
+      return { valid: false, price: sourcePrice, formula: `NET ${vendorMoney(sourcePrice)}円（税込・税抜を確認）` };
+    }
+    if (totalBasis && quantity <= 0) {
+      return { valid: false, price: sourcePrice, formula: `NET総額 ${vendorMoney(sourcePrice)}円（数量を確認）` };
+    }
+
+    const multiplier = 1 + taxRate / 100;
+    let unitPrice = mode === "inclusive" ? sourcePrice / multiplier : sourcePrice;
+    let expression = mode === "inclusive"
+      ? `税込NET ${vendorMoney(sourcePrice)}円 ÷ ${formatNumber(multiplier)}`
+      : `税抜NET ${vendorMoney(sourcePrice)}円`;
+    if (totalBasis) {
+      unitPrice /= quantity;
+      expression += ` ÷ 数量${formatNumber(quantity)}`;
+    }
+    const roundedPrice = Math.round(unitPrice);
+    return {
+      valid: true,
+      price: roundedPrice,
+      formula: `${expression} = 税抜単価 ${vendorMoney(roundedPrice)}円`
+    };
+  }
+
+  function renderVendorNetTaxReview() {
+    const session = vendorPdfSession;
+    if (!session) return;
+    const modeSelect = $("vendorNetTaxMode");
+    const rateInput = $("vendorNetTaxRate");
+    const status = $("vendorNetTaxStatus");
+    if (!modeSelect || !rateInput || !status) return;
+    modeSelect.value = session.netTaxMode || "auto";
+    rateInput.value = session.netTaxRate ?? (toNumber(state.taxRate) || 10);
+    const hasNet = session.rows.some((row) => row.isNetPrice) || session.netEntries.length > 0;
+    if (!hasNet) {
+      status.className = "vendor-net-status is-neutral";
+      status.textContent = "NET金額は検出されませんでした。通常の単価として取り込みます。";
+      return;
+    }
+    const mode = effectiveVendorNetTaxMode(session);
+    const modeLabel = mode === "inclusive" ? "税込NET" : (mode === "exclusive" ? "税抜NET" : "判定要確認");
+    const detectedAmount = session.netTaxDetection?.netAmount;
+    const amountText = detectedAmount === null || detectedAmount === undefined ? "" : ` / NET ${vendorMoney(detectedAmount)}円`;
+    status.className = `vendor-net-status ${mode === "unknown" ? "needs-review" : "is-ready"}`;
+    status.textContent = `${modeLabel} / 税率${formatNumber(session.netTaxRate)}%${amountText}。${session.netTaxDetection?.reason || ""}`;
+  }
+
+  function renderVendorReviewPriceFormula(row, item) {
+    const formula = row.querySelector(".vendor-price-formula");
+    if (!formula) return;
+    const calculation = calculateVendorNetUnitPrice(item);
+    formula.textContent = item.isNetPrice ? calculation.formula : "";
+    formula.hidden = !item.isNetPrice;
+  }
+
   function renderVendorOcrReview() {
     if (!vendorPdfSession) return;
     const body = $("vendorOcrRows");
