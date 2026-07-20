@@ -2101,6 +2101,11 @@
     return "";
   }
 
+  function priceFormulaForItem(item) {
+    if (!item || item.type !== "item") return "";
+    return String(item.priceFormula || "").trim();
+  }
+
   function ceilingInsulationFormulaForItem(item) {
     if (!isCeilingInsulationItem(item)) return "";
     const sheet = activeSheet();
@@ -2388,6 +2393,7 @@
         : item.qty;
       target.unit = item.unit || target.unit || "式";
       target.price = toNumber(item.price) > 0 ? item.price : (target.price || item.price || 0);
+      target.priceFormula = item.priceFormula || "";
       target.remarks = item.remarks || target.remarks || "自動取り込み";
       target.hidden = false;
       target.manualQty = true;
