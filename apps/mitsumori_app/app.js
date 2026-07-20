@@ -3528,6 +3528,8 @@
     const sourcePages = new Map();
     const rows = [];
     const notes = [];
+    const netEntries = [];
+    const selectedTexts = [];
     const embeddedTexts = new Map();
     let worker = null;
     let workerError = null;
@@ -3569,12 +3571,14 @@
         }
         const embeddedLength = embeddedText.replace(/\s/g, "").length;
         const selectedText = embeddedLength >= 8 ? embeddedText : ocrText;
+        if (selectedText.trim()) selectedTexts.push(selectedText);
         if (range.role === "notes") {
           if (selectedText.trim()) notes.push(selectedText.trim());
         } else {
           const parsed = parseVendorDetailText(selectedText);
           rows.push(...parsed.rows);
           notes.push(...parsed.notes);
+          netEntries.push(...parsed.netEntries);
         }
         setProgress(((index + 1) / session.ranges.length) * 100, `範囲 ${index + 1}/${session.ranges.length}`);
         await nextPaint();
@@ -3587,11 +3591,24 @@
       const uniqueRows = [];
       const rowKeys = new Set();
       rows.forEach((item) => {
-        const key = `${normalizedText(item.name)}|${normalizedText(item.summary)}|${item.qty}|${item.unit}|${item.price}`;
+        const key = `${normalizedText(item.name)}|${normalizedText(item.summary)}|${item.qty}|${item.unit}|${item.price}|${item.isNetPrice ? "net" : "price"}`;
         if (rowKeys.has(key)) return;
         rowKeys.add(key);
         uniqueRows.push(item);
       });
+      const uniqueNetEntries = [];
+      const netEntryKeys = new Set();
+      netEntries.forEach((entry) => {
+        const key = `${entry.amount}|${normalizedText(entry.line)}`;
+        if (netEntryKeys.has(key)) return;
+        netEntryKeys.add(key);
+        uniqueNetEntries.push(entry);
+      });
+      session.netEntries = uniqueNetEntries;
+      session.netTaxDetection = detectVendorNetTax(selectedTexts.join("\n"));
+      session.netTaxMode = "auto";
+      session.netTaxRate = session.netTaxDetection.taxRate;
+      attachVendorNetEntries(uniqueRows, uniqueNetEntries);
       session.rows = uniqueRows;
       session.notes = Array.from(new Set(notes.flatMap((text) => String(text).split(/\r?\n/)).map(cleanNoteLine).filter(Boolean))).join("\n");
       renderVendorOcrReview();
