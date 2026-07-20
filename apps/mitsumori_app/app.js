@@ -3643,6 +3643,13 @@
       $("vendorPdfStatus").textContent = "反映する明細または備考がありません。";
       return;
     }
+    const priceCalculations = importRows.map((row) => calculateVendorNetUnitPrice(row, session));
+    const invalidCalculationIndex = priceCalculations.findIndex((calculation) => !calculation.valid);
+    if (invalidCalculationIndex >= 0) {
+      $("vendorPdfStatus").textContent = `明細${invalidCalculationIndex + 1}のNET税区分または数量を確認してください。`;
+      $("vendorNetTaxMode")?.focus();
+      return;
+    }
 
     state.estimateMode = "byTrade";
     tradePresets.forEach((trade) => ensureSheet(trade.name));
@@ -3650,7 +3657,8 @@
     const counts = {};
     const firstTradeNames = [];
     const importBatchKeys = new Set();
-    importRows.forEach((row) => {
+    importRows.forEach((row, rowIndex) => {
+      const priceCalculation = priceCalculations[rowIndex];
       const tradeName = forcedTradeName || classifyTrade(`${session.file.name} ${row.name} ${row.summary}`);
       const sheet = ensureSheet(tradeName);
       upsertImportedItem(sheet, {
@@ -3660,7 +3668,8 @@
         summary: String(row.summary || "").trim(),
         qty: toNumber(row.qty),
         unit: String(row.unit || "式").trim() || "式",
-        price: toNumber(row.price),
+        price: priceCalculation.price,
+        priceFormula: priceCalculation.formula,
         printRemarks: "",
         remarks: `業者見積OCR: ${session.file.name}`
       }, importBatchKeys);
@@ -3675,7 +3684,8 @@
     const countText = Object.entries(counts).map(([name, count]) => `${name}:${count}件`).join(" / ");
     const result = { applied: true, rowCount: importRows.length, noteCount: session.notes ? session.notes.split(/\r?\n/).filter(Boolean).length : 0 };
     closeVendorPdfImporter(result);
-    $("importResult").textContent = `業者見積PDFを反映しました。${countText}${result.noteCount ? ` / 備考:${result.noteCount}件` : ""} 金額は数量×単価で自動計算されます。`;
+    const netCount = importRows.filter((row) => row.isNetPrice).length;
+    $("importResult").textContent = `業者見積PDFを反映しました。${countText}${result.noteCount ? ` / 備考:${result.noteCount}件` : ""}${netCount ? ` / NET換算:${netCount}件` : ""} 金額は税抜単価×数量で自動計算されます。`;
   }
 
   async function handleFiles(files) {
