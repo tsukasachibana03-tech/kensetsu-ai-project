@@ -13,6 +13,8 @@ const dropboxDataPath = path.join(dropboxRoot, "mitsumori_data.json");
 const port = Number(process.argv[2] || process.env.PORT || 8766);
 const gitExecutable = process.env.GIT_EXE || "git";
 const gitSyncBranch = process.env.GITHUB_SYNC_BRANCH || "main";
+const gitSyncIntervalMs = Math.max(5000, Number(process.env.GITHUB_SYNC_INTERVAL_MS || 15000));
+let gitSyncPromise = null;
 const gitSyncPathspecs = [
   "apps/mitsumori_app",
   "index.html",
@@ -113,6 +115,27 @@ async function syncAppToGitHub() {
   return { ok: true, skipped: false, branch: gitSyncBranch };
 }
 
+function queueAppGitHubSync() {
+  if (!gitSyncPromise) {
+    gitSyncPromise = syncAppToGitHub().finally(() => {
+      gitSyncPromise = null;
+    });
+  }
+  return gitSyncPromise;
+}
+
+function startGitHubAutoSync() {
+  if (process.env.DISABLE_GITHUB_SYNC === "1") return;
+  const timer = setInterval(() => {
+    queueAppGitHubSync()
+      .then((result) => {
+        if (!result.skipped) console.log(`GitHub app sync completed: ${result.branch}`);
+      })
+      .catch((error) => console.error(`GitHub app sync failed: ${error.message}`));
+  }, gitSyncIntervalMs);
+  timer.unref();
+}
+
 function send(response, status, body, contentType = "text/plain; charset=utf-8") {
   response.writeHead(status, {
     "Content-Type": contentType,
@@ -133,7 +156,7 @@ async function handleSave(request, response) {
 
     let githubSync;
     try {
-      githubSync = await syncAppToGitHub();
+      githubSync = await queueAppGitHubSync();
     } catch (error) {
       githubSync = { ok: false, error: error.message };
       console.error(`GitHub app sync failed: ${error.message}`);
@@ -208,4 +231,5 @@ const server = http.createServer((request, response) => {
 
 server.listen(port, "127.0.0.1", () => {
   console.log(`mitsumori save server: http://127.0.0.1:${port}/`);
+  startGitHubAutoSync();
 });
