@@ -94,7 +94,7 @@
             <div id="internalFinishPanel" class="finish-table-panel" role="tabpanel" aria-labelledby="internalFinishTab">
               <section class="finish-group shared-finish-group" aria-label="間仕切壁下地（共通）">
                 <strong class="finish-group-title">間仕切壁下地（共通）</strong>
-                <label class="finish-choice-field"><span>間仕切壁 下地</span><div class="finish-entry-row"><select id="partitionWallSubstrateInput" data-internal-finish-key="partitionWallSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWallSubstrate" aria-label="間仕切壁下地の計算"><option value="floor">面積</option><option value="perimeter">長さ</option><option value="wall" selected>周長×高さ−建具</option><option value="count">個数</option></select></div></label>
+                <label class="finish-choice-field"><span>間仕切壁 下地</span><div class="finish-entry-row"><select id="partitionWallSubstrateInput" data-internal-finish-key="partitionWallSubstrate"><option value="" selected>未選択（部材なし）</option><option value="木下地">木下地</option><option value="軽鉄下地">軽鉄下地</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWallSubstrate" aria-label="間仕切壁下地の計算"><option value="floor">面積</option><option value="perimeter" selected>長さ</option><option value="wall">周長×高さ−建具</option><option value="count">個数</option></select></div></label>
               </section>
               <div class="floor-room-grid">
                 <label>階数<input id="floorInput" type="text" value="1階"></label>
@@ -262,6 +262,7 @@
             <span id="hintText">図面を読み込んでから、縮尺を設定してください。</span>
           </div>
           <div class="action-row">
+            <button id="undoLastTakeoffButton" type="button" disabled>直前の確定を取消</button>
             <button id="clearTempButton" type="button">選択解除</button>
             <button id="deleteSelectedButton" type="button">選択削除</button>
           </div>
@@ -348,6 +349,6 @@
   </div>
 
   <script src="tesseract.min.js"></script>
-  <script type="module" src="app.js?v=20260721-continuous-trace28"></script>
+  <script type="module" src="app.js?v=20260721-undo-partition-line29"></script>
 </body>
 </html>
