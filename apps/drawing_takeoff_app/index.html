@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>図面積算アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260721-drawing-list-10-rows">
+  <link rel="stylesheet" href="styles.css?v=20260721-opening-summary-actions">
 </head>
 <body>
   <div class="app">
@@ -297,7 +297,7 @@
         <section class="panel">
           <h2>建具拾い</h2>
           <div id="openingSummary" class="mini-summary"></div>
-          <p id="openingDrawingStatus" class="status"></p>
+          <p id="openingDrawingStatus" class="status"></p>\n          <div class="opening-trade-actions opening-summary-actions" role="group" aria-label="建具拾いを開始">\n            <button class="opening-trade-button" type="button" data-opening-trade="木建具">木建具を拾う</button>\n            <button class="opening-trade-button" type="button" data-opening-trade="金属製建具">金属製建具を拾う</button>\n          </div>
           <div class="action-row">
             <button id="findOpeningDrawingsButton" type="button">建具図面を探す</button>
             <button id="exportOpeningListButton" type="button">建具拾いTSV</button>
