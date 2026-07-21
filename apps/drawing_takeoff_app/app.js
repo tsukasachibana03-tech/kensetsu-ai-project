@@ -115,7 +115,7 @@ const pdfQualityMultiplier = 2;
 const openingTrades = [
   {
     name: "金属製建具",
-    keys: ["金属製建具", "鋼製", "鋼製建具", "金属建具", "アルミ", "サッシ", "スチール", "ステン", "SUS", "SD", "SSD", "AD", "AW"]
+    keys: ["金属製建具", "鋼製", "鋼製建具", "金属建具", "アルミ", "サッシ", "スチール", "ステン", "SUS", "SD", "SSD", "AD", "AW", "AE"]
   },
   {
     name: "木建具",
@@ -423,8 +423,8 @@ function parseOpeningGlassThickness(rawText) {
 function isOpeningWindowRecord(symbol, sashType = "") {
   const code = String(symbol || "").normalize("NFKC").toUpperCase().replace(/[^A-Z]/g, "");
   const type = String(sashType || "").normalize("NFKC");
-  if (/^(?:AW|SW|WW|FW)/.test(code)) return true;
-  if (/(?:ドア|扉|戸)/.test(type)) return false;
+  if (/^(?:AW|SW|WW|FW|AE)/.test(code)) return true;
+  if (/(?:ドア|扉|戸)/.test(type.replace(/戸袋/g, ""))) return false;
   return /(?:窓|サッシ|引違|引き違い|すべり出し|FIX|はめ殺し)/i.test(type);
 }
 
@@ -447,6 +447,37 @@ function parseOpeningHardwareInfo(rawText) {
     ["フロアヒンジ", /フロアヒンジ/]
   ];
   return hardwareTerms.filter(([, pattern]) => pattern.test(text)).map(([label]) => label).join("・");
+}
+
+function parseOpeningSashType(rawText) {
+  const text = String(rawText || "")
+    .normalize("NFKC")
+    .replace(/[ \t\u3000]+/g, "")
+    .replace(/引違イ/g, "引違い")
+    .replace(/片引キ/g, "片引き")
+    .replace(/スベリ/g, "すべり")
+    .replace(/サッシュ/g, "サッシ");
+  const patterns = [
+    /((?:\d+枚)?引違い(?:アルミ)?サッシ)/i,
+    /((?:\d+枚)?片引き(?:アルミ)?サッシ(?:\+戸袋付き)?)/i,
+    /((?:アルミ)?(?:縦|横)すべり出し窓)/i,
+    /((?:アルミ)?FIX窓)/i,
+    /((?:通風|採風)ドア)/i,
+    /((?:袖)?FIX(?:片|両)?開き(?:ドア|戸|窓)?)/i,
+    /((?:片|両)開き(?:ドア|戸|窓))/i,
+    /((?:片引き|引違い|引き違い|両引き|はめ殺し|上げ下げ|内倒し|外倒し|ルーバー|ジャロジー|テラス|連窓|段窓)(?:窓|戸|サッシ)?)/i
+  ];
+  let sashType = "";
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      sashType = String(match[1] || match[0] || "").trim();
+      break;
+    }
+  }
+  const model = text.match(/P\s*\d{1,3}型/i)?.[0]?.replace(/\s+/g, "").toUpperCase() || "";
+  if (sashType && model && /(?:ドア|戸)/.test(sashType) && !sashType.includes(model)) sashType = `${sashType} ${model}`;
+  return sashType;
 }
 
 function parseOpeningGlassDimensions(rawText, opening = {}) {
@@ -490,12 +521,18 @@ function parseOpeningGlassDimensions(rawText, opening = {}) {
 }
 
 function normalizeOpeningOcrResult(value = {}) {
+  const symbolManual = Boolean(value.symbolManual);
+  const parsedSymbol = parseOpeningOcrSymbolText(value.rawText);
+  const symbol = String(symbolManual ? (value.symbol || "") : (parsedSymbol || value.symbol || "")).trim();
+  const sashTypeManual = Boolean(value.sashTypeManual);
+  const parsedSashType = parseOpeningSashType(value.rawText);
+  const sashType = String(sashTypeManual ? (value.sashType || "") : (parsedSashType || value.sashType || "")).trim();
   const dimensionsManual = Boolean(value.dimensionsManual);
   const parsedDimensions = parseOpeningOcrDimensions(value.rawText, {
-    symbol: value.symbol,
-    sashType: value.sashType
+    symbol,
+    sashType
   });
-  const refreshWindowDimensions = !dimensionsManual && isOpeningWindowRecord(value.symbol, value.sashType);
+  const refreshWindowDimensions = !dimensionsManual && isOpeningWindowRecord(symbol, sashType);
   const widthMm = Math.max(0, Number(refreshWindowDimensions ? parsedDimensions.widthMm : value.widthMm) || Number(value.widthMm) || 0);
   const heightMm = Math.max(0, Number(refreshWindowDimensions ? parsedDimensions.heightMm : value.heightMm) || Number(value.heightMm) || 0);
   const quantity = Math.max(1, Math.round(Number(value.quantity) || 1));
@@ -504,10 +541,10 @@ function normalizeOpeningOcrResult(value = {}) {
     widthMm,
     heightMm,
     glassType: value.glassType,
-    sashType: value.sashType
+    sashType
   });
   const glassDimensionsManual = Boolean(value.glassDimensionsManual);
-  const refreshWindowGlass = !glassDimensionsManual && isOpeningWindowRecord(value.symbol, value.sashType);
+  const refreshWindowGlass = !glassDimensionsManual && isOpeningWindowRecord(symbol, sashType);
   const glassWidthMm = Math.max(0, Number(refreshWindowGlass ? parsedGlass.glassWidthMm : value.glassWidthMm) || parsedGlass.glassWidthMm);
   const glassHeightMm = Math.max(0, Number(refreshWindowGlass ? parsedGlass.glassHeightMm : value.glassHeightMm) || parsedGlass.glassHeightMm);
   const glassAreaM2 = openingGlassAreaM2(glassWidthMm, glassHeightMm, quantity);
@@ -515,10 +552,12 @@ function normalizeOpeningOcrResult(value = {}) {
   const hardwareInfoManual = Boolean(value.hardwareInfoManual);
   return {
     id: value.id || `ocr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    symbol: String(value.symbol || "").trim(),
+    symbol,
+    symbolManual,
     location: String(value.location || "").trim(),
     color: String(value.color || "").trim(),
-    sashType: String(value.sashType || "").trim(),
+    sashType,
+    sashTypeManual,
     glassType: String(value.glassType || "").trim(),
     glassThickness: String(glassThicknessManual ? (value.glassThickness || "") : (value.glassThickness || parseOpeningGlassThickness(value.rawText))).trim(),
     glassThicknessManual,
@@ -557,21 +596,45 @@ function firstOpeningOcrMatch(text, patterns) {
 }
 
 function parseOpeningOcrSymbolText(rawText) {
-  const source = String(rawText || "").normalize("NFKC").toUpperCase();
-  const lines = source.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  for (let index = 0; index < lines.length; index += 1) {
-    const code = lines[index].match(/(?:AD|AW|SD|SW|WD|WW|FD|FW)/)?.[0];
-    if (!code) continue;
-    const neighbor = [lines[index - 1], lines[index + 1]].filter(Boolean).join(" ");
-    const number = neighbor.match(/(?:^|\D)(\d{1,3})(?:\D|$)/)?.[1];
-    if (number) return `${code}${number}`;
+  const source = String(rawText || "")
+    .normalize("NFKC")
+    .toUpperCase()
+    .replace(/A\s*(?:D|O|0)(?=\s|[-\d]|$)/g, "AD")
+    .replace(/A\s*W(?=\s|[-\d]|$)/g, "AW")
+    .replace(/\b[I|L]\b/g, "1")
+    .replace(/[×X]\s*\d{1,3}/g, " ");
+  const codePattern = "(?:AD|AW|AE|SD|SW|WD|WW|FD|FW)";
+  const candidates = [];
+  const addCandidate = (code, number, suffix = "") => {
+    const normalizedNumber = String(number || "").replace(/^0+(?=\d)/, "");
+    if (!normalizedNumber || Number(normalizedNumber) > 999) return;
+    candidates.push(`${code}${normalizedNumber}${String(suffix || "").toUpperCase()}`);
+  };
+
+  for (const match of source.matchAll(new RegExp(`\\b(${codePattern})\\s*[-－]?\\s*(\\d{1,3})([A-Z]?)\\b`, "g"))) {
+    addCandidate(match[1], match[2], match[3]);
   }
-  const dense = source.replace(/[^A-Z0-9]/g, "");
-  const direct = dense.match(/(?:AD|AW|SD|SW|WD|WW|FD|FW|FIX)\d+[A-Z]?/);
-  if (direct) return direct[0];
-  const stacked = dense.match(/(\d)(AD|AW|SD|SW|WD|WW|FD|FW)/);
-  if (stacked) return `${stacked[2]}${stacked[1]}`;
-  return "";
+  for (const match of source.matchAll(new RegExp(`(?:^|\\D)(\\d{1,3})\\s*[-－]?\\s*(${codePattern})\\b`, "g"))) {
+    addCandidate(match[2], match[1]);
+  }
+
+  const lines = source.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  lines.forEach((line, index) => {
+    const codeMatch = line.match(new RegExp(codePattern));
+    if (!codeMatch) return;
+    const code = codeMatch[0];
+    const beforeCode = line.slice(0, codeMatch.index);
+    const sameLineNumbers = Array.from(beforeCode.matchAll(/(?<!\d)(\d{1,3})(?!\d)/g), (match) => match[1]);
+    if (sameLineNumbers.length) addCandidate(code, sameLineNumbers.at(-1));
+    const neighborLines = [lines[index - 1], lines[index + 1]].filter(Boolean).join(" ");
+    const neighborNumber = neighborLines.match(/(?<!\d)(\d{1,3})(?!\d)/)?.[1];
+    if (neighborNumber) addCandidate(code, neighborNumber);
+  });
+
+  if (!candidates.length) return "";
+  const counts = new Map();
+  candidates.forEach((candidate) => counts.set(candidate, (counts.get(candidate) || 0) + 1));
+  return candidates.sort((a, b) => (counts.get(b) - counts.get(a)) || a.localeCompare(b, "ja", { numeric: true }))[0];
 }
 
 function parseOpeningOcrDimensions(rawText, opening = {}) {
@@ -589,9 +652,14 @@ function parseOpeningOcrDimensions(rawText, opening = {}) {
   });
   const widthMm = explicitWidth || candidates[0] || 0;
   const remaining = candidates.filter((value) => value !== widthMm);
-  const heightMm = explicitHeight || (remaining.length
-    ? (isOpeningWindowRecord(opening.symbol, opening.sashType) ? remaining[0] : Math.max(...remaining))
-    : 0);
+  const symbolCode = String(opening.symbol || "").normalize("NFKC").toUpperCase().replace(/[^A-Z]/g, "");
+  let inferredHeight = 0;
+  if (remaining.length) {
+    if (/^(?:AW|SW|WW|FW)/.test(symbolCode)) inferredHeight = remaining[0];
+    else if (/^AE/.test(symbolCode)) inferredHeight = [...remaining].reverse().find((value) => value <= 2500) || remaining.at(-1);
+    else inferredHeight = Math.max(...remaining);
+  }
+  const heightMm = explicitHeight || inferredHeight;
   return { widthMm, heightMm, quantity };
 }
 
@@ -600,7 +668,7 @@ function parseOpeningOcrText(rawText, symbolText = "") {
   const compact = text.replace(/[ \t]+/g, " ");
   const denseLines = text.split("\n").map((line) => line.replace(/[ \t\u3000]+/g, "")).join("\n");
   const symbol = parseOpeningOcrSymbolText(symbolText) || firstOpeningOcrMatch(compact.toUpperCase(), [
-    /\b((?:AD|AW|SD|SW|WD|WW|FD|FW|FIX)[-－]?\s*\d+[A-Z]?)\b/,
+    /\b((?:AD|AW|AE|SD|SW|WD|WW|FD|FW|FIX)[-－]?\s*\d+[A-Z]?)\b/,
     /(?:符号|記号)\s*[:：]?\s*([A-Z]{1,3}[-－]?\s*\d+[A-Z]?)/i
   ]).replace(/\s+/g, "");
   const location = firstOpeningOcrMatch(denseLines, [
@@ -612,12 +680,7 @@ function parseOpeningOcrText(rawText, symbolText = "") {
     /((?:ステン|ステンカラー|シルバー|ブラック|黒|ホワイト|白|ブロンズ|ブラウン|グレー|シャイングレー|ナチュラルシルバー))/i,
     /(?:色|カラー|仕上色)\s*[:：]?\s*([^\n]{1,20})/
   ]);
-  const sashType = firstOpeningOcrMatch(denseLines, [
-    /((?:袖)?FIX(?:片|両)?開き(?:ドア|戸|窓)?(?:P?\d+型)?)/i,
-    /((?:片|両)開き(?:ドア|戸|窓)(?:P?\d+型)?)/i,
-    /((?:片引き|引違い|引き違い|両引き|FIX|はめ殺し|縦すべり出し|横すべり出し|すべり出し|上げ下げ|内倒し|外倒し|ルーバー|ジャロジー|開き|テラス|連窓|段窓)(?:窓|戸|サッシ)?)/i,
-    /(?:サッシ種類|窓種|形式|種類)\s*[:：]?\s*([^\n]{1,30})/
-  ]);
+  const sashType = parseOpeningSashType(text);
   const glassType = firstOpeningOcrMatch(denseLines, [
     /((?:Low-?E)?(?:乳白)?(?:複層|ペア|単板|網入(?:り)?|強化|合わせ|型板|透明|防火|遮熱|断熱)?ガラス)/i,
     /(?:ガラス|硝子)\s*[:：]?\s*([^\n]{1,30})/
@@ -649,6 +712,8 @@ function updateOpeningOcrField(result, key, rawValue) {
   result[key] = key === "quantity" ? Math.max(1, Math.round(value)) : value;
 
   if (["widthMm", "heightMm"].includes(key)) result.dimensionsManual = true;
+  if (key === "symbol") result.symbolManual = true;
+  if (key === "sashType") result.sashTypeManual = true;
   if (["glassWidthMm", "glassHeightMm"].includes(key)) result.glassDimensionsManual = true;
   if (key === "glassAreaM2") result.glassAreaManual = true;
   if (key === "glassThickness") result.glassThicknessManual = true;
@@ -760,11 +825,6 @@ function renderOpeningOcrResults() {
       input.addEventListener("keydown", (event) => {
         event.stopPropagation();
         if (event.key === "Enter") commitEdit();
-      });
-      let editTimer = 0;
-      input.addEventListener("input", () => {
-        window.clearTimeout(editTimer);
-        editTimer = window.setTimeout(commitEdit, 800);
       });
       input.addEventListener("change", commitEdit);
       input.addEventListener("blur", commitEdit);
@@ -2572,7 +2632,7 @@ function openingDrawingScore(entry) {
   let score = 0;
   if (/建具\s*表|建具表|DOOR\s*SCHEDULE|WINDOW\s*SCHEDULE/.test(text)) score += 120;
   if (/KEY[-_ ]?PLAN|KEYPLAN|キープラン/.test(text)) score += 85;
-  if (/建具|DOOR|WINDOW|サッシ|鋼製|金属製|木製|ガラス|硝子|GLASS|SD|SSD|AD|AW|WD/.test(text)) score += 55;
+  if (/建具|DOOR|WINDOW|サッシ|鋼製|金属製|木製|ガラス|硝子|GLASS|SD|SSD|AD|AW|AE|WD/.test(text)) score += 55;
   if (/^A-3\d{2}/.test(drawingNumber)) score += 35;
   if (/特記仕様|仕上表|面積表|表紙|配置|案内|平面詳細|展開図|立面図|断面図/.test(text)) score -= 80;
   return score;
@@ -2582,7 +2642,7 @@ function openingDrawingTrade(entry) {
   const text = openingDrawingSearchText(entry);
   if (/木製|木建具|WD/.test(text)) return "木建具";
   if (/ガラス|硝子|GLASS/.test(text)) return "ガラス工事";
-  if (/鋼製|金属製|アルミ|サッシ|SUS|SD|SSD|AD|AW/.test(text)) return "金属製建具";
+  if (/鋼製|金属製|アルミ|サッシ|SUS|SD|SSD|AD|AW|AE/.test(text)) return "金属製建具";
   return "";
 }
 
@@ -6202,6 +6262,12 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest?.(".external-finish-picker")) closeExternalFinishMenus();
 });
 document.addEventListener("keydown", (event) => {
+  if (event.code === "Space" || event.key === " ") {
+    const target = event.target;
+    const acceptsText = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
+    const isNativeControl = target instanceof HTMLButtonElement || target instanceof HTMLSelectElement;
+    if (!acceptsText && !isNativeControl) event.preventDefault();
+  }
   if (event.key === "Escape") {
     if (isHardwareLengthTraceMode()) {
       activeHardwareLengthItemId = "";
