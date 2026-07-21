@@ -259,6 +259,7 @@ let projectBook = { activeId: "", projects: [] };
 let isApplyingProject = false;
 let roomMenuSearchEnabled = false;
 let openingOcrResults = [];
+let selectedOpeningOcrId = "";
 let openingOcrDragStart = null;
 let openingOcrDragCurrent = null;
 let openingOcrBusy = false;
@@ -499,11 +500,30 @@ function parseOpeningOcrText(rawText, symbolText = "") {
 
 function renderOpeningOcrResults() {
   if (!els.openingOcrResultsBody) return;
+  if (!openingOcrResults.some((result) => result.id === selectedOpeningOcrId)) selectedOpeningOcrId = "";
   els.openingOcrResultsBody.replaceChildren();
   openingOcrResults.forEach((result) => {
     const card = document.createElement("article");
     card.className = "opening-ocr-result-card";
+    card.classList.toggle("selected", result.id === selectedOpeningOcrId);
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-pressed", String(result.id === selectedOpeningOcrId));
+    card.setAttribute("aria-label", `${result.symbol || "符号未検出"} ${result.location || "場所未検出"}のOCRカードを選択`);
     card.title = result.rawText || "";
+    const selectCard = () => {
+      selectedOpeningOcrId = selectedOpeningOcrId === result.id ? "" : result.id;
+      renderOpeningOcrResults();
+      setOpeningOcrStatus(selectedOpeningOcrId
+        ? `${result.symbol || "符号未検出"}のカードを選択しました。削除で1件だけ削除できます。`
+        : "カードの選択を解除しました。");
+    };
+    card.addEventListener("click", selectCard);
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      selectCard();
+    });
     const fields = [
       ["符号", result.symbol || "未検出", "emphasis"],
       ["場所・部屋名", result.location || "未検出"],
@@ -534,6 +554,10 @@ function renderOpeningOcrResults() {
     card.appendChild(formula);
     els.openingOcrResultsBody.appendChild(card);
   });
+  if (els.clearOpeningOcrButton) {
+    els.clearOpeningOcrButton.disabled = !selectedOpeningOcrId;
+    els.clearOpeningOcrButton.textContent = "削除";
+  }
 }
 
 function setOpeningOcrStatus(message) {
@@ -678,13 +702,15 @@ async function runOpeningOcr(rect) {
       rawText.trim() ? `[OCR文字]\n${rawText.trim()}` : "",
       symbolText.trim() ? `[符号候補]\n${symbolText.trim()}` : ""
     ].filter(Boolean).join("\n\n");
-    openingOcrResults.push(normalizeOpeningOcrResult({
+    const openingOcrResult = normalizeOpeningOcrResult({
       ...parsed,
       rawText: storedRawText,
       drawingName: drawingFileName,
       page: currentPage,
       rect
-    }));
+    });
+    openingOcrResults.push(openingOcrResult);
+    selectedOpeningOcrId = openingOcrResult.id;
     renderOpeningOcrResults();
     saveQuietly();
     setOpeningOcrStatus(combinedText.trim()
@@ -5739,10 +5765,16 @@ document.querySelectorAll(".opening-trade-button").forEach((button) => {
 });
 els.openingOcrModeButton?.addEventListener("click", startOpeningOcrMode);
 els.clearOpeningOcrButton?.addEventListener("click", () => {
-  openingOcrResults = [];
+  if (!selectedOpeningOcrId) {
+    setOpeningOcrStatus("削除するOCRカードを先に選択してください。");
+    return;
+  }
+  const selectedResult = openingOcrResults.find((result) => result.id === selectedOpeningOcrId);
+  openingOcrResults = openingOcrResults.filter((result) => result.id !== selectedOpeningOcrId);
+  selectedOpeningOcrId = "";
   renderOpeningOcrResults();
   saveQuietly();
-  setOpeningOcrStatus("OCR建具リストをクリアしました。");
+  setOpeningOcrStatus(`${selectedResult?.symbol || "選択したOCRカード"}を1件削除しました。`);
 });
 els.internalFinishTab?.addEventListener("click", () => setActiveFinishTab("internal", { persist: true }));
 els.externalFinishTab?.addEventListener("click", () => setActiveFinishTab("external", { persist: true }));
