@@ -741,10 +741,6 @@ function clearOpeningOcrFieldTarget({ resetMode = false } = {}) {
 }
 
 function startOpeningOcrFieldMode(result, key, label, input) {
-  if (!pdfDoc && !imageBitmapSource) {
-    setOpeningOcrStatus("先にOCRする図面を表示してください。直接入力はできます。");
-    return;
-  }
   clearOpeningOcrFieldTarget();
   openingOcrFieldTarget = { resultId: result.id, key, label };
   selectedOpeningOcrId = result.id;
@@ -754,7 +750,9 @@ function startOpeningOcrFieldMode(result, key, label, input) {
   openingOcrDragStart = null;
   openingOcrDragCurrent = null;
   updateModeButtons();
-  setOpeningOcrStatus(`${result.symbol || "選択したカード"}の「${label}」を再OCRします。図面上の文字部分だけを囲ってください。`);
+  setOpeningOcrStatus(!pdfDoc && !imageBitmapSource
+    ? `${result.symbol || "選択したカード"}の「${label}」を選択しました。オレンジの欄へ取り込むには、先に対象図面を表示してください。`
+    : `${result.symbol || "選択したカード"}の「${label}」を再OCRします。図面上の文字部分だけを囲ってください。`);
   drawOverlay();
 }
 
