@@ -224,11 +224,12 @@ const internalFinishFormulaDefaults = {
   ceilingTrim: "perimeter"
 };
 const sharedInternalFinishKeys = new Set(["partitionWallSubstrate"]);
-const partitionWallSubstrateMaterials = ["木下地", "軽鉄下地", "GL工法"];
+const partitionWallSubstrateMaterials = ["木下地", "軽鉄下地", "GL工法", "ランバー"];
 const partitionWallSubstrateColors = {
   "木下地": "#27865f",
   "軽鉄下地": "#2f6fb5",
-  "GL工法": "#d97706"
+  "GL工法": "#d97706",
+  "ランバー": "#7c3aed"
 };
 const finishFormulaOptionLabels = {
   floor: "面積",
