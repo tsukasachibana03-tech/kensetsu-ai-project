@@ -388,7 +388,18 @@ function drawOpeningOcrSelection() {
   overlayCtx.restore();
 }
 
+function openingPerimeterLengthM(widthMm, heightMm, quantity = 1) {
+  const width = Math.max(0, Number(widthMm) || 0);
+  const height = Math.max(0, Number(heightMm) || 0);
+  const count = Math.max(1, Number(quantity) || 1);
+  return width && height ? Math.round((2 * (width + height) * count / 1000) * 1000) / 1000 : 0;
+}
+
 function normalizeOpeningOcrResult(value = {}) {
+  const widthMm = Math.max(0, Number(value.widthMm) || 0);
+  const heightMm = Math.max(0, Number(value.heightMm) || 0);
+  const quantity = Math.max(1, Math.round(Number(value.quantity) || 1));
+  const perimeterLengthM = openingPerimeterLengthM(widthMm, heightMm, quantity);
   return {
     id: value.id || `ocr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     symbol: String(value.symbol || "").trim(),
@@ -396,6 +407,13 @@ function normalizeOpeningOcrResult(value = {}) {
     color: String(value.color || "").trim(),
     sashType: String(value.sashType || "").trim(),
     glassType: String(value.glassType || "").trim(),
+    widthMm,
+    heightMm,
+    quantity,
+    sashMortarLengthM: Math.max(0, Number(value.sashMortarLengthM) || perimeterLengthM),
+    caulkingLengthM: Math.max(0, Number(value.caulkingLengthM) || perimeterLengthM),
+    sashMortarTrade: "左官工事",
+    caulkingTrade: "防水工事",
     rawText: String(value.rawText || "").trim(),
     drawingName: String(value.drawingName || "").trim(),
     page: Number(value.page) || 1,
@@ -430,6 +448,25 @@ function parseOpeningOcrSymbolText(rawText) {
   return "";
 }
 
+function parseOpeningOcrDimensions(rawText) {
+  const text = String(rawText || "").normalize("NFKC").replace(/\r/g, "");
+  const quantity = Math.max(1, Number(text.match(/[×xX]\s*(\d{1,3})/)?.[1]) || 1);
+  const explicitWidth = Number(text.match(/(?:^|\s)(?:W|幅|巾)\s*[:：=]?\s*([\d,]{3,6})/im)?.[1]?.replace(/,/g, "")) || 0;
+  const explicitHeight = Number(text.match(/(?:^|\s)(?:H|高(?:さ)?)\s*[:：=]?\s*([\d,]{3,6})/im)?.[1]?.replace(/,/g, "")) || 0;
+  const candidates = [];
+  text.split("\n").forEach((line) => {
+    const normalizedLine = line.replace(/[×xX]\s*\d{1,3}/g, "");
+    for (const match of normalizedLine.matchAll(/(?:^|\D)(\d{3,4}(?:,\d{3})?|\d{1,2},\d{3})(?:\D|$)/g)) {
+      const value = Number(match[1].replace(/,/g, ""));
+      if (value >= 300 && value <= 6000) candidates.push(value);
+    }
+  });
+  const widthMm = explicitWidth || candidates[0] || 0;
+  const remaining = candidates.slice(widthMm ? 1 : 0).filter((value) => value !== widthMm);
+  const heightMm = explicitHeight || (remaining.length ? Math.max(...remaining) : 0);
+  return { widthMm, heightMm, quantity };
+}
+
 function parseOpeningOcrText(rawText, symbolText = "") {
   const text = String(rawText || "").normalize("NFKC").replace(/\r/g, "");
   const compact = text.replace(/[ \t]+/g, " ");
@@ -457,21 +494,45 @@ function parseOpeningOcrText(rawText, symbolText = "") {
     /((?:Low-?E)?(?:乳白)?(?:複層|ペア|単板|網入(?:り)?|強化|合わせ|型板|透明|防火|遮熱|断熱)?ガラス)/i,
     /(?:ガラス|硝子)\s*[:：]?\s*([^\n]{1,30})/
   ]);
-  return { symbol, location, color, sashType, glassType };
+  return { symbol, location, color, sashType, glassType, ...parseOpeningOcrDimensions(text) };
 }
 
 function renderOpeningOcrResults() {
   if (!els.openingOcrResultsBody) return;
   els.openingOcrResultsBody.replaceChildren();
   openingOcrResults.forEach((result) => {
-    const row = document.createElement("tr");
-    [result.symbol, result.location, result.color, result.sashType, result.glassType].forEach((value) => {
-      const cell = document.createElement("td");
-      cell.textContent = value || "未検出";
-      cell.title = result.rawText || "";
-      row.appendChild(cell);
+    const card = document.createElement("article");
+    card.className = "opening-ocr-result-card";
+    card.title = result.rawText || "";
+    const fields = [
+      ["符号", result.symbol || "未検出", "emphasis"],
+      ["場所・部屋名", result.location || "未検出"],
+      ["色", result.color || "未検出"],
+      ["サッシ種類", result.sashType || "未検出", "wide"],
+      ["ガラス", result.glassType || "未検出", "wide"],
+      ["幅 W", result.widthMm ? `${result.widthMm.toLocaleString("ja-JP")} mm` : "未検出"],
+      ["高さ H", result.heightMm ? `${result.heightMm.toLocaleString("ja-JP")} mm` : "未検出"],
+      ["個数", `${result.quantity || 1} 箇所`],
+      ["サッシモルタル（左官工事）", result.sashMortarLengthM ? `${numberText(result.sashMortarLengthM, 2)} m` : "寸法未検出", "trade"],
+      ["コーキング（防水工事）", result.caulkingLengthM ? `${numberText(result.caulkingLengthM, 2)} m` : "寸法未検出", "trade"]
+    ];
+    fields.forEach(([label, value, modifier = ""]) => {
+      const field = document.createElement("div");
+      field.className = `opening-ocr-result-field ${modifier}`.trim();
+      const labelView = document.createElement("span");
+      labelView.textContent = label;
+      const valueView = document.createElement("strong");
+      valueView.textContent = value;
+      field.append(labelView, valueView);
+      card.appendChild(field);
     });
-    els.openingOcrResultsBody.appendChild(row);
+    const formula = document.createElement("p");
+    formula.className = "opening-ocr-length-formula";
+    formula.textContent = result.widthMm && result.heightMm
+      ? `外周計算: 2 × (${result.widthMm.toLocaleString("ja-JP")} + ${result.heightMm.toLocaleString("ja-JP")}) mm × ${result.quantity || 1}箇所`
+      : "幅と高さを検出すると、左官・防水の長さを自動計算します。";
+    card.appendChild(formula);
+    els.openingOcrResultsBody.appendChild(card);
   });
 }
 

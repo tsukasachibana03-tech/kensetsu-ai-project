@@ -301,12 +301,7 @@
               <strong>OCR建具リスト</strong>
               <button id="clearOpeningOcrButton" type="button">クリア</button>
             </div>
-            <div class="opening-ocr-table-wrap">
-              <table>
-                <thead><tr><th>符号</th><th>場所・部屋名</th><th>色</th><th>サッシ種類</th><th>ガラス</th></tr></thead>
-                <tbody id="openingOcrResultsBody"></tbody>
-              </table>
-            </div>
+            <div id="openingOcrResultsBody" class="opening-ocr-results" aria-live="polite"></div>
           </div>
         </section>
       </aside>
@@ -353,6 +348,6 @@
   </div>
 
   <script src="tesseract.min.js"></script>
-  <script type="module" src="app.js?v=20260721-opening-ocr4"></script>
+  <script type="module" src="app.js?v=20260721-opening-ocr5"></script>
 </body>
 </html>
