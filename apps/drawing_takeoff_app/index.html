@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>図面積算アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260721-independent-partition-substrate33">
+  <link rel="stylesheet" href="styles.css?v=20260721-wall-substrate-area34">
 </head>
 <body>
   <div class="app">
@@ -92,16 +92,17 @@
               </div>
             </div>
             <div id="internalFinishPanel" class="finish-table-panel" role="tabpanel" aria-labelledby="internalFinishTab">
-              <section class="finish-group shared-finish-group" aria-label="間仕切壁下地（共通）">
-                <strong class="finish-group-title">間仕切壁下地（階数・部屋とは独立）</strong>
+              <section class="finish-group shared-finish-group" aria-label="壁下地（共通）">
+                <strong class="finish-group-title">壁下地（階数・部屋とは独立）</strong>
                 <div class="partition-substrate-controls">
-                  <label class="finish-choice-field"><span>壁下地の種類</span><div class="finish-entry-row"><select id="partitionWallSubstrateInput" data-internal-finish-key="partitionWallSubstrate"><option value="木下地" selected>木下地</option><option value="軽鉄下地">軽鉄下地</option><option value="GL工法">GL工法</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWallSubstrate" aria-label="間仕切壁下地の計算"><option value="perimeter" selected>長さ</option></select></div></label>
+                  <label class="finish-choice-field"><span>壁下地の種類</span><div class="finish-entry-row"><select id="partitionWallSubstrateInput" data-internal-finish-key="partitionWallSubstrate"><option value="木下地" selected>木下地</option><option value="軽鉄下地">軽鉄下地</option><option value="GL工法">GL工法</option></select><select class="finish-formula-select" data-internal-finish-formula="partitionWallSubstrate" aria-label="壁下地の計算"><option value="perimeter" selected>長さ</option></select></div></label>
                   <label class="partition-substrate-ch"><span>CH（直接入力）</span><div><input id="partitionWallSubstrateCHInput" type="number" min="0" step="0.01" value="2.4"><span>m</span></div></label>
+                  <label class="partition-substrate-opening"><span>開口控除（直接入力）</span><div><input id="partitionWallSubstrateOpeningDeductionInput" type="number" min="0" step="0.01" value="0"><span>m²</span></div></label>
                 </div>
                 <div id="partitionWallSubstrateTotals" class="partition-substrate-totals" aria-live="polite">
-                  <span data-partition-substrate-total="木下地"><i class="substrate-swatch is-wood"></i>木下地 <strong>0.00m</strong></span>
-                  <span data-partition-substrate-total="軽鉄下地"><i class="substrate-swatch is-steel"></i>軽鉄下地 <strong>0.00m</strong></span>
-                  <span data-partition-substrate-total="GL工法"><i class="substrate-swatch is-gl"></i>GL工法 <strong>0.00m</strong></span>
+                  <span data-partition-substrate-total="木下地"><i class="substrate-swatch is-wood"></i>木下地 <strong>0.00m²</strong></span>
+                  <span data-partition-substrate-total="軽鉄下地"><i class="substrate-swatch is-steel"></i>軽鉄下地 <strong>0.00m²</strong></span>
+                  <span data-partition-substrate-total="GL工法"><i class="substrate-swatch is-gl"></i>GL工法 <strong>0.00m²</strong></span>
                 </div>
               </section>
               <div class="floor-room-grid">
@@ -357,6 +358,6 @@
   </div>
 
   <script src="tesseract.min.js"></script>
-  <script type="module" src="app.js?v=20260721-independent-partition-substrate33"></script>
+  <script type="module" src="app.js?v=20260721-wall-substrate-area34"></script>
 </body>
 </html>
