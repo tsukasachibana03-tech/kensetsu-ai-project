@@ -97,6 +97,10 @@ const els = {
   tradeSheets: document.getElementById("tradeSheets"),
   openingSummary: document.getElementById("openingSummary"),
   openingDrawingStatus: document.getElementById("openingDrawingStatus"),
+  openingOcrModeButton: document.getElementById("openingOcrModeButton"),
+  openingOcrStatus: document.getElementById("openingOcrStatus"),
+  openingOcrResultsBody: document.getElementById("openingOcrResultsBody"),
+  clearOpeningOcrButton: document.getElementById("clearOpeningOcrButton"),
   recordCountView: document.getElementById("recordCountView"),
   quantityTotalView: document.getElementById("quantityTotalView"),
   amountTotalView: document.getElementById("amountTotalView")
@@ -254,6 +258,11 @@ let activeTradeSheet = "";
 let projectBook = { activeId: "", projects: [] };
 let isApplyingProject = false;
 let roomMenuSearchEnabled = false;
+let openingOcrResults = [];
+let openingOcrDragStart = null;
+let openingOcrDragCurrent = null;
+let openingOcrBusy = false;
+let openingOcrSuppressClick = false;
 
 function money(value) {
   return `${Math.round(value || 0).toLocaleString("ja-JP")}円`;
@@ -360,6 +369,229 @@ function drawOverlay() {
     .forEach(drawRecord);
   drawScaleCheckResult();
   drawTemp();
+  drawOpeningOcrSelection();
+}
+
+function drawOpeningOcrSelection() {
+  if (!openingOcrDragStart || !openingOcrDragCurrent) return;
+  const x = Math.min(openingOcrDragStart.x, openingOcrDragCurrent.x);
+  const y = Math.min(openingOcrDragStart.y, openingOcrDragCurrent.y);
+  const width = Math.abs(openingOcrDragCurrent.x - openingOcrDragStart.x);
+  const height = Math.abs(openingOcrDragCurrent.y - openingOcrDragStart.y);
+  overlayCtx.save();
+  overlayCtx.fillStyle = "rgba(197, 87, 53, 0.14)";
+  overlayCtx.strokeStyle = "#c55735";
+  overlayCtx.lineWidth = 3;
+  overlayCtx.setLineDash([10, 6]);
+  overlayCtx.fillRect(x, y, width, height);
+  overlayCtx.strokeRect(x, y, width, height);
+  overlayCtx.restore();
+}
+
+function normalizeOpeningOcrResult(value = {}) {
+  return {
+    id: value.id || `ocr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    symbol: String(value.symbol || "").trim(),
+    location: String(value.location || "").trim(),
+    color: String(value.color || "").trim(),
+    sashType: String(value.sashType || "").trim(),
+    glassType: String(value.glassType || "").trim(),
+    rawText: String(value.rawText || "").trim(),
+    drawingName: String(value.drawingName || "").trim(),
+    page: Number(value.page) || 1,
+    rect: value.rect ? { ...value.rect } : null,
+    createdAt: value.createdAt || new Date().toISOString()
+  };
+}
+
+function firstOpeningOcrMatch(text, patterns) {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return String(match[1] || match[0] || "").trim();
+  }
+  return "";
+}
+
+function parseOpeningOcrText(rawText) {
+  const text = String(rawText || "").replace(/\r/g, "");
+  const compact = text.replace(/[ \t]+/g, " ");
+  const symbol = firstOpeningOcrMatch(compact.toUpperCase(), [
+    /\b((?:AD|AW|SD|SW|WD|WW|FD|FW|FIX)[-－]?\s*\d+[A-Z]?)\b/,
+    /(?:符号|記号)\s*[:：]?\s*([A-Z]{1,3}[-－]?\s*\d+[A-Z]?)/i
+  ]).replace(/\s+/g, "");
+  const location = firstOpeningOcrMatch(compact, [
+    /(?:場所|部屋名|室名|取付場所)\s*[:：]?\s*([^\n]{1,30})/,
+    /([^\n]{1,20}(?:室|LDK|DK|キッチン|台所|玄関|ホール|廊下|トイレ|便所|洗面|浴室|寝室|和室|洋室|収納|WCL|CL))/i
+  ]);
+  const color = firstOpeningOcrMatch(compact, [
+    /((?:ステン|ステンカラー|シルバー|ブラック|黒|ホワイト|白|ブロンズ|ブラウン|グレー|シャイングレー|ナチュラルシルバー))/i,
+    /(?:色|カラー|仕上色)\s*[:：]?\s*([^\n]{1,20})/
+  ]);
+  const sashType = firstOpeningOcrMatch(compact, [
+    /((?:片引き|引違い|引き違い|両引き|FIX|はめ殺し|縦すべり出し|横すべり出し|すべり出し|上げ下げ|内倒し|外倒し|ルーバー|ジャロジー|開き|テラス|連窓|段窓)(?:窓|戸|サッシ)?)/i,
+    /(?:サッシ種類|窓種|形式|種類)\s*[:：]?\s*([^\n]{1,30})/
+  ]);
+  const glassType = firstOpeningOcrMatch(compact, [
+    /((?:Low[- ]?E\s*)?(?:複層|ペア|単板|網入(?:り)?|強化|合わせ|型板|透明|防火|遮熱|断熱)[^\n、,]{0,12}ガラス)/i,
+    /(?:ガラス|硝子)\s*[:：]?\s*([^\n]{1,30})/
+  ]);
+  return { symbol, location, color, sashType, glassType };
+}
+
+function renderOpeningOcrResults() {
+  if (!els.openingOcrResultsBody) return;
+  els.openingOcrResultsBody.replaceChildren();
+  openingOcrResults.forEach((result) => {
+    const row = document.createElement("tr");
+    [result.symbol, result.location, result.color, result.sashType, result.glassType].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value || "未検出";
+      cell.title = result.rawText || "";
+      row.appendChild(cell);
+    });
+    els.openingOcrResultsBody.appendChild(row);
+  });
+}
+
+function setOpeningOcrStatus(message) {
+  if (els.openingOcrStatus) els.openingOcrStatus.textContent = message;
+}
+
+function updateOpeningOcrModeButton() {
+  els.openingOcrModeButton?.classList.toggle("active", mode === "openingOcr");
+  if (els.openingOcrModeButton) {
+    els.openingOcrModeButton.textContent = openingOcrBusy
+      ? "OCR処理中…"
+      : mode === "openingOcr" ? "OCR範囲を囲ってください" : "建具をOCRで拾う";
+    els.openingOcrModeButton.disabled = openingOcrBusy;
+  }
+  els.overlayCanvas.style.cursor = mode === "openingOcr" ? "crosshair" : "";
+}
+
+function startOpeningOcrMode() {
+  if (!pdfDoc && !imageBitmapSource) {
+    setOpeningOcrStatus("先にOCRする図面を表示してください。");
+    return;
+  }
+  mode = "openingOcr";
+  tempPoints = [];
+  openingOcrDragStart = null;
+  openingOcrDragCurrent = null;
+  updateModeButtons();
+  updateOpeningOcrModeButton();
+  setOpeningOcrStatus("図面上をマウスの左ボタンで押しながら囲ってください。");
+  drawOverlay();
+}
+
+function openingOcrCrop(rect) {
+  const sourceScaleX = els.drawingCanvas.width / baseWidth;
+  const sourceScaleY = els.drawingCanvas.height / baseHeight;
+  const sx = Math.max(0, Math.round(rect.x * sourceScaleX));
+  const sy = Math.max(0, Math.round(rect.y * sourceScaleY));
+  const sw = Math.max(1, Math.round(rect.width * sourceScaleX));
+  const sh = Math.max(1, Math.round(rect.height * sourceScaleY));
+  const canvas = document.createElement("canvas");
+  const upscale = Math.max(1, Math.min(2, 1800 / Math.max(sw, sh)));
+  canvas.width = Math.max(1, Math.round(sw * upscale));
+  canvas.height = Math.max(1, Math.round(sh * upscale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(els.drawingCanvas, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  for (let index = 0; index < image.data.length; index += 4) {
+    const gray = Math.round(image.data[index] * 0.299 + image.data[index + 1] * 0.587 + image.data[index + 2] * 0.114);
+    const value = gray > 205 ? 255 : gray < 80 ? 0 : gray;
+    image.data[index] = value;
+    image.data[index + 1] = value;
+    image.data[index + 2] = value;
+  }
+  ctx.putImageData(image, 0, 0);
+  return canvas;
+}
+
+async function runOpeningOcr(rect) {
+  if (!window.Tesseract) {
+    await import("./tesseract.min.js?v=20260721-opening-ocr");
+  }
+  if (!window.Tesseract) throw new Error("OCRライブラリを読み込めませんでした。");
+  openingOcrBusy = true;
+  updateOpeningOcrModeButton();
+  let worker = null;
+  try {
+    const options = {
+      workerPath: "./tesseract-worker.min.js",
+      logger: (message) => {
+        if (typeof message.progress === "number") {
+          setOpeningOcrStatus(`OCR中 ${Math.round(message.progress * 100)}%: ${message.status || "文字認識"}`);
+        }
+      }
+    };
+    try {
+      worker = await window.Tesseract.createWorker(["jpn", "eng"], 1, options);
+    } catch {
+      worker = await window.Tesseract.createWorker("eng", 1, options);
+    }
+    const result = await worker.recognize(openingOcrCrop(rect));
+    const rawText = result?.data?.text || "";
+    const parsed = parseOpeningOcrText(rawText);
+    openingOcrResults.push(normalizeOpeningOcrResult({
+      ...parsed,
+      rawText,
+      drawingName: drawingFileName,
+      page: currentPage,
+      rect
+    }));
+    renderOpeningOcrResults();
+    saveQuietly();
+    setOpeningOcrStatus(rawText.trim()
+      ? `OCR完了: ${parsed.symbol || "符号未検出"} をリストへ追加しました。`
+      : "文字を検出できませんでした。範囲を少し広げて再度囲ってください。");
+  } finally {
+    await worker?.terminate().catch(() => {});
+    openingOcrBusy = false;
+    updateOpeningOcrModeButton();
+  }
+}
+
+function handleOpeningOcrPointerDown(event) {
+  if (mode !== "openingOcr" || openingOcrBusy || event.button !== 0) return;
+  event.preventDefault();
+  openingOcrDragStart = pointFromEvent(event);
+  openingOcrDragCurrent = { ...openingOcrDragStart };
+  els.overlayCanvas.setPointerCapture?.(event.pointerId);
+  drawOverlay();
+}
+
+function handleOpeningOcrPointerMove(event) {
+  if (mode !== "openingOcr" || !openingOcrDragStart || openingOcrBusy) return;
+  openingOcrDragCurrent = pointFromEvent(event);
+  drawOverlay();
+}
+
+function handleOpeningOcrPointerUp(event) {
+  if (mode !== "openingOcr" || !openingOcrDragStart || openingOcrBusy) return;
+  event.preventDefault();
+  openingOcrDragCurrent = pointFromEvent(event);
+  const rect = {
+    x: Math.min(openingOcrDragStart.x, openingOcrDragCurrent.x),
+    y: Math.min(openingOcrDragStart.y, openingOcrDragCurrent.y),
+    width: Math.abs(openingOcrDragCurrent.x - openingOcrDragStart.x),
+    height: Math.abs(openingOcrDragCurrent.y - openingOcrDragStart.y)
+  };
+  openingOcrDragStart = null;
+  openingOcrDragCurrent = null;
+  openingOcrSuppressClick = true;
+  drawOverlay();
+  if (rect.width < 12 || rect.height < 12) {
+    setOpeningOcrStatus("OCR範囲が小さすぎます。文字を含む範囲を囲ってください。");
+    return;
+  }
+  runOpeningOcr(rect).catch((error) => {
+    openingOcrBusy = false;
+    updateOpeningOcrModeButton();
+    setOpeningOcrStatus(`OCRに失敗しました: ${error.message || error}`);
+  });
 }
 
 function drawRecord(record) {
@@ -492,6 +724,7 @@ function updateModeButtons() {
   els.hardwareFinishRows?.querySelectorAll("[data-hardware-finish-row]").forEach((row) => {
     row.classList.toggle("is-tracing", isHardwareLengthTraceMode() && row.dataset.hardwareFinishRow === activeHardwareLengthItemId);
   });
+  updateOpeningOcrModeButton();
 }
 
 function formatInputNumber(value) {
@@ -2094,6 +2327,7 @@ function captureAppState(options = {}) {
     roomSettings: normalizeRoomSettings(roomSettings),
     roomSuggestions: normalizeRoomSuggestions(roomSuggestions),
     materialSuggestions: normalizeMaterialSuggestions(materialSuggestions),
+    openingOcrResults: openingOcrResults.map(normalizeOpeningOcrResult),
     activeDrawingId,
     drawings: drawingEntries.map((entry) => serializeDrawingEntry(entry, options))
   };
@@ -2126,6 +2360,7 @@ function serializableAppState(state = {}) {
     roomSettings: normalizeRoomSettings(state.roomSettings || state.rooms || []),
     roomSuggestions: normalizeRoomSuggestions(state.roomSuggestions || []),
     materialSuggestions: normalizeMaterialSuggestions(state.materialSuggestions || []),
+    openingOcrResults: (Array.isArray(state.openingOcrResults) ? state.openingOcrResults : []).map(normalizeOpeningOcrResult),
     activeDrawingId: state.activeDrawingId || "",
     drawings: (Array.isArray(state.drawings) ? state.drawings : []).map((entry) => serializeDrawingEntry(entry))
   };
@@ -2326,6 +2561,8 @@ function applyAppState(data = {}) {
   roomSettings = normalizeRoomSettings(data.roomSettings || data.rooms || []);
   roomSuggestions = normalizeRoomSuggestions(data.roomSuggestions || []);
   materialSuggestions = normalizeMaterialSuggestions(data.materialSuggestions || []);
+  openingOcrResults = (Array.isArray(data.openingOcrResults) ? data.openingOcrResults : []).map(normalizeOpeningOcrResult);
+  renderOpeningOcrResults();
   finishTables = normalizeFinishTables(data.finishTables, data.finishSchedule, savedRoom);
   applySharedInternalFinishSettings(
     data.sharedInternalFinish ?? data.sharedFinishSettings ?? data.finishSchedule ?? {}
@@ -2343,6 +2580,9 @@ function applyAppState(data = {}) {
   tempPoints = [];
   scaleCheckResult = null;
   mode = "draw";
+  openingOcrDragStart = null;
+  openingOcrDragCurrent = null;
+  updateOpeningOcrModeButton();
   const restoredEntries = Array.isArray(data.drawings) ? data.drawings.map((entry, index) => ({
     ...entry,
     id: entry.id || `d-${Date.now()}-${index}`,
@@ -2521,6 +2761,9 @@ function setTool(nextTool) {
   });
   tempPoints = [];
   mode = "draw";
+  openingOcrDragStart = null;
+  openingOcrDragCurrent = null;
+  updateOpeningOcrModeButton();
   updateDeductionTraceButtons();
   drawOverlay();
   setHint(tool === "poly" ? "角を順にクリックしてから、拾い明細に反映します。" : "図面上をなぞってから、拾い明細に反映します。");
@@ -4083,6 +4326,11 @@ function resetAllHardwareTakeoffs() {
 }
 
 function handleCanvasClick(event) {
+  if (openingOcrSuppressClick) {
+    openingOcrSuppressClick = false;
+    return;
+  }
+  if (mode === "openingOcr") return;
   const point = pointFromEvent(event);
   const existing = nearestRecord(point);
   if (existing && tempPoints.length === 0 && mode === "draw") {
@@ -5308,6 +5556,10 @@ setupDropTarget(els.stageWrap);
 setupDropTarget(els.canvasArea);
 
 els.stageWrap.addEventListener("wheel", handleStageWheel, { passive: false });
+els.overlayCanvas.addEventListener("pointerdown", handleOpeningOcrPointerDown);
+els.overlayCanvas.addEventListener("pointermove", handleOpeningOcrPointerMove);
+els.overlayCanvas.addEventListener("pointerup", handleOpeningOcrPointerUp);
+els.overlayCanvas.addEventListener("pointercancel", handleOpeningOcrPointerUp);
 els.overlayCanvas.addEventListener("click", handleCanvasClick);
 els.overlayCanvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
@@ -5341,6 +5593,13 @@ document.querySelectorAll("[data-internal-finish-formula]").forEach((input) => {
 els.openingTradeInput.addEventListener("change", prepareOpeningInputs);
 document.querySelectorAll(".opening-trade-button").forEach((button) => {
   button.addEventListener("click", () => selectOpeningTrade(button.dataset.openingTrade));
+});
+els.openingOcrModeButton?.addEventListener("click", startOpeningOcrMode);
+els.clearOpeningOcrButton?.addEventListener("click", () => {
+  openingOcrResults = [];
+  renderOpeningOcrResults();
+  saveQuietly();
+  setOpeningOcrStatus("OCR建具リストをクリアしました。");
 });
 els.internalFinishTab?.addEventListener("click", () => setActiveFinishTab("internal", { persist: true }));
 els.externalFinishTab?.addEventListener("click", () => setActiveFinishTab("external", { persist: true }));
