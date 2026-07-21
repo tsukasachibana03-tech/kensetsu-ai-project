@@ -731,10 +731,24 @@ function isOpeningOcrMode() {
   return mode === "openingOcr" || mode === "openingOcrField";
 }
 
+function setOpeningOcrTargetVisual(input, active) {
+  if (!input) return;
+  input.classList.toggle("ocr-target", active);
+  input.closest(".opening-ocr-result-field")?.classList.toggle("ocr-target-field", active);
+  if (active) {
+    input.style.setProperty("border-color", "#c55735", "important");
+    input.style.setProperty("outline", "3px solid rgba(197, 87, 53, 0.32)", "important");
+    input.style.setProperty("background", "#fff0e9", "important");
+    input.style.setProperty("color", "#23333f", "important");
+  } else {
+    ["border-color", "outline", "background", "color"].forEach((property) => input.style.removeProperty(property));
+  }
+}
+
 function clearOpeningOcrFieldTarget({ resetMode = false } = {}) {
   openingOcrFieldTarget = null;
   document.querySelectorAll(".opening-ocr-result-input.ocr-target").forEach((input) => {
-    input.classList.remove("ocr-target");
+    setOpeningOcrTargetVisual(input, false);
   });
   if (resetMode && mode === "openingOcrField") mode = "draw";
   updateOpeningOcrModeButton();
@@ -744,7 +758,7 @@ function startOpeningOcrFieldMode(result, key, label, input) {
   clearOpeningOcrFieldTarget();
   openingOcrFieldTarget = { resultId: result.id, key, label };
   selectedOpeningOcrId = result.id;
-  input.classList.add("ocr-target");
+  setOpeningOcrTargetVisual(input, true);
   mode = "openingOcrField";
   tempPoints = [];
   openingOcrDragStart = null;
@@ -872,7 +886,7 @@ function renderOpeningOcrResults() {
       if (step) input.step = step;
       if (type === "number") input.min = min;
       const isCurrentOcrTarget = openingOcrFieldTarget?.resultId === result.id && openingOcrFieldTarget?.key === key;
-      input.classList.toggle("ocr-target", isCurrentOcrTarget);
+      setOpeningOcrTargetVisual(input, isCurrentOcrTarget);
       input.addEventListener("pointerdown", (event) => event.stopPropagation());
       input.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -927,7 +941,7 @@ function updateOpeningOcrModeButton() {
   if (mode !== "openingOcrField" && openingOcrFieldTarget) {
     openingOcrFieldTarget = null;
     document.querySelectorAll(".opening-ocr-result-input.ocr-target").forEach((input) => {
-      input.classList.remove("ocr-target");
+      setOpeningOcrTargetVisual(input, false);
     });
   }
   els.openingOcrModeButton?.classList.toggle("active", isOpeningOcrMode());

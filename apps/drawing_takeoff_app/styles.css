@@ -306,6 +306,11 @@ h2 { font-size: 17px; }
   background: #fff7f3;
 }
 
+.opening-ocr-result-field.ocr-target-field {
+  background: #ffe8de;
+  box-shadow: inset 0 0 0 2px #c55735;
+}
+
 .opening-ocr-result-field.emphasis .opening-ocr-result-input.ocr-target,
 .opening-ocr-result-field.emphasis .opening-ocr-result-input.ocr-target:focus {
   border-color: #ffd2c5;
