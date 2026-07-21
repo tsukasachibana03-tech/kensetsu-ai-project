@@ -4572,6 +4572,7 @@ function finishQuantityButtonLabel(selection, formula) {
   const material = finishMaterialForDisplay(selection);
   if (!material) return finishTakeoffButtonText(formula);
   const isIndependentPartition = selection.tab === "internal" && selection.key === "partitionWallSubstrate";
+  if (isIndependentPartition) return finishTakeoffButtonText(formula);
   const floor = els.floorInput.value.trim() || "未設定";
   const room = els.roomInput.value.trim() || "未設定";
   const sourceRecords = isIndependentPartition ? allProjectTakeoffRecords() : records;
