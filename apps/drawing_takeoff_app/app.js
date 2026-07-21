@@ -403,6 +403,23 @@ function openingGlassAreaM2(widthMm, heightMm, quantity = 1) {
   return width && height ? Math.round((width * height * count / 1000000) * 1000) / 1000 : 0;
 }
 
+function parseOpeningGlassThickness(rawText) {
+  const text = String(rawText || "").normalize("NFKC").replace(/ｍｍ/gi, "mm");
+  const patterns = [
+    /(?:ガラス|硝子)[^\n]{0,18}?((?:\d+(?:\.\d+)?)(?:\s*[+＋]\s*(?:A|AR)?\d+(?:\.\d+)?){1,4})/i,
+    /(?:ガラス|硝子)[^\n]{0,18}?(\d+(?:\.\d+)?)\s*(?:mm|m\s*\/\s*m|ミリ)/i,
+    /(?:厚み|厚さ|厚)\s*[:：=]?\s*(\d+(?:\.\d+)?)\s*(?:mm|m\s*\/\s*m|ミリ)?/i,
+    /\b(?:FL|PW|TP|HS)\s*[-:：]?\s*(\d+(?:\.\d+)?)\b/i
+  ];
+  for (let index = 0; index < patterns.length; index += 1) {
+    const match = text.match(patterns[index]);
+    if (!match) continue;
+    const value = String(match[1] || "").replace(/\s+/g, "").replace(/＋/g, "+");
+    return index === 0 ? value.toUpperCase() : `${value}mm`;
+  }
+  return "";
+}
+
 function parseOpeningGlassDimensions(rawText, opening = {}) {
   const glassType = String(opening.glassType || "").trim();
   const sashType = String(opening.sashType || "").normalize("NFKC");
@@ -464,6 +481,7 @@ function normalizeOpeningOcrResult(value = {}) {
     color: String(value.color || "").trim(),
     sashType: String(value.sashType || "").trim(),
     glassType: String(value.glassType || "").trim(),
+    glassThickness: String(value.glassThickness || parseOpeningGlassThickness(value.rawText)).trim(),
     widthMm,
     heightMm,
     quantity,
@@ -555,7 +573,8 @@ function parseOpeningOcrText(rawText, symbolText = "") {
     /((?:Low-?E)?(?:乳白)?(?:複層|ペア|単板|網入(?:り)?|強化|合わせ|型板|透明|防火|遮熱|断熱)?ガラス)/i,
     /(?:ガラス|硝子)\s*[:：]?\s*([^\n]{1,30})/
   ]);
-  return { symbol, location, color, sashType, glassType, ...parseOpeningOcrDimensions(text) };
+  const glassThickness = parseOpeningGlassThickness(text);
+  return { symbol, location, color, sashType, glassType, glassThickness, ...parseOpeningOcrDimensions(text) };
 }
 
 function updateOpeningOcrField(result, key, rawValue) {
@@ -588,6 +607,7 @@ function updateOpeningOcrField(result, key, rawValue) {
   }
   if (key === "glassType") {
     if (!result.glassType) {
+      result.glassThickness = "";
       result.glassWidthMm = 0;
       result.glassHeightMm = 0;
       result.glassAreaM2 = 0;
@@ -634,7 +654,8 @@ function renderOpeningOcrResults() {
       { label: "場所・部屋名", key: "location", value: result.location },
       { label: "色", key: "color", value: result.color },
       { label: "サッシ種類", key: "sashType", value: result.sashType, modifier: "wide" },
-      { label: "ガラス", key: "glassType", value: result.glassType, modifier: "wide" },
+      { label: "ガラス種類", key: "glassType", value: result.glassType, modifier: "wide", placeholder: "例：透明ガラス" },
+      { label: "ガラス厚み", key: "glassThickness", value: result.glassThickness, modifier: "wide", placeholder: "例：6.0mm / 6+A12+6" },
       { label: "幅 W", key: "widthMm", value: result.widthMm, type: "number", unit: "mm", step: "1" },
       { label: "高さ H", key: "heightMm", value: result.heightMm, type: "number", unit: "mm", step: "1" },
       { label: "個数", key: "quantity", value: result.quantity || 1, type: "number", unit: "箇所", step: "1", min: "1" },
@@ -644,7 +665,7 @@ function renderOpeningOcrResults() {
       { label: "サッシモルタル（左官工事）", key: "sashMortarLengthM", value: result.sashMortarLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" },
       { label: "コーキング（防水工事）", key: "caulkingLengthM", value: result.caulkingLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" }
     ];
-    fields.forEach(({ label, key, value, modifier = "", type = "text", unit = "", step = "", min = "0" }) => {
+    fields.forEach(({ label, key, value, modifier = "", type = "text", unit = "", step = "", min = "0", placeholder = "" }) => {
       const field = document.createElement("div");
       field.className = `opening-ocr-result-field ${modifier}`.trim();
       const labelView = document.createElement("span");
@@ -655,7 +676,7 @@ function renderOpeningOcrResults() {
       input.className = "opening-ocr-result-input";
       input.type = type;
       input.value = value || "";
-      input.placeholder = type === "number" ? "0" : "未検出";
+      input.placeholder = placeholder || (type === "number" ? "0" : "未検出");
       input.setAttribute("aria-label", label);
       if (step) input.step = step;
       if (type === "number") input.min = min;
@@ -691,7 +712,7 @@ function renderOpeningOcrResults() {
     const formula = document.createElement("p");
     formula.className = "opening-ocr-length-formula";
     formula.textContent = result.widthMm && result.heightMm
-      ? `${result.glassAreaM2 ? `ガラス: ${result.glassWidthMm.toLocaleString("ja-JP")} × ${result.glassHeightMm.toLocaleString("ja-JP")} mm × ${result.quantity || 1}箇所 / ` : ""}外周: 2 × (W + H) × 個数`
+      ? `${result.glassAreaM2 ? `ガラス: ${result.glassType || "種類未検出"}${result.glassThickness ? ` / 厚み ${result.glassThickness}` : ""} / ${result.glassWidthMm.toLocaleString("ja-JP")} × ${result.glassHeightMm.toLocaleString("ja-JP")} mm × ${result.quantity || 1}箇所 / ` : ""}外周: 2 × (W + H) × 個数`
       : "幅と高さを検出すると、ガラス面積と左官・防水の長さを自動計算します。";
     card.appendChild(formula);
     els.openingOcrResultsBody.appendChild(card);
