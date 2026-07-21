@@ -3638,7 +3638,11 @@ function setTool(nextTool) {
   updateOpeningOcrModeButton();
   updateDeductionTraceButtons();
   drawOverlay();
-  setHint(tool === "poly" ? "角を順にクリックしてから、拾い明細に反映します。" : "図面上をなぞってから、拾い明細に反映します。");
+  setHint(tool === "line"
+    ? "左クリックで点を追加し、終点を右クリックすると線を確定します。"
+    : tool === "poly"
+      ? "角を順にクリックしてから、拾い明細に反映します。"
+      : "図面上をなぞってから、拾い明細に反映します。");
 }
 
 function formulaLabel(value) {
@@ -4620,10 +4624,12 @@ function startFinishTakeoff(selection, formula) {
   if (selection.tab === "internal" && selection.key === "partitionWallSubstrate") {
     const ch = Math.max(0, finiteNumber(els.partitionWallSubstrateCHInput?.value));
     const openingDeduction = Math.max(0, finiteNumber(els.partitionWallSubstrateOpeningDeductionInput?.value));
-    setHint(`${selection.material}を「長さ × CH ${numberText(ch)}m − 開口控除 ${numberText(openingDeduction)}m²」で拾います。壁線を順になぞってください。`);
+    setHint(`${selection.material}を「長さ × CH ${numberText(ch)}m − 開口控除 ${numberText(openingDeduction)}m²」で拾います。左クリックで壁線をなぞり、終点を右クリックして確定してください。`);
     return;
   }
-  setHint(`「${selection.label}」を${finishTakeoffButtonText(formula)}で拾います。図面上をなぞってから、拾い明細に反映してください。`);
+  setHint(formula === "perimeter"
+    ? `「${selection.label}」を長さで拾います。左クリックで点を追加し、終点を右クリックして確定してください。`
+    : `「${selection.label}」を${finishTakeoffButtonText(formula)}で拾います。図面上をなぞってから、拾い明細に反映してください。`);
 }
 
 function finishTableLocation(floor = els.floorInput.value, room = els.roomInput.value) {
@@ -5326,6 +5332,9 @@ function handleCanvasClick(event) {
   }
   tempPoints.push(point);
   drawOverlay();
+  if (mode === "draw" && tool === "line") {
+    setHint(`${tempPoints.length}点目を追加しました。続けて左クリックし、終点を右クリックすると確定します。`);
+  }
 }
 
 function pendingTakeoff() {
@@ -6546,6 +6555,22 @@ els.overlayCanvas.addEventListener("click", handleCanvasClick);
 els.overlayCanvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
   if (isOpeningOcrMode()) return;
+  if (mode === "draw" && tool === "line") {
+    if (tempPoints.length === 0) {
+      setHint("最初に左クリックで始点を指定してください。終点の右クリックで線を確定します。");
+      return;
+    }
+    const searched = searchNearestDrawingLine(pointFromEvent(event));
+    if (distance(tempPoints.at(-1), searched.point) > 1) tempPoints.push(searched.point);
+    traceHoverPoint = null;
+    drawOverlay();
+    if (tempPoints.length < 2) {
+      setHint("始点と異なる位置を右クリックして、終点を指定してください。");
+      return;
+    }
+    applyTakeoffToDetails();
+    return;
+  }
   const searched = searchNearestDrawingLine(pointFromEvent(event));
   if (addTwoPointTracePoint(searched.point)) {
     if (tempPoints.length === 1) {
@@ -6553,15 +6578,6 @@ els.overlayCanvas.addEventListener("contextmenu", (event) => {
         ? "右クリックサーチで始点を図面線に合わせました。終点も右クリックで指定してください。"
         : "近くに図面線が見つかりませんでした。クリック位置を始点にしました。終点を指定してください。");
     }
-    return;
-  }
-  if (mode === "draw" && tool === "line") {
-    traceHoverPoint = null;
-    tempPoints.push(searched.point);
-    drawOverlay();
-    setHint(searched.found
-      ? `右クリックサーチで${tempPoints.length}点目を図面線に合わせました。続けて点を指定し、最後に「拾い明細に反映」を押してください。`
-      : `${tempPoints.length}点目をクリック位置に追加しました。続けて点を指定し、最後に「拾い明細に反映」を押してください。`);
     return;
   }
   applyTakeoffToDetails();
@@ -6842,7 +6858,7 @@ function undoLastContinuousTracePoint() {
   drawOverlay();
   setHint(tempPoints.length > 0
     ? `${tempPoints.length}点目まで戻しました。続けて点を指定してください。`
-    : "始点まで取り消しました。右クリックで始点をサーチしてください。");
+    : "始点まで取り消しました。左クリックで始点を指定してください。");
   return true;
 }
 
