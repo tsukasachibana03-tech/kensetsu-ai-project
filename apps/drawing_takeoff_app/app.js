@@ -396,11 +396,67 @@ function openingPerimeterLengthM(widthMm, heightMm, quantity = 1) {
   return width && height ? Math.round((2 * (width + height) * count / 1000) * 1000) / 1000 : 0;
 }
 
+function openingGlassAreaM2(widthMm, heightMm, quantity = 1) {
+  const width = Math.max(0, Number(widthMm) || 0);
+  const height = Math.max(0, Number(heightMm) || 0);
+  const count = Math.max(1, Number(quantity) || 1);
+  return width && height ? Math.round((width * height * count / 1000000) * 1000) / 1000 : 0;
+}
+
+function parseOpeningGlassDimensions(rawText, opening = {}) {
+  const glassType = String(opening.glassType || "").trim();
+  const sashType = String(opening.sashType || "").normalize("NFKC");
+  const openingWidthMm = Math.max(0, Number(opening.widthMm) || 0);
+  const openingHeightMm = Math.max(0, Number(opening.heightMm) || 0);
+  if (!glassType || !openingWidthMm || !openingHeightMm) {
+    return { glassWidthMm: 0, glassHeightMm: 0, glassIsPartial: false };
+  }
+
+  const text = String(rawText || "").normalize("NFKC").replace(/,/g, "");
+  const explicitWidth = Number(text.match(/(?:ガラス|硝子)[^\n]{0,30}(?:W|幅|巾)\s*[:：=]?\s*(\d{2,4})/i)?.[1]) || 0;
+  const explicitHeight = Number(text.match(/(?:ガラス|硝子)[^\n]{0,45}(?:H|高(?:さ)?)\s*[:：=]?\s*(\d{2,4})/i)?.[1]) || 0;
+  if (explicitWidth && explicitHeight) {
+    return {
+      glassWidthMm: explicitWidth,
+      glassHeightMm: explicitHeight,
+      glassIsPartial: explicitWidth < openingWidthMm || explicitHeight < openingHeightMm
+    };
+  }
+
+  let glassWidthMm = openingWidthMm;
+  let glassHeightMm = openingHeightMm;
+  let glassIsPartial = false;
+  if (/袖/.test(sashType)) {
+    const dimensions = Array.from(text.matchAll(/(?<!\d)(\d{3,4})(?!\d)/g), (match) => Number(match[1]))
+      .filter((value) => value >= 150 && value <= 6000);
+    const narrowWidths = dimensions.filter((value) => value < openingWidthMm * 0.5);
+    const innerHeights = dimensions.filter((value) => value < openingHeightMm && value >= openingHeightMm * 0.6);
+    if (narrowWidths.length) {
+      glassWidthMm = Math.max(...narrowWidths);
+      glassIsPartial = true;
+    }
+    if (innerHeights.length) {
+      glassHeightMm = Math.max(...innerHeights);
+      glassIsPartial = true;
+    }
+  }
+  return { glassWidthMm, glassHeightMm, glassIsPartial };
+}
+
 function normalizeOpeningOcrResult(value = {}) {
   const widthMm = Math.max(0, Number(value.widthMm) || 0);
   const heightMm = Math.max(0, Number(value.heightMm) || 0);
   const quantity = Math.max(1, Math.round(Number(value.quantity) || 1));
   const perimeterLengthM = openingPerimeterLengthM(widthMm, heightMm, quantity);
+  const parsedGlass = parseOpeningGlassDimensions(value.rawText, {
+    widthMm,
+    heightMm,
+    glassType: value.glassType,
+    sashType: value.sashType
+  });
+  const glassWidthMm = Math.max(0, Number(value.glassWidthMm) || parsedGlass.glassWidthMm);
+  const glassHeightMm = Math.max(0, Number(value.glassHeightMm) || parsedGlass.glassHeightMm);
+  const glassAreaM2 = openingGlassAreaM2(glassWidthMm, glassHeightMm, quantity);
   return {
     id: value.id || `ocr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     symbol: String(value.symbol || "").trim(),
@@ -411,6 +467,10 @@ function normalizeOpeningOcrResult(value = {}) {
     widthMm,
     heightMm,
     quantity,
+    glassWidthMm,
+    glassHeightMm,
+    glassIsPartial: Boolean(value.glassIsPartial ?? parsedGlass.glassIsPartial),
+    glassAreaM2: Math.max(0, Number(value.glassAreaM2) || glassAreaM2),
     sashMortarLengthM: Math.max(0, Number(value.sashMortarLengthM) || perimeterLengthM),
     caulkingLengthM: Math.max(0, Number(value.caulkingLengthM) || perimeterLengthM),
     sashMortarTrade: "左官工事",
@@ -498,6 +558,51 @@ function parseOpeningOcrText(rawText, symbolText = "") {
   return { symbol, location, color, sashType, glassType, ...parseOpeningOcrDimensions(text) };
 }
 
+function updateOpeningOcrField(result, key, rawValue) {
+  const numericKeys = new Set([
+    "widthMm", "heightMm", "quantity", "glassWidthMm", "glassHeightMm",
+    "glassAreaM2", "sashMortarLengthM", "caulkingLengthM"
+  ]);
+  const previousWidthMm = result.widthMm;
+  const previousHeightMm = result.heightMm;
+  const value = numericKeys.has(key)
+    ? Math.max(key === "quantity" ? 1 : 0, Number(rawValue) || 0)
+    : String(rawValue || "").trim();
+  result[key] = key === "quantity" ? Math.max(1, Math.round(value)) : value;
+
+  if (["widthMm", "heightMm", "quantity"].includes(key)) {
+    result.sashMortarLengthM = openingPerimeterLengthM(result.widthMm, result.heightMm, result.quantity);
+    result.caulkingLengthM = result.sashMortarLengthM;
+    if (!result.glassIsPartial) {
+      if (key === "widthMm" && result.glassWidthMm === previousWidthMm) result.glassWidthMm = result.widthMm;
+      if (key === "heightMm" && result.glassHeightMm === previousHeightMm) result.glassHeightMm = result.heightMm;
+    }
+    result.glassAreaM2 = openingGlassAreaM2(result.glassWidthMm, result.glassHeightMm, result.quantity);
+  }
+  if (["glassWidthMm", "glassHeightMm"].includes(key)) {
+    result.glassIsPartial = Boolean(
+      result.glassWidthMm && result.glassHeightMm &&
+      (result.glassWidthMm < result.widthMm || result.glassHeightMm < result.heightMm)
+    );
+    result.glassAreaM2 = openingGlassAreaM2(result.glassWidthMm, result.glassHeightMm, result.quantity);
+  }
+  if (key === "glassType") {
+    if (!result.glassType) {
+      result.glassWidthMm = 0;
+      result.glassHeightMm = 0;
+      result.glassAreaM2 = 0;
+      result.glassIsPartial = false;
+    } else if (!result.glassWidthMm || !result.glassHeightMm) {
+      result.glassWidthMm = result.widthMm;
+      result.glassHeightMm = result.heightMm;
+      result.glassAreaM2 = openingGlassAreaM2(result.glassWidthMm, result.glassHeightMm, result.quantity);
+    }
+  }
+  saveQuietly();
+  renderOpeningOcrResults();
+  setOpeningOcrStatus(`${result.symbol || "OCRカード"}を修正し、自動保存しました。`);
+}
+
 function renderOpeningOcrResults() {
   if (!els.openingOcrResultsBody) return;
   if (!openingOcrResults.some((result) => result.id === selectedOpeningOcrId)) selectedOpeningOcrId = "";
@@ -525,32 +630,69 @@ function renderOpeningOcrResults() {
       selectCard();
     });
     const fields = [
-      ["符号", result.symbol || "未検出", "emphasis"],
-      ["場所・部屋名", result.location || "未検出"],
-      ["色", result.color || "未検出"],
-      ["サッシ種類", result.sashType || "未検出", "wide"],
-      ["ガラス", result.glassType || "未検出", "wide"],
-      ["幅 W", result.widthMm ? `${result.widthMm.toLocaleString("ja-JP")} mm` : "未検出"],
-      ["高さ H", result.heightMm ? `${result.heightMm.toLocaleString("ja-JP")} mm` : "未検出"],
-      ["個数", `${result.quantity || 1} 箇所`],
-      ["サッシモルタル（左官工事）", result.sashMortarLengthM ? `${numberText(result.sashMortarLengthM, 2)} m` : "寸法未検出", "trade"],
-      ["コーキング（防水工事）", result.caulkingLengthM ? `${numberText(result.caulkingLengthM, 2)} m` : "寸法未検出", "trade"]
+      { label: "符号", key: "symbol", value: result.symbol, modifier: "emphasis" },
+      { label: "場所・部屋名", key: "location", value: result.location },
+      { label: "色", key: "color", value: result.color },
+      { label: "サッシ種類", key: "sashType", value: result.sashType, modifier: "wide" },
+      { label: "ガラス", key: "glassType", value: result.glassType, modifier: "wide" },
+      { label: "幅 W", key: "widthMm", value: result.widthMm, type: "number", unit: "mm", step: "1" },
+      { label: "高さ H", key: "heightMm", value: result.heightMm, type: "number", unit: "mm", step: "1" },
+      { label: "個数", key: "quantity", value: result.quantity || 1, type: "number", unit: "箇所", step: "1", min: "1" },
+      { label: "ガラス幅 W", key: "glassWidthMm", value: result.glassWidthMm, type: "number", unit: "mm", step: "1" },
+      { label: "ガラス高さ H", key: "glassHeightMm", value: result.glassHeightMm, type: "number", unit: "mm", step: "1" },
+      { label: `ガラス面積（ガラス工事）${result.glassIsPartial ? "・部分" : ""}`, key: "glassAreaM2", value: result.glassAreaM2, type: "number", unit: "㎡", step: "0.01", modifier: "trade" },
+      { label: "サッシモルタル（左官工事）", key: "sashMortarLengthM", value: result.sashMortarLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" },
+      { label: "コーキング（防水工事）", key: "caulkingLengthM", value: result.caulkingLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" }
     ];
-    fields.forEach(([label, value, modifier = ""]) => {
+    fields.forEach(({ label, key, value, modifier = "", type = "text", unit = "", step = "", min = "0" }) => {
       const field = document.createElement("div");
       field.className = `opening-ocr-result-field ${modifier}`.trim();
       const labelView = document.createElement("span");
       labelView.textContent = label;
-      const valueView = document.createElement("strong");
-      valueView.textContent = value;
-      field.append(labelView, valueView);
+      const editRow = document.createElement("div");
+      editRow.className = "opening-ocr-edit-row";
+      const input = document.createElement("input");
+      input.className = "opening-ocr-result-input";
+      input.type = type;
+      input.value = value || "";
+      input.placeholder = type === "number" ? "0" : "未検出";
+      input.setAttribute("aria-label", label);
+      if (step) input.step = step;
+      if (type === "number") input.min = min;
+      ["click", "pointerdown"].forEach((eventName) => {
+        input.addEventListener(eventName, (event) => event.stopPropagation());
+      });
+      let committedValue = String(input.value);
+      const commitEdit = () => {
+        if (String(input.value) === committedValue) return;
+        committedValue = String(input.value);
+        updateOpeningOcrField(result, key, input.value);
+      };
+      input.addEventListener("keydown", (event) => {
+        event.stopPropagation();
+        if (event.key === "Enter") commitEdit();
+      });
+      let editTimer = 0;
+      input.addEventListener("input", () => {
+        window.clearTimeout(editTimer);
+        editTimer = window.setTimeout(commitEdit, 800);
+      });
+      input.addEventListener("change", commitEdit);
+      input.addEventListener("blur", commitEdit);
+      editRow.appendChild(input);
+      if (unit) {
+        const unitView = document.createElement("small");
+        unitView.textContent = unit;
+        editRow.appendChild(unitView);
+      }
+      field.append(labelView, editRow);
       card.appendChild(field);
     });
     const formula = document.createElement("p");
     formula.className = "opening-ocr-length-formula";
     formula.textContent = result.widthMm && result.heightMm
-      ? `外周計算: 2 × (${result.widthMm.toLocaleString("ja-JP")} + ${result.heightMm.toLocaleString("ja-JP")}) mm × ${result.quantity || 1}箇所`
-      : "幅と高さを検出すると、左官・防水の長さを自動計算します。";
+      ? `${result.glassAreaM2 ? `ガラス: ${result.glassWidthMm.toLocaleString("ja-JP")} × ${result.glassHeightMm.toLocaleString("ja-JP")} mm × ${result.quantity || 1}箇所 / ` : ""}外周: 2 × (W + H) × 個数`
+      : "幅と高さを検出すると、ガラス面積と左官・防水の長さを自動計算します。";
     card.appendChild(formula);
     els.openingOcrResultsBody.appendChild(card);
   });
