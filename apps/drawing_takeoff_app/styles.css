@@ -329,6 +329,12 @@ h2 { font-size: 17px; }
   background: #eef8f7;
 }
 
+.opening-ocr-result-field.overview {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(23, 105, 111, 0.2);
+  background: #f4faf9;
+}
+
 .opening-ocr-length-formula {
   grid-column: 1 / -1;
   margin: 0;
