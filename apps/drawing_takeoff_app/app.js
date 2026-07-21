@@ -5011,19 +5011,43 @@ function finishScaleCheck() {
   drawOverlay();
 }
 
+function pointToSegmentDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return distance(point, start);
+  const ratio = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return distance(point, {
+    x: start.x + ratio * dx,
+    y: start.y + ratio * dy
+  });
+}
+
+function recordLineDistance(record, point) {
+  const points = Array.isArray(record?.points) ? record.points : [];
+  if (points.length === 0) return Infinity;
+  if (points.length === 1 || record.shape === "count") return distance(point, points[0]);
+  let bestDistance = Infinity;
+  const segmentCount = record.shape === "line" ? points.length - 1 : points.length;
+  for (let index = 0; index < segmentCount; index += 1) {
+    const segmentDistance = pointToSegmentDistance(point, points[index], points[(index + 1) % points.length]);
+    bestDistance = Math.min(bestDistance, segmentDistance);
+  }
+  return bestDistance;
+}
+
 function nearestRecord(point) {
   let best = null;
   let bestDistance = Infinity;
-  records.filter((record) => record.page === currentPage).forEach((record) => {
-    record.points.forEach((recordPoint) => {
-      const d = distance(point, recordPoint);
-      if (d < bestDistance) {
-        best = record;
-        bestDistance = d;
-      }
-    });
+  [...records].reverse().filter((record) => record.page === currentPage).forEach((record) => {
+    const recordDistance = recordLineDistance(record, point);
+    if (recordDistance < bestDistance) {
+      best = record;
+      bestDistance = recordDistance;
+    }
   });
-  return bestDistance < 16 ? best : null;
+  const selectionDistance = 14 / Math.max(zoom, 0.35);
+  return bestDistance <= selectionDistance ? best : null;
 }
 
 function deductionRecordLabel(kind) {
@@ -5301,7 +5325,7 @@ function handleCanvasClick(event) {
     overwriteSelectedRecord = true;
     renderRecords();
     drawOverlay();
-    setHint("選択した拾い明細をなぞり直して、拾い明細に反映すると上書きできます。");
+    setHint("なぞり線を選択しました。「選択削除」でこの線だけを削除できます。なぞり直して反映すると上書きもできます。");
     return;
   }
 
@@ -5409,7 +5433,7 @@ function renderRecords() {
       currentPage = record.page;
       renderDrawing();
       renderRecords();
-      setHint("選択した拾い明細をなぞり直して、拾い明細に反映すると上書きできます。");
+      setHint("なぞり線を選択しました。「選択削除」でこの線だけを削除できます。なぞり直して反映すると上書きもできます。");
     });
     els.recordsBody.appendChild(tr);
   });
