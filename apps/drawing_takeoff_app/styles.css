@@ -1023,14 +1023,16 @@ select:focus {
   align-items: end;
 }
 
-.partition-substrate-ch > div {
+.partition-substrate-ch > div,
+.partition-substrate-opening > div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 5px;
   align-items: center;
 }
 
-.partition-substrate-ch input {
+.partition-substrate-ch input,
+.partition-substrate-opening input {
   min-height: 34px;
 }
 
