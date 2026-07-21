@@ -82,6 +82,7 @@ const els = {
   traceDeductAreaButton: document.getElementById("traceDeductAreaButton"),
   memoInput: document.getElementById("memoInput"),
   finishPolyButton: document.getElementById("finishPolyButton"),
+  undoLastTakeoffButton: document.getElementById("undoLastTakeoffButton"),
   clearTempButton: document.getElementById("clearTempButton"),
   deleteSelectedButton: document.getElementById("deleteSelectedButton"),
   saveProjectButton: document.getElementById("saveProjectButton"),
@@ -204,7 +205,7 @@ const internalFinishFormulaDefaults = {
   wallSubstrate: "wall",
   partitionWall: "wall",
   partitionWallBacking: "wall",
-  partitionWallSubstrate: "wall",
+  partitionWallSubstrate: "perimeter",
   plywoodReinforcement: "floor",
   exteriorWainscotUpperFinish: "wall",
   exteriorWainscotUpperSubstrate: "wall",
@@ -243,6 +244,7 @@ let scaleCheckResult = null;
 let records = [];
 let selectedId = "";
 let overwriteSelectedRecord = false;
+let lastConfirmedTakeoff = null;
 let scale = null;
 let drawingEntries = [];
 let activeDrawingId = "";
@@ -4493,7 +4495,8 @@ function finishQuantityButtonLabel(selection, formula) {
     record.floor === floor &&
     record.room === room &&
     record.part === selection.label &&
-    record.material === material
+    record.material === material &&
+    record.unit === unitForFormula(formula)
   ));
   if (matching.length === 0) return finishTakeoffButtonText(formula);
   const quantity = matching.reduce((sum, record) => sum + finiteNumber(record.quantity), 0);
@@ -4535,6 +4538,10 @@ function startFinishTakeoff(selection, formula) {
   }
   els.formulaInput.value = formula;
   setTool(toolForFinishFormula(formula));
+  if (selection.tab === "internal" && selection.key === "partitionWallSubstrate") {
+    setHint("間仕切壁下地は囲わず、壁線を順になぞって長さを合計します。各点は右クリックでサーチし、最後に「拾い明細に反映」を押してください。");
+    return;
+  }
   setHint(`「${selection.label}」を${finishTakeoffButtonText(formula)}で拾います。図面上をなぞってから、拾い明細に反映してください。`);
 }
 
@@ -4748,8 +4755,14 @@ function calculateQuantity(points, shape) {
     if (disabledReason) {
       return { quantity: 0, unit: "m", expression: disabledReason, metrics };
     }
-    const quantity = Math.max(0, (shape === "line" ? lineM : perimeterM) - deductLength);
-    return { quantity, unit: "m", expression: `周長 ${numberText(perimeterM)} - 控除 ${numberText(deductLength)}`, metrics };
+    const tracedLengthM = shape === "line" ? lineM : perimeterM;
+    const isPartitionWallSubstrate = activeFinishTab === "internal" && currentFinishSelection().key === "partitionWallSubstrate";
+    const appliedDeduction = isPartitionWallSubstrate ? 0 : deductLength;
+    const quantity = Math.max(0, tracedLengthM - appliedDeduction);
+    const expression = isPartitionWallSubstrate
+      ? `長さ合計 ${numberText(tracedLengthM)}`
+      : `${shape === "line" ? "長さ" : "周長"} ${numberText(tracedLengthM)} - 控除 ${numberText(appliedDeduction)}`;
+    return { quantity, unit: "m", expression, metrics };
   }
   if (formula === "wall") {
     const quantity = Math.max(0, perimeterM * height - deductArea);
@@ -4771,6 +4784,7 @@ function createRecord(points, shape) {
   if (!finish) return;
   const existingIndex = overwriteSelectedRecord ? records.findIndex((record) => record.id === selectedId) : -1;
   const existing = existingIndex >= 0 ? records[existingIndex] : null;
+  const previousRecord = existing ? cloneRecords([existing])[0] : null;
   const price = existing?.price || 0;
   const part = finish.label;
   const material = finish.material;
@@ -4812,6 +4826,11 @@ function createRecord(points, shape) {
   };
   if (existingIndex >= 0) records[existingIndex] = record;
   else records.push(record);
+  lastConfirmedTakeoff = {
+    drawingId: activeDrawingId,
+    recordId: record.id,
+    previousRecord
+  };
   addMaterialSuggestion(record.material, { persist: false });
   updateRoomSettingFromRecord(record, calc);
   selectedId = record.id;
@@ -4819,6 +4838,7 @@ function createRecord(points, shape) {
   tempPoints = [];
   saveQuietly();
   renderRecords();
+  updateUndoLastTakeoffButton();
   drawOverlay();
   setHint(existing ? "選択した拾い明細を上書きしました。" : "拾い明細に登録しました。");
 }
@@ -6175,6 +6195,7 @@ async function loadDrawingEntry(entry) {
   scale = entry.scale ? { ...entry.scale } : null;
   syncScaleInputsFromScale(scale);
   selectedId = "";
+  setUndoToLatestRecord();
   tempPoints = [];
   scaleCheckResult = null;
   if (mode === "scaleCheck") mode = "draw";
@@ -6290,9 +6311,52 @@ function deleteSelected() {
   resetHardwareTakeoffForRecord(removed);
   selectedId = "";
   overwriteSelectedRecord = false;
+  if (lastConfirmedTakeoff?.recordId === removed?.id) setUndoToLatestRecord();
+  saveQuietly();
+  renderRecords();
+  updateUndoLastTakeoffButton();
+  drawOverlay();
+}
+
+function updateUndoLastTakeoffButton() {
+  if (!els.undoLastTakeoffButton) return;
+  const canUndo = Boolean(
+    lastConfirmedTakeoff &&
+    lastConfirmedTakeoff.drawingId === activeDrawingId &&
+    records.some((record) => record.id === lastConfirmedTakeoff.recordId)
+  );
+  els.undoLastTakeoffButton.disabled = !canUndo;
+}
+
+function setUndoToLatestRecord() {
+  const latest = records.at(-1);
+  lastConfirmedTakeoff = latest
+    ? { drawingId: activeDrawingId, recordId: latest.id, previousRecord: null }
+    : null;
+  updateUndoLastTakeoffButton();
+}
+
+function undoLastConfirmedTakeoff() {
+  if (!lastConfirmedTakeoff || lastConfirmedTakeoff.drawingId !== activeDrawingId) return;
+  const undo = lastConfirmedTakeoff;
+  const index = records.findIndex((record) => record.id === undo.recordId);
+  if (index < 0) {
+    lastConfirmedTakeoff = null;
+    updateUndoLastTakeoffButton();
+    return;
+  }
+  const removed = records[index];
+  if (undo.previousRecord) records[index] = cloneRecords([undo.previousRecord])[0];
+  else records.splice(index, 1);
+  applyDeductionRecordDelta(removed, -1);
+  resetHardwareTakeoffForRecord(removed);
+  selectedId = undo.previousRecord?.id || "";
+  overwriteSelectedRecord = Boolean(undo.previousRecord);
+  setUndoToLatestRecord();
   saveQuietly();
   renderRecords();
   drawOverlay();
+  setHint("直前に確定した面積・長さを取り消しました。");
 }
 
 function clampZoom(value) {
@@ -6402,18 +6466,15 @@ els.overlayCanvas.addEventListener("contextmenu", (event) => {
     traceHoverPoint = null;
     tempPoints.push(searched.point);
     drawOverlay();
-    if (tempPoints.length === 1) {
-      setHint(searched.found
-        ? "右クリックサーチで始点を図面線に合わせました。途中点は左クリック、終点は右クリックしてください。"
-        : "クリック位置を始点にしました。途中点は左クリック、終点は右クリックしてください。");
-    } else {
-      applyTakeoffToDetails();
-    }
+    setHint(searched.found
+      ? `右クリックサーチで${tempPoints.length}点目を図面線に合わせました。続けて点を指定し、最後に「拾い明細に反映」を押してください。`
+      : `${tempPoints.length}点目をクリック位置に追加しました。続けて点を指定し、最後に「拾い明細に反映」を押してください。`);
     return;
   }
   applyTakeoffToDetails();
 });
 els.finishPolyButton.addEventListener("click", applyTakeoffToDetails);
+els.undoLastTakeoffButton?.addEventListener("click", undoLastConfirmedTakeoff);
 els.calibrateButton.addEventListener("click", () => {
   mode = "calibrate";
   tempPoints = [];
@@ -6689,10 +6750,12 @@ els.clearAllButton.addEventListener("click", () => {
   if (!confirm("拾い明細をすべて消去しますか？")) return;
   records.forEach((record) => applyDeductionRecordDelta(record, -1));
   records = [];
+  lastConfirmedTakeoff = null;
   resetAllHardwareTakeoffs();
   selectedId = "";
   saveQuietly();
   renderRecords();
+  updateUndoLastTakeoffButton();
   drawOverlay();
 });
 els.saveProjectButton.addEventListener("click", () => {
