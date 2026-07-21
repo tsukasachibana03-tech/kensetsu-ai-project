@@ -235,6 +235,21 @@ h2 { font-size: 17px; }
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfdfd;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.opening-ocr-result-card:hover,
+.opening-ocr-result-card:focus-visible {
+  border-color: rgba(23, 105, 111, 0.55);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(23, 105, 111, 0.12);
+}
+
+.opening-ocr-result-card.selected {
+  border: 2px solid #c55735;
+  background: #fff8f5;
+  box-shadow: 0 0 0 3px rgba(197, 87, 53, 0.14);
 }
 
 .opening-ocr-result-field {
