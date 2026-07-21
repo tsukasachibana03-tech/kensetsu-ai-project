@@ -85,6 +85,7 @@ const els = {
   traceDeductAreaButton: document.getElementById("traceDeductAreaButton"),
   memoInput: document.getElementById("memoInput"),
   finishPolyButton: document.getElementById("finishPolyButton"),
+  traceBackButton: document.getElementById("traceBackButton"),
   undoLastTakeoffButton: document.getElementById("undoLastTakeoffButton"),
   clearTempButton: document.getElementById("clearTempButton"),
   deleteSelectedButton: document.getElementById("deleteSelectedButton"),
@@ -435,6 +436,7 @@ function drawOverlay() {
   drawTemp();
   drawOpeningOcrSelection();
   renderPartitionWallSubstrateTotals();
+  updateTraceBackButton();
 }
 
 function drawOpeningOcrSelection() {
@@ -6428,6 +6430,18 @@ function updateUndoLastTakeoffButton() {
     records.some((record) => record.id === lastConfirmedTakeoff.recordId)
   );
   els.undoLastTakeoffButton.disabled = !canUndo;
+  updateTraceBackButton();
+}
+
+function updateTraceBackButton() {
+  if (!els.traceBackButton) return;
+  const canUndoPoint = mode === "draw" && tool === "line" && tempPoints.length > 0;
+  const canUndoConfirmed = Boolean(
+    lastConfirmedTakeoff &&
+    lastConfirmedTakeoff.drawingId === activeDrawingId &&
+    records.some((record) => record.id === lastConfirmedTakeoff.recordId)
+  );
+  els.traceBackButton.disabled = !(canUndoPoint || canUndoConfirmed);
 }
 
 function setUndoToLatestRecord() {
@@ -6583,6 +6597,10 @@ els.overlayCanvas.addEventListener("contextmenu", (event) => {
   applyTakeoffToDetails();
 });
 els.finishPolyButton.addEventListener("click", applyTakeoffToDetails);
+els.traceBackButton?.addEventListener("click", () => {
+  if (undoLastContinuousTracePoint()) return;
+  undoLastConfirmedTakeoff();
+});
 els.undoLastTakeoffButton?.addEventListener("click", undoLastConfirmedTakeoff);
 els.calibrateButton.addEventListener("click", () => {
   mode = "calibrate";
