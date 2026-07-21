@@ -405,19 +405,31 @@ function openingGlassAreaM2(widthMm, heightMm, quantity = 1) {
   return width && height ? Math.round((width * height * count / 1000000) * 1000) / 1000 : 0;
 }
 
-function openingDeductionUsesHalfWidth(sashType = "") {
+function openingDeductionWidthRule(sashType = "") {
   const type = String(sashType || "")
     .normalize("NFKC")
     .replace(/[ \t\u3000]+/g, "")
     .replace(/片引キ/g, "片引き");
-  return /(?:片引(?:き)?|一本引(?:き)?)/.test(type);
+  const pocketDoorMatch = type.match(/([1-4])枚引(?:き)?込(?:み)?戸?/)
+    || type.match(/([1-4])枚引(?:き)?戸.*戸袋/);
+  if (pocketDoorMatch) {
+    const panels = Number(pocketDoorMatch[1]);
+    return {
+      factor: panels / (panels + 1),
+      formula: `W ÷ ${panels + 1} × ${panels} × H`
+    };
+  }
+  if (/(?:片引(?:き)?|一本引(?:き)?)/.test(type)) {
+    return { factor: 0.5, formula: "W ÷ 2 × H" };
+  }
+  return { factor: 1, formula: "W × H" };
 }
 
 function openingDeductionAreaM2(widthMm, heightMm, sashType = "") {
   const width = Math.max(0, Number(widthMm) || 0);
   const height = Math.max(0, Number(heightMm) || 0);
-  const widthFactor = openingDeductionUsesHalfWidth(sashType) ? 0.5 : 1;
-  return width && height ? Math.round((width * widthFactor * height / 1000000) * 1000) / 1000 : 0;
+  const { factor } = openingDeductionWidthRule(sashType);
+  return width && height ? Math.round((width * factor * height / 1000000) * 1000) / 1000 : 0;
 }
 
 function parseOpeningGlassThickness(rawText) {
@@ -1054,7 +1066,7 @@ function renderOpeningOcrResults() {
       ? `ガラス: ${result.glassType || "種類未検出"}${result.glassThickness ? ` / 厚み ${result.glassThickness}` : ""} / ${result.glassWidthMm.toLocaleString("ja-JP")} × ${result.glassHeightMm.toLocaleString("ja-JP")} mm × ${result.quantity || 1}箇所`
       : "";
     const deductionFormula = result.widthMm && result.heightMm
-      ? `開口控除（1個分）: ${openingDeductionUsesHalfWidth(result.sashType) ? "W ÷ 2 × H" : "W × H"} = ${numberText(result.openingDeductionAreaM2)}㎡ ※個数は掛けません`
+      ? `開口控除（1個分）: ${openingDeductionWidthRule(result.sashType).formula} = ${numberText(result.openingDeductionAreaM2)}㎡ ※個数は掛けません`
       : "開口控除は幅と高さを検出すると自動計算します（1個分）。";
     formula.textContent = isWoodOpening
       ? `${deductionFormula}${glassFormula ? ` / ${glassFormula}` : ""} / 木建具のため、モルタルとコーキングは計上しません。`
