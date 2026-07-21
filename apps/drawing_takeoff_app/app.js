@@ -1458,6 +1458,7 @@ function isHardwareLengthTraceMode() {
 function updateModeButtons() {
   if (els.traceDeductLengthButton) els.traceDeductLengthButton.classList.toggle("active", mode === "deductLength");
   if (els.traceDeductAreaButton) els.traceDeductAreaButton.classList.toggle("active", mode === "deductArea");
+  if (els.calibrateButton) els.calibrateButton.classList.toggle("active", mode === "calibrate");
   if (els.scaleCheckButton) els.scaleCheckButton.classList.toggle("active", mode === "scaleCheck");
   els.hardwareFinishRows?.querySelectorAll("[data-hardware-trace]").forEach((button) => {
     button.classList.toggle("active", isHardwareLengthTraceMode() && button.dataset.hardwareTrace === activeHardwareLengthItemId);
@@ -4775,11 +4776,11 @@ function finishCalibration() {
   scale = { pxPerMeter: px / realLength, realLength, realLengthInput, unit, measuredPx: px };
   tempPoints = [];
   scaleCheckResult = null;
-  mode = "draw";
+  mode = "calibrate";
   updateModeButtons();
   syncScaleInputsFromScale(scale);
   updateScaleStatus();
-  setHint("この図面の縮尺を設定しました。図面を切り替えても、それぞれ別の縮尺を保存できます。");
+  setHint("この図面の縮尺を設定しました。次の図面へ移動して、そのまま2点をクリックすると縮尺を設定できます。");
   saveQuietly();
   drawOverlay();
 }
@@ -5457,7 +5458,10 @@ async function loadDrawing(file, options = {}) {
   } else {
     throw new Error("PDF、画像、保存JSONを読み込めます。対応していないファイル形式です。");
   }
-  setHint("図面を読み込みました。最初に縮尺を2点で設定してください。");
+  setHint(mode === "calibrate"
+    ? "この図面も縮尺設定の対象です。実寸がわかる寸法線の両端を2点クリックしてください。"
+    : "図面を読み込みました。最初に縮尺を2点で設定してください。");
+  updateModeButtons();
   await renderDrawing();
   saveQuietly();
 }
@@ -6098,7 +6102,10 @@ async function loadDrawingEntry(entry) {
   scale = entry.scale ? { ...entry.scale } : null;
   syncScaleInputsFromScale(scale);
   selectedId = "";
+  tempPoints = [];
   scaleCheckResult = null;
+  if (mode === "scaleCheck") mode = "draw";
+  updateModeButtons();
   currentPage = entry.currentPage || 1;
   updateScaleStatus();
   renderRecords();
