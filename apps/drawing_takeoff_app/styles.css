@@ -363,6 +363,18 @@ h2 { font-size: 17px; }
   text-align: right;
 }
 
+.opening-ocr-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 14px 10px;
+  border: 1px dashed #afc4c8;
+  border-radius: 7px;
+  color: var(--muted);
+  background: #f7fafb;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .file-drop {
   display: grid;
   gap: 5px;

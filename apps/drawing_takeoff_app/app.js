@@ -100,6 +100,7 @@ const els = {
   openingOcrModeButton: document.getElementById("openingOcrModeButton"),
   openingOcrStatus: document.getElementById("openingOcrStatus"),
   openingOcrResultsBody: document.getElementById("openingOcrResultsBody"),
+  openingOcrListTitle: document.getElementById("openingOcrListTitle"),
   clearOpeningOcrButton: document.getElementById("clearOpeningOcrButton"),
   recordCountView: document.getElementById("recordCountView"),
   quantityTotalView: document.getElementById("quantityTotalView"),
@@ -521,6 +522,21 @@ function parseOpeningGlassDimensions(rawText, opening = {}) {
   return { glassWidthMm, glassHeightMm, glassIsPartial };
 }
 
+function classifyOpeningOcrTrade(value = {}) {
+  const explicit = openingTradeName(value.trade || value.estimateTrade);
+  if (explicit === "金属製建具" || explicit === "木建具") return explicit;
+  const symbol = String(value.symbol || "").normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const text = normalizeSearchText([
+    value.symbol,
+    value.sashType,
+    value.rawText,
+    value.drawingName
+  ].filter(Boolean).join(" "));
+  if (/(?:WD|WW)\d/.test(symbol) || /木製|木建具|木製建具|木扉|木枠|木ドア/.test(text)) return "木建具";
+  if (/(?:AD|AW|AE|SD|SW|FD|FW)\d/.test(symbol) || /金属|鋼製|アルミ|サッシ|スチール|ステン|SUS/.test(text)) return "金属製建具";
+  return "";
+}
+
 function normalizeOpeningOcrResult(value = {}) {
   const symbolManual = Boolean(value.symbolManual);
   const parsedSymbol = parseOpeningOcrSymbolText(value.rawText);
@@ -551,6 +567,10 @@ function normalizeOpeningOcrResult(value = {}) {
   const glassAreaM2 = openingGlassAreaM2(glassWidthMm, glassHeightMm, quantity);
   const glassThicknessManual = Boolean(value.glassThicknessManual);
   const hardwareInfoManual = Boolean(value.hardwareInfoManual);
+  const tradeManual = Boolean(value.tradeManual);
+  const trade = tradeManual
+    ? openingTradeName(value.trade)
+    : classifyOpeningOcrTrade({ ...value, symbol, sashType });
   return {
     id: value.id || `ocr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     symbol,
@@ -564,6 +584,8 @@ function normalizeOpeningOcrResult(value = {}) {
     glassThicknessManual,
     hardwareInfo: String(hardwareInfoManual ? (value.hardwareInfo || "") : (value.hardwareInfo || parseOpeningHardwareInfo(value.rawText))).trim(),
     hardwareInfoManual,
+    trade,
+    tradeManual,
     widthMm,
     heightMm,
     dimensionsManual,
@@ -791,6 +813,9 @@ function updateOpeningOcrField(result, key, rawValue) {
   if (key === "hardwareInfo") result.hardwareInfoManual = true;
   if (key === "sashMortarLengthM") result.sashMortarLengthManual = true;
   if (key === "caulkingLengthM") result.caulkingLengthManual = true;
+  if (["symbol", "sashType"].includes(key) && !result.tradeManual) {
+    result.trade = classifyOpeningOcrTrade(result);
+  }
 
   if (["widthMm", "heightMm", "quantity"].includes(key)) {
     result.sashMortarLengthM = openingPerimeterLengthM(result.widthMm, result.heightMm, result.quantity);
@@ -828,9 +853,24 @@ function updateOpeningOcrField(result, key, rawValue) {
 
 function renderOpeningOcrResults() {
   if (!els.openingOcrResultsBody) return;
-  if (!openingOcrResults.some((result) => result.id === selectedOpeningOcrId)) selectedOpeningOcrId = "";
+  const activeTrade = openingTradeName(els.openingTradeInput.value);
+  const visibleResults = activeTrade
+    ? openingOcrResults.filter((result) => classifyOpeningOcrTrade(result) === activeTrade)
+    : [];
+  if (!visibleResults.some((result) => result.id === selectedOpeningOcrId)) selectedOpeningOcrId = "";
+  if (els.openingOcrListTitle) {
+    els.openingOcrListTitle.textContent = activeTrade ? `${activeTrade} OCRリスト（${visibleResults.length}件）` : "OCR建具リスト";
+  }
   els.openingOcrResultsBody.replaceChildren();
-  openingOcrResults.forEach((result) => {
+  if (!activeTrade || visibleResults.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "opening-ocr-empty";
+    empty.textContent = activeTrade
+      ? `${activeTrade}のOCR建具はまだありません。`
+      : "「金属製建具を拾う」または「木建具を拾う」を押すと、該当するOCRリストが表示されます。";
+    els.openingOcrResultsBody.appendChild(empty);
+  }
+  visibleResults.forEach((result) => {
     const card = document.createElement("article");
     card.className = "opening-ocr-result-card";
     card.classList.toggle("selected", result.id === selectedOpeningOcrId);
@@ -1110,6 +1150,8 @@ async function runOpeningOcr(rect) {
     ].filter(Boolean).join("\n\n");
     const openingOcrResult = normalizeOpeningOcrResult({
       ...parsed,
+      trade: openingTradeName(els.openingTradeInput.value),
+      tradeManual: Boolean(openingTradeName(els.openingTradeInput.value)),
       rawText: storedRawText,
       drawingName: drawingFileName,
       page: currentPage,
@@ -2634,6 +2676,9 @@ function selectOpeningTrade(value) {
   els.formulaInput.value = "count";
   setTool("count");
   prepareOpeningInputs();
+  renderOpeningOcrResults();
+  const visibleCount = openingOcrResults.filter((result) => classifyOpeningOcrTrade(result) === trade).length;
+  setOpeningOcrStatus(`${trade}のOCR建具リストを表示しました（${visibleCount}件）。`);
 }
 
 function classifyOpeningTrade(record, drawingName = "") {
