@@ -66,6 +66,8 @@ const els = {
   wallTypeInput: document.getElementById("wallTypeInput"),
   wallSubstrateInput: document.getElementById("wallSubstrateInput"),
   ceilingSubstrateInput: document.getElementById("ceilingSubstrateInput"),
+  partitionWallSubstrateCHInput: document.getElementById("partitionWallSubstrateCHInput"),
+  partitionWallSubstrateTotals: document.getElementById("partitionWallSubstrateTotals"),
   heightInput: document.getElementById("heightInput"),
   baseboardInput: document.getElementById("baseboardInput"),
   baseboardMenuButton: document.getElementById("baseboardMenuButton"),
@@ -220,6 +222,12 @@ const internalFinishFormulaDefaults = {
   ceilingTrim: "perimeter"
 };
 const sharedInternalFinishKeys = new Set(["partitionWallSubstrate"]);
+const partitionWallSubstrateMaterials = ["木下地", "軽鉄下地", "GL工法"];
+const partitionWallSubstrateColors = {
+  "木下地": "#27865f",
+  "軽鉄下地": "#2f6fb5",
+  "GL工法": "#d97706"
+};
 const finishFormulaOptionLabels = {
   floor: "面積",
   perimeter: "長さ",
@@ -425,6 +433,7 @@ function drawOverlay() {
   drawScaleCheckResult();
   drawTemp();
   drawOpeningOcrSelection();
+  renderPartitionWallSubstrateTotals();
 }
 
 function drawOpeningOcrSelection() {
@@ -1387,9 +1396,63 @@ function handleOpeningOcrPointerUp(event) {
   });
 }
 
+function isPartitionWallSubstrateRecord(record) {
+  return record?.part === "間仕切壁 下地" && partitionWallSubstrateMaterials.includes(record.material);
+}
+
+function partitionWallSubstrateColor(material) {
+  return partitionWallSubstrateColors[material] || "#27865f";
+}
+
+function activePartitionWallSubstrateMaterial() {
+  if (activeFinishTab !== "internal" || activeInternalFinishKey !== "partitionWallSubstrate") return "";
+  return normalizeWallSubstrateValue(internalFinishValue("partitionWallSubstrate"), { partition: true });
+}
+
+function allProjectTakeoffRecords() {
+  if (drawingEntries.length === 0) return records;
+  const activeFound = drawingEntries.some((entry) => entry.id === activeDrawingId);
+  const savedRecords = drawingEntries.flatMap((entry) => (
+    entry.id === activeDrawingId ? records : (entry.records || [])
+  ));
+  return activeFound ? savedRecords : [...savedRecords, ...records];
+}
+
+function temporaryPartitionWallSubstrateLength() {
+  if (!scale || mode !== "draw" || tool !== "line" || tempPoints.length < 2) return 0;
+  if (!activePartitionWallSubstrateMaterial()) return 0;
+  return polygonLength(tempPoints, false) / scale.pxPerMeter;
+}
+
+function renderPartitionWallSubstrateTotals() {
+  if (!els.partitionWallSubstrateTotals) return;
+  const activeMaterial = activePartitionWallSubstrateMaterial();
+  const temporaryLength = temporaryPartitionWallSubstrateLength();
+  const confirmedTotals = Object.fromEntries(partitionWallSubstrateMaterials.map((material) => [material, 0]));
+  allProjectTakeoffRecords().forEach((record) => {
+    if (!isPartitionWallSubstrateRecord(record) || record.recordType === "deduction" || record.unit !== "m") return;
+    confirmedTotals[record.material] += finiteNumber(record.quantity);
+  });
+  partitionWallSubstrateMaterials.forEach((material) => {
+    const row = els.partitionWallSubstrateTotals.querySelector(`[data-partition-substrate-total="${material}"]`);
+    const value = confirmedTotals[material] + (material === activeMaterial ? temporaryLength : 0);
+    const live = material === activeMaterial && temporaryLength > 0
+      ? `（拾い中 +${numberText(temporaryLength)}m）`
+      : "";
+    const output = row?.querySelector("strong");
+    if (output) output.textContent = `${numberText(value)}m${live}`;
+  });
+}
+
 function drawRecord(record) {
   if (!Array.isArray(record?.points) || record.points.length === 0) return;
-  const color = record.id === selectedId ? "#c55735" : record.recordType === "deduction" ? "#8b4fc4" : "#17696f";
+  const color = record.id === selectedId
+    ? "#c55735"
+    : record.recordType === "deduction"
+      ? "#8b4fc4"
+      : isPartitionWallSubstrateRecord(record)
+        ? partitionWallSubstrateColor(record.material)
+        : "#17696f";
   overlayCtx.save();
   overlayCtx.lineWidth = record.id === selectedId ? 4 : 2.5;
   overlayCtx.strokeStyle = color;
@@ -1414,7 +1477,7 @@ function drawRecord(record) {
     }
     overlayCtx.stroke();
   }
-  const locationLabel = [record.floor, record.room].filter(Boolean).join(" ");
+  const locationLabel = record.independentFinish ? "" : [record.floor, record.room].filter(Boolean).join(" ");
   const label = `${locationLabel} ${record.part} ${numberText(record.quantity)}${record.unit}`;
   const anchor = record.points[0];
   overlayCtx.font = "13px sans-serif";
@@ -1481,7 +1544,9 @@ function drawTemp() {
         ? "#17696f"
       : isDeductionTraceMode()
         ? "#8b4fc4"
-        : "#c55735";
+        : activePartitionWallSubstrateMaterial()
+          ? partitionWallSubstrateColor(activePartitionWallSubstrateMaterial())
+          : "#c55735";
   overlayCtx.fillStyle = overlayCtx.strokeStyle;
   overlayCtx.lineWidth = 2;
   overlayCtx.setLineDash([7, 5]);
@@ -3633,7 +3698,6 @@ function normalizeWallSubstrateValue(value, options = {}) {
     "木下地＋石膏ボード": "木下地"
   };
   const normalized = aliases[text] || text;
-  if (options.partition && normalized === "GL工法") return "";
   return normalized;
 }
 
@@ -3697,6 +3761,7 @@ function applyFinishItemSummaries(values = {}) {
 
 function currentSharedInternalFinishSettings() {
   return {
+    ch: Math.max(0, finiteNumber(els.partitionWallSubstrateCHInput?.value)),
     itemSummaries: Object.fromEntries(Array.from(sharedInternalFinishKeys).map((key) => [
       key,
       (finishSummaryInputs()[key]?.value || "").trim()
@@ -3708,19 +3773,22 @@ function currentSharedInternalFinishSettings() {
 function normalizeSharedInternalFinishSettings(settings = {}) {
   const source = settings || {};
   return {
+    ch: Math.max(0, finiteNumber(source.ch ?? source.partitionWallSubstrateCH ?? 2.4)) || 2.4,
     itemSummaries: Object.fromEntries(Array.from(sharedInternalFinishKeys).map((key) => [
       key,
       String(source.itemSummaries?.[key] ?? source.summaries?.[key] ?? "").trim()
     ])),
     materials: Object.fromEntries(Array.from(sharedInternalFinishKeys).map((key) => {
       const value = source.materials?.[key] ?? source.items?.[key] ?? source[key] ?? "";
-      return [key, normalizeWallSubstrateValue(value, { partition: true })];
+      const normalized = normalizeWallSubstrateValue(value, { partition: true });
+      return [key, key === "partitionWallSubstrate" ? (normalized || "木下地") : normalized];
     }))
   };
 }
 
 function applySharedInternalFinishSettings(settings = {}) {
   const normalized = normalizeSharedInternalFinishSettings(settings);
+  if (els.partitionWallSubstrateCHInput) els.partitionWallSubstrateCHInput.value = String(normalized.ch);
   Array.from(sharedInternalFinishKeys).forEach((key) => {
     const input = internalFinishInput(key);
     if (input?.tagName === "SELECT") setSelectValue(input, normalized.materials[key]);
@@ -4488,12 +4556,13 @@ function finishMaterialForDisplay(selection) {
 function finishQuantityButtonLabel(selection, formula) {
   const material = finishMaterialForDisplay(selection);
   if (!material) return finishTakeoffButtonText(formula);
+  const isIndependentPartition = selection.tab === "internal" && selection.key === "partitionWallSubstrate";
   const floor = els.floorInput.value.trim() || "未設定";
   const room = els.roomInput.value.trim() || "未設定";
-  const matching = records.filter((record) => (
+  const sourceRecords = isIndependentPartition ? allProjectTakeoffRecords() : records;
+  const matching = sourceRecords.filter((record) => (
     record.recordType !== "deduction" &&
-    record.floor === floor &&
-    record.room === room &&
+    (isIndependentPartition || (record.floor === floor && record.room === room)) &&
     record.part === selection.label &&
     record.material === material &&
     record.unit === unitForFormula(formula)
@@ -4539,7 +4608,8 @@ function startFinishTakeoff(selection, formula) {
   els.formulaInput.value = formula;
   setTool(toolForFinishFormula(formula));
   if (selection.tab === "internal" && selection.key === "partitionWallSubstrate") {
-    setHint("間仕切壁下地は囲わず、壁線を順になぞって長さを合計します。各点は右クリックでサーチし、最後に「拾い明細に反映」を押してください。");
+    const ch = Math.max(0, finiteNumber(els.partitionWallSubstrateCHInput?.value));
+    setHint(`${selection.material}（CH ${numberText(ch)}m）を拾います。壁線を順になぞり、最後に「拾い明細に反映」を押してください。`);
     return;
   }
   setHint(`「${selection.label}」を${finishTakeoffButtonText(formula)}で拾います。図面上をなぞってから、拾い明細に反映してください。`);
@@ -4733,7 +4803,11 @@ function calculateQuantity(points, shape) {
   if (!scale && shape !== "count") return null;
   const pxPerMeter = scale?.pxPerMeter || 1;
   const formula = els.formulaInput.value;
-  const height = Number(els.heightInput.value || 0);
+  const selection = currentFinishSelection();
+  const isPartitionWallSubstrate = activeFinishTab === "internal" && selection.key === "partitionWallSubstrate";
+  const height = isPartitionWallSubstrate
+    ? Math.max(0, Number(els.partitionWallSubstrateCHInput?.value || 0))
+    : Number(els.heightInput.value || 0);
   const deductLength = Number(els.deductLengthInput.value || 0);
   const deductArea = Number(els.deductAreaInput.value || 0);
   const baseboard = trimSettingValue(els.baseboardInput.value);
@@ -4756,11 +4830,10 @@ function calculateQuantity(points, shape) {
       return { quantity: 0, unit: "m", expression: disabledReason, metrics };
     }
     const tracedLengthM = shape === "line" ? lineM : perimeterM;
-    const isPartitionWallSubstrate = activeFinishTab === "internal" && currentFinishSelection().key === "partitionWallSubstrate";
     const appliedDeduction = isPartitionWallSubstrate ? 0 : deductLength;
     const quantity = Math.max(0, tracedLengthM - appliedDeduction);
     const expression = isPartitionWallSubstrate
-      ? `長さ合計 ${numberText(tracedLengthM)}`
+      ? `長さ合計 ${numberText(tracedLengthM)} / CH ${numberText(height)}m`
       : `${shape === "line" ? "長さ" : "周長"} ${numberText(tracedLengthM)} - 控除 ${numberText(appliedDeduction)}`;
     return { quantity, unit: "m", expression, metrics };
   }
@@ -4788,14 +4861,16 @@ function createRecord(points, shape) {
   const price = existing?.price || 0;
   const part = finish.label;
   const material = finish.material;
+  const isIndependentPartition = finish.tab === "internal" && finish.key === "partitionWallSubstrate";
   const substrate = substrateInfoForRecord(els.formulaInput.value, part, material);
   const record = {
     id: existing?.id || `r-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     page: currentPage,
     shape,
     points: points.map((point) => ({ x: point.x, y: point.y })),
-    floor: els.floorInput.value.trim() || "未設定",
-    room: els.roomInput.value.trim() || "未設定",
+    floor: isIndependentPartition ? "－" : els.floorInput.value.trim() || "未設定",
+    room: isIndependentPartition ? "－" : els.roomInput.value.trim() || "未設定",
+    independentFinish: isIndependentPartition,
     part,
     material,
     estimateTrade: openingTradeName(els.openingTradeInput.value),
@@ -4804,11 +4879,11 @@ function createRecord(points, shape) {
     quantity: calc.quantity,
     unit: calc.unit,
     height: calc.metrics?.height ?? 0,
-    baseboard: calc.metrics?.baseboard || "no",
-    ceilingTrim: calc.metrics?.ceilingTrim || "no",
-    wainscot: calc.metrics?.wainscot || "no",
-    deductLength: calc.metrics?.deductLength ?? 0,
-    deductArea: calc.metrics?.deductArea ?? 0,
+    baseboard: isIndependentPartition ? "no" : calc.metrics?.baseboard || "no",
+    ceilingTrim: isIndependentPartition ? "no" : calc.metrics?.ceilingTrim || "no",
+    wainscot: isIndependentPartition ? "no" : calc.metrics?.wainscot || "no",
+    deductLength: isIndependentPartition ? 0 : calc.metrics?.deductLength ?? 0,
+    deductArea: isIndependentPartition ? 0 : calc.metrics?.deductArea ?? 0,
     areaM2: calc.metrics?.areaM2,
     perimeterM: calc.metrics?.perimeterM,
     lineM: calc.metrics?.lineM,
@@ -4832,7 +4907,7 @@ function createRecord(points, shape) {
     previousRecord
   };
   addMaterialSuggestion(record.material, { persist: false });
-  updateRoomSettingFromRecord(record, calc);
+  if (!isIndependentPartition) updateRoomSettingFromRecord(record, calc);
   selectedId = record.id;
   overwriteSelectedRecord = false;
   tempPoints = [];
@@ -6542,10 +6617,24 @@ document.querySelectorAll("[data-internal-finish-key]").forEach((input) => {
     }
     setActiveInternalFinish(key);
     renderFinishTakeoffButtons();
+    if (key === "partitionWallSubstrate") {
+      drawOverlay();
+      const ch = Math.max(0, finiteNumber(els.partitionWallSubstrateCHInput?.value));
+      setHint(`${input.value}（CH ${numberText(ch)}m）に切り替えました。続けて壁線をなぞれます。`);
+    }
     saveQuietly();
   });
   input.addEventListener("focus", () => setActiveInternalFinish(key));
   input.addEventListener("click", () => setActiveInternalFinish(key));
+});
+els.partitionWallSubstrateCHInput?.addEventListener("input", () => {
+  renderPartitionWallSubstrateTotals();
+});
+els.partitionWallSubstrateCHInput?.addEventListener("change", () => {
+  const ch = Math.max(0, finiteNumber(els.partitionWallSubstrateCHInput.value));
+  els.partitionWallSubstrateCHInput.value = String(ch);
+  saveQuietly();
+  setHint(`間仕切壁下地のCHを${numberText(ch)}mに設定しました。`);
 });
 els.externalFinishCategories?.addEventListener("click", (event) => {
   const activeRow = event.target.closest?.("[data-external-finish-row]");
