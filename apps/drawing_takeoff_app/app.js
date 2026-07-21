@@ -254,6 +254,7 @@ let scaleCheckResult = null;
 let records = [];
 let selectedId = "";
 let overwriteSelectedRecord = false;
+let traceCreationActive = false;
 let lastConfirmedTakeoff = null;
 let scale = null;
 let drawingEntries = [];
@@ -3451,6 +3452,7 @@ function applyAppState(data = {}) {
   }
   selectedId = "";
   overwriteSelectedRecord = false;
+  traceCreationActive = false;
   tempPoints = [];
   scaleCheckResult = null;
   mode = "draw";
@@ -3590,6 +3592,8 @@ function resetDrawingSurface(message = "図面を読み込んでから、縮尺�
   pageCount = 1;
   records = [];
   selectedId = "";
+  overwriteSelectedRecord = false;
+  traceCreationActive = false;
   tempPoints = [];
   scaleCheckResult = null;
   scale = null;
@@ -3629,6 +3633,7 @@ async function removeActiveDrawing() {
 
 function setTool(nextTool) {
   tool = nextTool;
+  traceCreationActive = true;
   activeHardwareLengthItemId = "";
   document.querySelectorAll(".tool-button").forEach((button) => {
     button.classList.toggle("active", button.dataset.tool === tool);
@@ -4622,6 +4627,9 @@ function startFinishTakeoff(selection, formula) {
     setHint(`${selection.tab === "external" ? "外部" : "内部"}仕上げ表の「${selection.label}」を入力してください。`);
     return;
   }
+  selectedId = "";
+  overwriteSelectedRecord = false;
+  renderRecords();
   els.formulaInput.value = formula;
   setTool(toolForFinishFormula(formula));
   if (selection.tab === "internal" && selection.key === "partitionWallSubstrate") {
@@ -5320,9 +5328,10 @@ function handleCanvasClick(event) {
   traceHoverPoint = null;
   const point = pointFromEvent(event);
   const existing = nearestRecord(point);
-  if (existing && tempPoints.length === 0 && mode === "draw") {
+  if (existing && !traceCreationActive && tempPoints.length === 0 && mode === "draw") {
     selectedId = existing.id;
     overwriteSelectedRecord = true;
+    traceCreationActive = false;
     renderRecords();
     drawOverlay();
     setHint("なぞり線を選択しました。「選択削除」でこの線だけを削除できます。なぞり直して反映すると上書きもできます。");
@@ -5430,6 +5439,7 @@ function renderRecords() {
     tr.addEventListener("click", () => {
       selectedId = record.id;
       overwriteSelectedRecord = true;
+      traceCreationActive = false;
       currentPage = record.page;
       renderDrawing();
       renderRecords();
@@ -6324,6 +6334,8 @@ async function loadDrawingEntry(entry) {
   scale = entry.scale ? { ...entry.scale } : null;
   syncScaleInputsFromScale(scale);
   selectedId = "";
+  overwriteSelectedRecord = false;
+  traceCreationActive = false;
   setUndoToLatestRecord();
   tempPoints = [];
   scaleCheckResult = null;
@@ -6440,6 +6452,7 @@ function deleteSelected() {
   resetHardwareTakeoffForRecord(removed);
   selectedId = "";
   overwriteSelectedRecord = false;
+  traceCreationActive = false;
   if (lastConfirmedTakeoff?.recordId === removed?.id) setUndoToLatestRecord();
   saveQuietly();
   renderRecords();
@@ -6935,6 +6948,7 @@ els.clearTempButton.addEventListener("click", () => {
   activeHardwareLengthItemId = "";
   selectedId = "";
   overwriteSelectedRecord = false;
+  traceCreationActive = false;
   scaleCheckResult = null;
   mode = "draw";
   updateDeductionTraceButtons();
