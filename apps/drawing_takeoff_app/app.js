@@ -264,6 +264,7 @@ let openingOcrDragStart = null;
 let openingOcrDragCurrent = null;
 let openingOcrBusy = false;
 let openingOcrSuppressClick = false;
+let openingOcrFieldTarget = null;
 
 function money(value) {
   return `${Math.round(value || 0).toLocaleString("ja-JP")}円`;
@@ -699,6 +700,64 @@ function parseOpeningOcrText(rawText, symbolText = "") {
   };
 }
 
+function openingOcrFieldValue(key, rawText) {
+  const text = String(rawText || "").normalize("NFKC").replace(/\r/g, "").trim();
+  if (!text) return "";
+  const numericKeys = new Set([
+    "widthMm", "heightMm", "quantity", "glassWidthMm", "glassHeightMm",
+    "glassAreaM2", "sashMortarLengthM", "caulkingLengthM"
+  ]);
+  if (numericKeys.has(key)) {
+    const numberMatch = text.replace(/,/g, "").match(/\d{1,5}(?:\.\d+)?/);
+    return numberMatch ? Number(numberMatch[0]) : "";
+  }
+  const parsed = parseOpeningOcrText(text, key === "symbol" ? text : "");
+  const parsedValue = parsed[key];
+  if (parsedValue !== undefined && parsedValue !== null && String(parsedValue).trim()) return parsedValue;
+
+  const firstCleanLine = text.split("\n").map((line) => line.trim()).find(Boolean) || "";
+  if (key === "symbol") return parseOpeningOcrSymbolText(text) || firstCleanLine.replace(/\s+/g, "").toUpperCase();
+  if (key === "sashType") return parseOpeningSashType(text) || firstCleanLine;
+  if (key === "glassThickness") return parseOpeningGlassThickness(text) || firstCleanLine;
+  if (key === "hardwareInfo") return parseOpeningHardwareInfo(text) || text.replace(/\s*\n\s*/g, "・");
+
+  const cleanedLines = text.split("\n")
+    .map((line) => line.replace(/^(?:符号|記号|場所|部屋名|室名|取付場所|色|カラー|仕上色|サッシ種類|種類|ガラス|硝子|概要|金物)\s*[:：]?\s*/i, "").trim())
+    .filter(Boolean);
+  return cleanedLines[0] || "";
+}
+
+function isOpeningOcrMode() {
+  return mode === "openingOcr" || mode === "openingOcrField";
+}
+
+function clearOpeningOcrFieldTarget({ resetMode = false } = {}) {
+  openingOcrFieldTarget = null;
+  document.querySelectorAll(".opening-ocr-result-input.ocr-target").forEach((input) => {
+    input.classList.remove("ocr-target");
+  });
+  if (resetMode && mode === "openingOcrField") mode = "draw";
+  updateOpeningOcrModeButton();
+}
+
+function startOpeningOcrFieldMode(result, key, label, input) {
+  if (!pdfDoc && !imageBitmapSource) {
+    setOpeningOcrStatus("先にOCRする図面を表示してください。直接入力はできます。");
+    return;
+  }
+  clearOpeningOcrFieldTarget();
+  openingOcrFieldTarget = { resultId: result.id, key, label };
+  selectedOpeningOcrId = result.id;
+  input.classList.add("ocr-target");
+  mode = "openingOcrField";
+  tempPoints = [];
+  openingOcrDragStart = null;
+  openingOcrDragCurrent = null;
+  updateModeButtons();
+  setOpeningOcrStatus(`${result.symbol || "選択したカード"}の「${label}」を再OCRします。図面上の文字部分だけを囲ってください。`);
+  drawOverlay();
+}
+
 function updateOpeningOcrField(result, key, rawValue) {
   const numericKeys = new Set([
     "widthMm", "heightMm", "quantity", "glassWidthMm", "glassHeightMm",
@@ -811,10 +870,21 @@ function renderOpeningOcrResults() {
       input.value = value || "";
       input.placeholder = placeholder || (type === "number" ? "0" : "未検出");
       input.setAttribute("aria-label", label);
+      input.title = "クリックすると、この項目だけを再OCRできます。文字入力を始めると直接入力に切り替わります。";
       if (step) input.step = step;
       if (type === "number") input.min = min;
-      ["click", "pointerdown"].forEach((eventName) => {
-        input.addEventListener(eventName, (event) => event.stopPropagation());
+      const isCurrentOcrTarget = openingOcrFieldTarget?.resultId === result.id && openingOcrFieldTarget?.key === key;
+      input.classList.toggle("ocr-target", isCurrentOcrTarget);
+      input.addEventListener("pointerdown", (event) => event.stopPropagation());
+      input.addEventListener("click", (event) => {
+        event.stopPropagation();
+        startOpeningOcrFieldMode(result, key, label, input);
+      });
+      input.addEventListener("input", () => {
+        if (openingOcrFieldTarget?.resultId === result.id && openingOcrFieldTarget?.key === key) {
+          clearOpeningOcrFieldTarget({ resetMode: true });
+          setOpeningOcrStatus(`${result.symbol || "OCRカード"}の「${label}」を直接入力しています。`);
+        }
       });
       let committedValue = String(input.value);
       const commitEdit = () => {
@@ -856,14 +926,22 @@ function setOpeningOcrStatus(message) {
 }
 
 function updateOpeningOcrModeButton() {
-  els.openingOcrModeButton?.classList.toggle("active", mode === "openingOcr");
+  if (mode !== "openingOcrField" && openingOcrFieldTarget) {
+    openingOcrFieldTarget = null;
+    document.querySelectorAll(".opening-ocr-result-input.ocr-target").forEach((input) => {
+      input.classList.remove("ocr-target");
+    });
+  }
+  els.openingOcrModeButton?.classList.toggle("active", isOpeningOcrMode());
   if (els.openingOcrModeButton) {
     els.openingOcrModeButton.textContent = openingOcrBusy
       ? "OCR処理中…"
-      : mode === "openingOcr" ? "OCR範囲を囲ってください" : "建具をOCRで拾う";
+      : mode === "openingOcrField"
+        ? `${openingOcrFieldTarget?.label || "選択項目"}を囲ってください`
+        : mode === "openingOcr" ? "OCR範囲を囲ってください" : "建具をOCRで拾う";
     els.openingOcrModeButton.disabled = openingOcrBusy;
   }
-  els.overlayCanvas.style.cursor = mode === "openingOcr" ? "crosshair" : "";
+  els.overlayCanvas.style.cursor = isOpeningOcrMode() ? "crosshair" : "";
 }
 
 function startOpeningOcrMode() {
@@ -871,6 +949,7 @@ function startOpeningOcrMode() {
     setOpeningOcrStatus("先にOCRする図面を表示してください。");
     return;
   }
+  clearOpeningOcrFieldTarget();
   mode = "openingOcr";
   tempPoints = [];
   openingOcrDragStart = null;
@@ -952,6 +1031,7 @@ async function runOpeningOcr(rect) {
   openingOcrBusy = true;
   updateOpeningOcrModeButton();
   let worker = null;
+  const fieldTarget = openingOcrFieldTarget ? { ...openingOcrFieldTarget } : null;
   try {
     setOpeningOcrStatus("図面内の文字を確認しています…");
     const pdfText = await openingPdfTextInRect(rect).catch(() => "");
@@ -974,6 +1054,29 @@ async function runOpeningOcr(rect) {
     });
     const result = await worker.recognize(openingOcrCrop(rect));
     const rawText = result?.data?.text || "";
+    if (fieldTarget) {
+      const combinedFieldText = [pdfText, rawText].filter((value) => value.trim()).join("\n");
+      const fieldValue = openingOcrFieldValue(fieldTarget.key, combinedFieldText);
+      const targetResult = openingOcrResults.find((item) => item.id === fieldTarget.resultId);
+      if (!targetResult) {
+        clearOpeningOcrFieldTarget({ resetMode: true });
+        setOpeningOcrStatus("再OCRするカードが見つかりません。カードを選び直してください。");
+        return;
+      }
+      if (fieldValue === "" || fieldValue === null || fieldValue === undefined) {
+        setOpeningOcrStatus(`「${fieldTarget.label}」を読み取れませんでした。対象は選択したままです。文字だけを少し広めに囲い直してください。`);
+        return;
+      }
+      targetResult.rawText = [
+        targetResult.rawText,
+        `[項目再OCR: ${fieldTarget.label}]\n${combinedFieldText.trim()}`
+      ].filter(Boolean).join("\n\n");
+      clearOpeningOcrFieldTarget({ resetMode: true });
+      updateOpeningOcrField(targetResult, fieldTarget.key, fieldValue);
+      setOpeningOcrStatus(`${targetResult.symbol || "OCRカード"}の「${fieldTarget.label}」へ「${fieldValue}」を取り込み、自動保存しました。`);
+      drawOverlay();
+      return;
+    }
     setOpeningOcrStatus("符号を確認しています…");
     await worker.setParameters?.({
       tessedit_char_whitelist: "ADSWFIX0123456789-",
@@ -1015,7 +1118,7 @@ async function runOpeningOcr(rect) {
 }
 
 function handleOpeningOcrPointerDown(event) {
-  if (mode !== "openingOcr" || openingOcrBusy || event.button !== 0) return;
+  if (!isOpeningOcrMode() || openingOcrBusy || event.button !== 0) return;
   event.preventDefault();
   openingOcrDragStart = pointFromEvent(event);
   openingOcrDragCurrent = { ...openingOcrDragStart };
@@ -1024,13 +1127,13 @@ function handleOpeningOcrPointerDown(event) {
 }
 
 function handleOpeningOcrPointerMove(event) {
-  if (mode !== "openingOcr" || !openingOcrDragStart || openingOcrBusy) return;
+  if (!isOpeningOcrMode() || !openingOcrDragStart || openingOcrBusy) return;
   openingOcrDragCurrent = pointFromEvent(event);
   drawOverlay();
 }
 
 function handleOpeningOcrPointerUp(event) {
-  if (mode !== "openingOcr" || !openingOcrDragStart || openingOcrBusy) return;
+  if (!isOpeningOcrMode() || !openingOcrDragStart || openingOcrBusy) return;
   event.preventDefault();
   openingOcrDragCurrent = pointFromEvent(event);
   const rect = {
