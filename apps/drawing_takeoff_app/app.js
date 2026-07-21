@@ -405,6 +405,21 @@ function openingGlassAreaM2(widthMm, heightMm, quantity = 1) {
   return width && height ? Math.round((width * height * count / 1000000) * 1000) / 1000 : 0;
 }
 
+function openingDeductionUsesHalfWidth(sashType = "") {
+  const type = String(sashType || "")
+    .normalize("NFKC")
+    .replace(/[ \t\u3000]+/g, "")
+    .replace(/片引キ/g, "片引き");
+  return /(?:片引(?:き)?|一本引(?:き)?)/.test(type);
+}
+
+function openingDeductionAreaM2(widthMm, heightMm, sashType = "") {
+  const width = Math.max(0, Number(widthMm) || 0);
+  const height = Math.max(0, Number(heightMm) || 0);
+  const widthFactor = openingDeductionUsesHalfWidth(sashType) ? 0.5 : 1;
+  return width && height ? Math.round((width * widthFactor * height / 1000000) * 1000) / 1000 : 0;
+}
+
 function parseOpeningGlassThickness(rawText) {
   const text = String(rawText || "").normalize("NFKC").replace(/ｍｍ/gi, "mm");
   const patterns = [
@@ -566,6 +581,9 @@ function normalizeOpeningOcrResult(value = {}) {
   const heightMm = Math.max(0, Number(refreshWindowDimensions ? parsedDimensions.heightMm : value.heightMm) || Number(value.heightMm) || 0);
   const quantity = Math.max(1, Math.round(Number(value.quantity) || 1));
   const perimeterLengthM = trade === "木建具" ? 0 : openingPerimeterLengthM(widthMm, heightMm, quantity);
+  const openingDeductionArea = trade === "木建具"
+    ? openingDeductionAreaM2(widthMm, heightMm, sashType)
+    : 0;
   const parsedGlass = parseOpeningGlassDimensions(value.rawText, {
     widthMm,
     heightMm,
@@ -599,6 +617,8 @@ function normalizeOpeningOcrResult(value = {}) {
     heightMm,
     dimensionsManual,
     quantity,
+    openingDeductionAreaManual: Boolean(value.openingDeductionAreaManual),
+    openingDeductionAreaM2: Math.max(0, Number(value.openingDeductionAreaManual ? value.openingDeductionAreaM2 : openingDeductionArea) || 0),
     glassWidthMm,
     glassHeightMm,
     glassDimensionsManual,
@@ -759,7 +779,7 @@ function openingOcrFieldValue(key, rawText, options = {}) {
   if (!text) return "";
   const numericKeys = new Set([
     "widthMm", "heightMm", "quantity", "glassWidthMm", "glassHeightMm",
-    "glassAreaM2", "sashMortarLengthM", "caulkingLengthM"
+    "openingDeductionAreaM2", "glassAreaM2", "sashMortarLengthM", "caulkingLengthM"
   ]);
   if (numericKeys.has(key)) {
     const numberMatch = text.replace(/,/g, "").match(/\d{1,5}(?:\.\d+)?/);
@@ -832,7 +852,7 @@ function startOpeningOcrFieldMode(result, key, label, input) {
 function updateOpeningOcrField(result, key, rawValue) {
   const numericKeys = new Set([
     "widthMm", "heightMm", "quantity", "glassWidthMm", "glassHeightMm",
-    "glassAreaM2", "sashMortarLengthM", "caulkingLengthM"
+    "openingDeductionAreaM2", "glassAreaM2", "sashMortarLengthM", "caulkingLengthM"
   ]);
   const previousWidthMm = result.widthMm;
   const previousHeightMm = result.heightMm;
@@ -842,6 +862,7 @@ function updateOpeningOcrField(result, key, rawValue) {
   result[key] = key === "quantity" ? Math.max(1, Math.round(value)) : value;
 
   if (["widthMm", "heightMm"].includes(key)) result.dimensionsManual = true;
+  if (key === "openingDeductionAreaM2") result.openingDeductionAreaManual = true;
   if (key === "symbol") result.symbolManual = true;
   if (key === "sashType") result.sashTypeManual = true;
   if (["glassWidthMm", "glassHeightMm"].includes(key)) result.glassDimensionsManual = true;
@@ -870,6 +891,12 @@ function updateOpeningOcrField(result, key, rawValue) {
       if (key === "heightMm" && result.glassHeightMm === previousHeightMm) result.glassHeightMm = result.heightMm;
     }
     result.glassAreaM2 = openingGlassAreaM2(result.glassWidthMm, result.glassHeightMm, result.quantity);
+  }
+  if (["widthMm", "heightMm", "sashType"].includes(key)) {
+    result.openingDeductionAreaM2 = resultTrade === "木建具"
+      ? openingDeductionAreaM2(result.widthMm, result.heightMm, result.sashType)
+      : 0;
+    result.openingDeductionAreaManual = false;
   }
   if (["glassWidthMm", "glassHeightMm"].includes(key)) {
     result.glassIsPartial = Boolean(
@@ -954,6 +981,17 @@ function renderOpeningOcrResults() {
       { label: "ガラス高さ H", key: "glassHeightMm", value: result.glassHeightMm, type: "number", unit: "mm", step: "1" },
       { label: `ガラス面積（ガラス工事）${result.glassIsPartial ? "・部分" : ""}`, key: "glassAreaM2", value: result.glassAreaM2, type: "number", unit: "㎡", step: "0.01", modifier: "trade" }
     ];
+    if (isWoodOpening) {
+      fields.splice(10, 0, {
+        label: "開口控除（個数は1つ分）",
+        key: "openingDeductionAreaM2",
+        value: result.openingDeductionAreaM2,
+        type: "number",
+        unit: "㎡",
+        step: "0.001",
+        modifier: "trade"
+      });
+    }
     if (!isWoodOpening) {
       fields.push(
         { label: "サッシモルタル（左官工事）", key: "sashMortarLengthM", value: result.sashMortarLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" },
@@ -1015,11 +1053,14 @@ function renderOpeningOcrResults() {
     const glassFormula = result.glassAreaM2
       ? `ガラス: ${result.glassType || "種類未検出"}${result.glassThickness ? ` / 厚み ${result.glassThickness}` : ""} / ${result.glassWidthMm.toLocaleString("ja-JP")} × ${result.glassHeightMm.toLocaleString("ja-JP")} mm × ${result.quantity || 1}箇所`
       : "";
+    const deductionFormula = result.widthMm && result.heightMm
+      ? `開口控除（1個分）: ${openingDeductionUsesHalfWidth(result.sashType) ? "W ÷ 2 × H" : "W × H"} = ${numberText(result.openingDeductionAreaM2)}㎡ ※個数は掛けません`
+      : "開口控除は幅と高さを検出すると自動計算します（1個分）。";
     formula.textContent = isWoodOpening
-      ? (glassFormula || "木建具のため、モルタルとコーキングは計上しません。")
+      ? `${deductionFormula}${glassFormula ? ` / ${glassFormula}` : ""} / 木建具のため、モルタルとコーキングは計上しません。`
       : result.widthMm && result.heightMm
         ? `${glassFormula ? `${glassFormula} / ` : ""}外周: 2 × (W + H) × 個数`
-        : "幅と高さを検出すると、ガラス面積と左官・防水の長さを自動計算します。";
+        : "ガラス面積と左官・防水の長さを自動計算します。";
     card.appendChild(formula);
     els.openingOcrResultsBody.appendChild(card);
   });
