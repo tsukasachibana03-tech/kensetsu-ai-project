@@ -177,6 +177,72 @@ h2 { font-size: 17px; }
   background: var(--brand);
 }
 
+.opening-summary-actions {
+  margin: 12px 0;
+}
+
+.opening-ocr-button {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 10px;
+  color: #fff;
+  border-color: #17696f;
+  background: #17696f;
+  font-weight: 700;
+}
+
+.opening-ocr-button.active {
+  border-color: #c55735;
+  background: #c55735;
+}
+
+.opening-ocr-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.opening-ocr-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.opening-ocr-list-head button {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
+.opening-ocr-table-wrap {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.opening-ocr-table-wrap table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.opening-ocr-table-wrap th,
+.opening-ocr-table-wrap td {
+  padding: 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.opening-ocr-table-wrap th {
+  position: sticky;
+  top: 0;
+  background: #f4f8f8;
+  z-index: 1;
+}
+
 .file-drop {
   display: grid;
   gap: 5px;
