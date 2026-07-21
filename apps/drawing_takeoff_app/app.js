@@ -238,6 +238,7 @@ let baseHeight = 640;
 let tool = "rect";
 let mode = "draw";
 let tempPoints = [];
+let traceHoverPoint = null;
 let scaleCheckResult = null;
 let records = [];
 let selectedId = "";
@@ -307,6 +308,55 @@ function pointFromEvent(event) {
     x: ((event.clientX - rect.left) / rect.width) * baseWidth,
     y: ((event.clientY - rect.top) / rect.height) * baseHeight
   };
+}
+
+function searchNearestDrawingLine(point) {
+  const scaleX = els.drawingCanvas.width / Math.max(baseWidth, 1);
+  const scaleY = els.drawingCanvas.height / Math.max(baseHeight, 1);
+  const radius = Math.max(8, 22 / Math.max(zoom, 0.5));
+  const centerX = Math.round(point.x * scaleX);
+  const centerY = Math.round(point.y * scaleY);
+  const radiusX = Math.max(4, Math.round(radius * scaleX));
+  const radiusY = Math.max(4, Math.round(radius * scaleY));
+  const startX = Math.max(0, centerX - radiusX);
+  const startY = Math.max(0, centerY - radiusY);
+  const endX = Math.min(els.drawingCanvas.width, centerX + radiusX + 1);
+  const endY = Math.min(els.drawingCanvas.height, centerY + radiusY + 1);
+  const width = endX - startX;
+  const height = endY - startY;
+  if (width <= 0 || height <= 0) return { point, found: false };
+
+  try {
+    const pixels = drawingCtx.getImageData(startX, startY, width, height).data;
+    let best = null;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = (y * width + x) * 4;
+        const alpha = pixels[offset + 3];
+        if (alpha < 128) continue;
+        const luminance = pixels[offset] * 0.299 + pixels[offset + 1] * 0.587 + pixels[offset + 2] * 0.114;
+        if (luminance > 170) continue;
+        const imageX = startX + x;
+        const imageY = startY + y;
+        const dx = imageX - centerX;
+        const dy = imageY - centerY;
+        const distanceSquared = dx * dx + dy * dy;
+        if (!best || distanceSquared < best.distanceSquared) {
+          best = { imageX, imageY, distanceSquared };
+        }
+      }
+    }
+    if (!best) return { point, found: false };
+    return {
+      point: {
+        x: (best.imageX + 0.5) / scaleX,
+        y: (best.imageY + 0.5) / scaleY
+      },
+      found: true
+    };
+  } catch {
+    return { point, found: false };
+  }
 }
 
 function applyCanvasDisplaySize() {
@@ -1406,14 +1456,20 @@ function drawScaleCheckResult() {
 
 function drawTemp() {
   if (tempPoints.length === 0) return;
-  const previewPoints = tool === "rect" && tempPoints.length === 2 && mode === "draw"
-    ? [
-        { x: tempPoints[0].x, y: tempPoints[0].y },
-        { x: tempPoints[1].x, y: tempPoints[0].y },
-        { x: tempPoints[1].x, y: tempPoints[1].y },
-        { x: tempPoints[0].x, y: tempPoints[1].y }
-      ]
+  const canFollowPointer = mode === "calibrate" || mode === "scaleCheck" || mode === "hardwareLength" ||
+    mode === "deductLength" || mode === "deductArea" ||
+    (mode === "draw" && (tool === "line" || tool === "poly" || tool === "rect"));
+  const pointsWithHover = traceHoverPoint && canFollowPointer
+    ? [...tempPoints, traceHoverPoint]
     : tempPoints;
+  const previewPoints = tool === "rect" && pointsWithHover.length >= 2 && (mode === "draw" || mode === "deductArea")
+    ? [
+        { x: pointsWithHover[0].x, y: pointsWithHover[0].y },
+        { x: pointsWithHover.at(-1).x, y: pointsWithHover[0].y },
+        { x: pointsWithHover.at(-1).x, y: pointsWithHover.at(-1).y },
+        { x: pointsWithHover[0].x, y: pointsWithHover.at(-1).y }
+      ]
+    : pointsWithHover;
   overlayCtx.save();
   overlayCtx.strokeStyle = mode === "calibrate"
     ? "#f0b429"
@@ -5070,12 +5126,52 @@ function resetAllHardwareTakeoffs() {
   });
 }
 
+function addTwoPointTracePoint(point) {
+  traceHoverPoint = null;
+  if (mode === "calibrate") {
+    tempPoints.push(point);
+    if (tempPoints.length === 2) finishCalibration();
+    else drawOverlay();
+    return true;
+  }
+  if (mode === "scaleCheck") {
+    tempPoints.push(point);
+    if (tempPoints.length === 2) finishScaleCheck();
+    else drawOverlay();
+    return true;
+  }
+  if (isHardwareLengthTraceMode()) {
+    tempPoints.push(point);
+    if (tempPoints.length === 2) finishHardwareLengthTrace(tempPoints);
+    else drawOverlay();
+    return true;
+  }
+  if (mode === "deductLength") {
+    tempPoints.push(point);
+    if (tempPoints.length === 2) finishDeductionTrace(tempPoints, "line");
+    else drawOverlay();
+    return true;
+  }
+  return false;
+}
+
+function handleTracePointerMove(event) {
+  if (isOpeningOcrMode() || tempPoints.length === 0) return;
+  const canFollowPointer = mode === "calibrate" || mode === "scaleCheck" || mode === "hardwareLength" ||
+    mode === "deductLength" || mode === "deductArea" ||
+    (mode === "draw" && (tool === "line" || tool === "poly" || tool === "rect"));
+  if (!canFollowPointer) return;
+  traceHoverPoint = pointFromEvent(event);
+  drawOverlay();
+}
+
 function handleCanvasClick(event) {
   if (openingOcrSuppressClick) {
     openingOcrSuppressClick = false;
     return;
   }
   if (mode === "openingOcr") return;
+  traceHoverPoint = null;
   const point = pointFromEvent(event);
   const existing = nearestRecord(point);
   if (existing && tempPoints.length === 0 && mode === "draw") {
@@ -5087,33 +5183,10 @@ function handleCanvasClick(event) {
     return;
   }
 
-  if (mode === "calibrate") {
-    tempPoints.push(point);
-    if (tempPoints.length === 2) finishCalibration();
-    else drawOverlay();
-    return;
-  }
-
-  if (mode === "scaleCheck") {
-    tempPoints.push(point);
-    if (tempPoints.length === 2) finishScaleCheck();
-    else drawOverlay();
-    return;
-  }
-
-  if (isHardwareLengthTraceMode()) {
-    tempPoints.push(point);
-    if (tempPoints.length === 2) finishHardwareLengthTrace(tempPoints);
-    else drawOverlay();
-    return;
-  }
+  if (addTwoPointTracePoint(point)) return;
 
   if (isDeductionTraceMode()) {
     tempPoints.push(point);
-    if (mode === "deductLength" && tempPoints.length === 2) {
-      finishDeductionTrace(tempPoints, "line");
-      return;
-    }
     if (mode === "deductArea" && tool === "rect" && tempPoints.length === 2) {
       const [a, b] = tempPoints;
       finishDeductionTrace([
@@ -5134,7 +5207,7 @@ function handleCanvasClick(event) {
     return;
   }
 
-  if (["line", "rect"].includes(tool) && tempPoints.length >= 2) {
+  if (tool === "rect" && tempPoints.length >= 2) {
     setHint("拾い明細に反映するか、「戻す」で形を描き直してください。");
     return;
   }
@@ -5144,7 +5217,7 @@ function handleCanvasClick(event) {
 
 function pendingTakeoff() {
   if (tool === "count" && tempPoints.length === 1) return { points: tempPoints, shape: "count" };
-  if (tool === "line" && tempPoints.length === 2) return { points: tempPoints, shape: "line" };
+  if (tool === "line" && tempPoints.length >= 2) return { points: tempPoints, shape: "line" };
   if (tool === "rect" && tempPoints.length === 2) {
     const [a, b] = tempPoints;
     return {
@@ -6309,11 +6382,35 @@ setupDropTarget(els.canvasArea);
 els.stageWrap.addEventListener("wheel", handleStageWheel, { passive: false });
 els.overlayCanvas.addEventListener("pointerdown", handleOpeningOcrPointerDown);
 els.overlayCanvas.addEventListener("pointermove", handleOpeningOcrPointerMove);
+els.overlayCanvas.addEventListener("pointermove", handleTracePointerMove);
 els.overlayCanvas.addEventListener("pointerup", handleOpeningOcrPointerUp);
 els.overlayCanvas.addEventListener("pointercancel", handleOpeningOcrPointerUp);
 els.overlayCanvas.addEventListener("click", handleCanvasClick);
 els.overlayCanvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
+  if (isOpeningOcrMode()) return;
+  const searched = searchNearestDrawingLine(pointFromEvent(event));
+  if (addTwoPointTracePoint(searched.point)) {
+    if (tempPoints.length === 1) {
+      setHint(searched.found
+        ? "右クリックサーチで始点を図面線に合わせました。終点も右クリックで指定してください。"
+        : "近くに図面線が見つかりませんでした。クリック位置を始点にしました。終点を指定してください。");
+    }
+    return;
+  }
+  if (mode === "draw" && tool === "line") {
+    traceHoverPoint = null;
+    tempPoints.push(searched.point);
+    drawOverlay();
+    if (tempPoints.length === 1) {
+      setHint(searched.found
+        ? "右クリックサーチで始点を図面線に合わせました。途中点は左クリック、終点は右クリックしてください。"
+        : "クリック位置を始点にしました。途中点は左クリック、終点は右クリックしてください。");
+    } else {
+      applyTakeoffToDetails();
+    }
+    return;
+  }
   applyTakeoffToDetails();
 });
 els.finishPolyButton.addEventListener("click", applyTakeoffToDetails);
