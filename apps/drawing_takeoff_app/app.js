@@ -6710,12 +6710,35 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest?.(".finish-choice-field")) closeFinishMenus();
   if (!event.target.closest?.(".external-finish-picker")) closeExternalFinishMenus();
 });
+
+function isKeyboardEditingTarget(target) {
+  return target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target?.isContentEditable;
+}
+
+function undoLastContinuousTracePoint() {
+  if (mode !== "draw" || tool !== "line" || tempPoints.length === 0) return false;
+  tempPoints.pop();
+  traceHoverPoint = null;
+  drawOverlay();
+  setHint(tempPoints.length > 0
+    ? `${tempPoints.length}点目まで戻しました。続けて点を指定してください。`
+    : "始点まで取り消しました。右クリックで始点をサーチしてください。");
+  return true;
+}
+
 document.addEventListener("keydown", (event) => {
+  const editingTarget = isKeyboardEditingTarget(event.target);
   if (event.code === "Space" || event.key === " ") {
-    const target = event.target;
-    const acceptsText = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
-    const isNativeControl = target instanceof HTMLButtonElement || target instanceof HTMLSelectElement;
-    if (!acceptsText && !isNativeControl) event.preventDefault();
+    const isNativeButton = event.target instanceof HTMLButtonElement;
+    if (!editingTarget && !isNativeButton) event.preventDefault();
+  }
+  if (!editingTarget && !event.repeat && (event.key === "Escape" || event.key === "Delete") && undoLastContinuousTracePoint()) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
   }
   if (event.key === "Escape") {
     if (isHardwareLengthTraceMode()) {
