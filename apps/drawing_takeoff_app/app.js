@@ -411,7 +411,8 @@ function openingDeductionWidthRule(sashType = "") {
     .replace(/[ \t\u3000]+/g, "")
     .replace(/片引キ/g, "片引き");
   const pocketDoorMatch = type.match(/([1-4])枚引(?:き)?込(?:み)?戸?/)
-    || type.match(/([1-4])枚引(?:き)?戸.*戸袋/);
+    || type.match(/([1-4])枚引(?:き)?戸.*戸袋/)
+    || type.match(/([1-4])枚[^\n]{0,30}引(?:き)?戸/);
   if (pocketDoorMatch) {
     const panels = Number(pocketDoorMatch[1]);
     return {
@@ -429,7 +430,7 @@ function openingDeductionAreaM2(widthMm, heightMm, sashType = "") {
   const width = Math.max(0, Number(widthMm) || 0);
   const height = Math.max(0, Number(heightMm) || 0);
   const { factor } = openingDeductionWidthRule(sashType);
-  return width && height ? Math.round((width * factor * height / 1000000) * 1000) / 1000 : 0;
+  return width && height ? Math.round((width * factor * height / 1000000) * 100) / 100 : 0;
 }
 
 function parseOpeningGlassThickness(rawText) {
