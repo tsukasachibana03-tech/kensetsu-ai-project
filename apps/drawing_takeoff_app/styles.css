@@ -128,6 +128,11 @@ h2 { font-size: 17px; }
   gap: 12px;
 }
 
+.summary-panel {
+  position: relative;
+  z-index: 4;
+}
+
 .panel,
 .canvas-area,
 .table-panel {
