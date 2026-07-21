@@ -412,27 +412,49 @@ function firstOpeningOcrMatch(text, patterns) {
   return "";
 }
 
-function parseOpeningOcrText(rawText) {
-  const text = String(rawText || "").replace(/\r/g, "");
+function parseOpeningOcrSymbolText(rawText) {
+  const source = String(rawText || "").normalize("NFKC").toUpperCase();
+  const lines = source.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  for (let index = 0; index < lines.length; index += 1) {
+    const code = lines[index].match(/(?:AD|AW|SD|SW|WD|WW|FD|FW)/)?.[0];
+    if (!code) continue;
+    const neighbor = [lines[index - 1], lines[index + 1]].filter(Boolean).join(" ");
+    const number = neighbor.match(/(?:^|\D)(\d{1,3})(?:\D|$)/)?.[1];
+    if (number) return `${code}${number}`;
+  }
+  const dense = source.replace(/[^A-Z0-9]/g, "");
+  const direct = dense.match(/(?:AD|AW|SD|SW|WD|WW|FD|FW|FIX)\d+[A-Z]?/);
+  if (direct) return direct[0];
+  const stacked = dense.match(/(\d)(AD|AW|SD|SW|WD|WW|FD|FW)/);
+  if (stacked) return `${stacked[2]}${stacked[1]}`;
+  return "";
+}
+
+function parseOpeningOcrText(rawText, symbolText = "") {
+  const text = String(rawText || "").normalize("NFKC").replace(/\r/g, "");
   const compact = text.replace(/[ \t]+/g, " ");
-  const symbol = firstOpeningOcrMatch(compact.toUpperCase(), [
+  const denseLines = text.split("\n").map((line) => line.replace(/[ \t\u3000]+/g, "")).join("\n");
+  const symbol = parseOpeningOcrSymbolText(symbolText) || firstOpeningOcrMatch(compact.toUpperCase(), [
     /\b((?:AD|AW|SD|SW|WD|WW|FD|FW|FIX)[-－]?\s*\d+[A-Z]?)\b/,
     /(?:符号|記号)\s*[:：]?\s*([A-Z]{1,3}[-－]?\s*\d+[A-Z]?)/i
   ]).replace(/\s+/g, "");
-  const location = firstOpeningOcrMatch(compact, [
+  const location = firstOpeningOcrMatch(denseLines, [
     /(?:場所|部屋名|室名|取付場所)\s*[:：]?\s*([^\n]{1,30})/,
-    /([^\n]{1,20}(?:室|LDK|DK|キッチン|台所|玄関|ホール|廊下|トイレ|便所|洗面|浴室|寝室|和室|洋室|収納|WCL|CL))/i
+    /((?:事務所|LDK|DK|キッチン|台所|玄関ホール|玄関|ホール|廊下|トイレ|便所|洗面室|洗面|脱衣室|浴室|主寝室|寝室|子供室|和室|洋室|収納|WCL|CL))/i,
+    /([一-龯ぁ-んァ-ヶA-Z0-9]{1,16}(?:室|所|ホール|廊下))/i
   ]);
-  const color = firstOpeningOcrMatch(compact, [
+  const color = firstOpeningOcrMatch(denseLines, [
     /((?:ステン|ステンカラー|シルバー|ブラック|黒|ホワイト|白|ブロンズ|ブラウン|グレー|シャイングレー|ナチュラルシルバー))/i,
     /(?:色|カラー|仕上色)\s*[:：]?\s*([^\n]{1,20})/
   ]);
-  const sashType = firstOpeningOcrMatch(compact, [
+  const sashType = firstOpeningOcrMatch(denseLines, [
+    /((?:袖)?FIX(?:片|両)?開き(?:ドア|戸|窓)?(?:P?\d+型)?)/i,
+    /((?:片|両)開き(?:ドア|戸|窓)(?:P?\d+型)?)/i,
     /((?:片引き|引違い|引き違い|両引き|FIX|はめ殺し|縦すべり出し|横すべり出し|すべり出し|上げ下げ|内倒し|外倒し|ルーバー|ジャロジー|開き|テラス|連窓|段窓)(?:窓|戸|サッシ)?)/i,
     /(?:サッシ種類|窓種|形式|種類)\s*[:：]?\s*([^\n]{1,30})/
   ]);
-  const glassType = firstOpeningOcrMatch(compact, [
-    /((?:Low[- ]?E\s*)?(?:複層|ペア|単板|網入(?:り)?|強化|合わせ|型板|透明|防火|遮熱|断熱)[^\n、,]{0,12}ガラス)/i,
+  const glassType = firstOpeningOcrMatch(denseLines, [
+    /((?:Low-?E)?(?:乳白)?(?:複層|ペア|単板|網入(?:り)?|強化|合わせ|型板|透明|防火|遮熱|断熱)?ガラス)/i,
     /(?:ガラス|硝子)\s*[:：]?\s*([^\n]{1,30})/
   ]);
   return { symbol, location, color, sashType, glassType };
@@ -483,7 +505,7 @@ function startOpeningOcrMode() {
   drawOverlay();
 }
 
-function openingOcrCrop(rect) {
+function openingOcrCrop(rect, options = {}) {
   const sourceScaleX = els.drawingCanvas.width / baseWidth;
   const sourceScaleY = els.drawingCanvas.height / baseHeight;
   const sx = Math.max(0, Math.round(rect.x * sourceScaleX));
@@ -491,7 +513,9 @@ function openingOcrCrop(rect) {
   const sw = Math.max(1, Math.round(rect.width * sourceScaleX));
   const sh = Math.max(1, Math.round(rect.height * sourceScaleY));
   const canvas = document.createElement("canvas");
-  const upscale = Math.max(1, Math.min(2, 1800 / Math.max(sw, sh)));
+  const maxDimension = Number(options.maxDimension) || 2600;
+  const maxUpscale = Number(options.maxUpscale) || 3;
+  const upscale = Math.max(1, Math.min(maxUpscale, maxDimension / Math.max(sw, sh)));
   canvas.width = Math.max(1, Math.round(sw * upscale));
   canvas.height = Math.max(1, Math.round(sh * upscale));
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -501,13 +525,47 @@ function openingOcrCrop(rect) {
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
   for (let index = 0; index < image.data.length; index += 4) {
     const gray = Math.round(image.data[index] * 0.299 + image.data[index + 1] * 0.587 + image.data[index + 2] * 0.114);
-    const value = gray > 205 ? 255 : gray < 80 ? 0 : gray;
+    const value = options.binary ? (gray > 180 ? 255 : 0) : gray > 215 ? 255 : gray < 105 ? 0 : gray;
     image.data[index] = value;
     image.data[index + 1] = value;
     image.data[index + 2] = value;
   }
   ctx.putImageData(image, 0, 0);
   return canvas;
+}
+
+async function openingPdfTextInRect(rect) {
+  if (!pdfDoc) return "";
+  const page = await pdfDoc.getPage(currentPage);
+  const viewport = page.getViewport({ scale: pdfDisplayScale });
+  const content = await page.getTextContent();
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  const seen = new Set();
+  const items = content.items.map((item) => {
+    const [x, y] = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
+    const width = Math.abs(Number(item.width || 0) * pdfDisplayScale);
+    const height = Math.max(8, Math.abs(Number(item.height || 0) * pdfDisplayScale));
+    return { text: String(item.str || "").trim(), x, y, width, height };
+  }).filter((item) => {
+    if (!item.text || item.x > right || item.x + item.width < rect.x || item.y < rect.y - item.height || item.y > bottom + item.height) return false;
+    const key = `${item.text}|${Math.round(item.x * 10)}|${Math.round(item.y * 10)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => Math.abs(a.y - b.y) > 5 ? a.y - b.y : a.x - b.x);
+  const lines = [];
+  items.forEach((item) => {
+    let line = lines.find((candidate) => Math.abs(candidate.y - item.y) <= 5);
+    if (!line) {
+      line = { y: item.y, items: [] };
+      lines.push(line);
+    }
+    line.items.push(item);
+  });
+  return lines.sort((a, b) => a.y - b.y).map((line) => (
+    line.items.sort((a, b) => a.x - b.x).map((item) => item.text).join(" ")
+  )).join("\n");
 }
 
 async function runOpeningOcr(rect) {
@@ -519,6 +577,8 @@ async function runOpeningOcr(rect) {
   updateOpeningOcrModeButton();
   let worker = null;
   try {
+    setOpeningOcrStatus("図面内の文字を確認しています…");
+    const pdfText = await openingPdfTextInRect(rect).catch(() => "");
     const options = {
       workerPath: "./tesseract-worker.min.js",
       logger: (message) => {
@@ -532,19 +592,41 @@ async function runOpeningOcr(rect) {
     } catch {
       worker = await window.Tesseract.createWorker("eng", 1, options);
     }
+    await worker.setParameters?.({
+      preserve_interword_spaces: "1",
+      tessedit_pageseg_mode: window.Tesseract.PSM?.SPARSE_TEXT || "11"
+    });
     const result = await worker.recognize(openingOcrCrop(rect));
     const rawText = result?.data?.text || "";
-    const parsed = parseOpeningOcrText(rawText);
+    setOpeningOcrStatus("符号を確認しています…");
+    await worker.setParameters?.({
+      tessedit_char_whitelist: "ADSWFIX0123456789-",
+      tessedit_pageseg_mode: window.Tesseract.PSM?.SINGLE_BLOCK || "6"
+    });
+    const symbolRect = { ...rect, height: Math.max(24, Math.min(rect.height, rect.height * 0.18)) };
+    const symbolResult = await worker.recognize(openingOcrCrop(symbolRect, {
+      binary: true,
+      maxDimension: 1800,
+      maxUpscale: 4
+    }));
+    const symbolText = symbolResult?.data?.text || "";
+    const combinedText = [pdfText, rawText].filter((value) => value.trim()).join("\n");
+    const parsed = parseOpeningOcrText(combinedText, `${pdfText}\n${symbolText}`);
+    const storedRawText = [
+      pdfText.trim() ? `[PDF文字]\n${pdfText.trim()}` : "",
+      rawText.trim() ? `[OCR文字]\n${rawText.trim()}` : "",
+      symbolText.trim() ? `[符号候補]\n${symbolText.trim()}` : ""
+    ].filter(Boolean).join("\n\n");
     openingOcrResults.push(normalizeOpeningOcrResult({
       ...parsed,
-      rawText,
+      rawText: storedRawText,
       drawingName: drawingFileName,
       page: currentPage,
       rect
     }));
     renderOpeningOcrResults();
     saveQuietly();
-    setOpeningOcrStatus(rawText.trim()
+    setOpeningOcrStatus(combinedText.trim()
       ? `OCR完了: ${parsed.symbol || "符号未検出"} をリストへ追加しました。`
       : "文字を検出できませんでした。範囲を少し広げて再度囲ってください。");
   } finally {
