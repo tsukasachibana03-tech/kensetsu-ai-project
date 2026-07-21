@@ -299,6 +299,21 @@ h2 { font-size: 17px; }
   outline: 2px solid rgba(23, 105, 111, 0.16);
 }
 
+.opening-ocr-result-input.ocr-target,
+.opening-ocr-result-input.ocr-target:focus {
+  border-color: #c55735;
+  outline: 3px solid rgba(197, 87, 53, 0.24);
+  background: #fff7f3;
+}
+
+.opening-ocr-result-field.emphasis .opening-ocr-result-input.ocr-target,
+.opening-ocr-result-field.emphasis .opening-ocr-result-input.ocr-target:focus {
+  border-color: #ffd2c5;
+  outline-color: rgba(255, 210, 197, 0.45);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .opening-ocr-edit-row small {
   flex: 0 0 auto;
   color: var(--muted);
