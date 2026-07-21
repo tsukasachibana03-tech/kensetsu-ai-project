@@ -1016,6 +1016,60 @@ select:focus {
   min-width: 0;
 }
 
+.partition-substrate-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.partition-substrate-ch > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  align-items: center;
+}
+
+.partition-substrate-ch input {
+  min-height: 34px;
+}
+
+.partition-substrate-totals {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.partition-substrate-totals > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 7px;
+  border: 1px solid #cbdadd;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.partition-substrate-totals strong {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.substrate-swatch {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: #27865f;
+}
+
+.substrate-swatch.is-steel { background: #2f6fb5; }
+.substrate-swatch.is-gl { background: #d97706; }
+
 .finish-formula-select {
   min-width: 0;
   min-height: 34px;
