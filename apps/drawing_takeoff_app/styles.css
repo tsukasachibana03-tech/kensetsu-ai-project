@@ -115,9 +115,9 @@ h2 { font-size: 17px; }
 
 .workspace {
   display: grid;
-  grid-template-columns: 320px minmax(520px, 1fr) 280px;
+  grid-template-columns: 320px minmax(520px, 1fr) minmax(600px, 680px);
   gap: 14px;
-  max-width: 1760px;
+  max-width: 2200px;
   margin: 0 auto;
   align-items: start;
 }
@@ -214,33 +214,66 @@ h2 { font-size: 17px; }
   padding: 4px 8px;
 }
 
-.opening-ocr-table-wrap {
-  max-height: 360px;
+.opening-ocr-results {
+  display: grid;
+  gap: 10px;
+  max-height: 580px;
   overflow: auto;
+  padding-right: 2px;
+}
+
+.opening-ocr-result-card {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  padding: 10px;
   border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfd;
+}
+
+.opening-ocr-result-field {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px;
   border-radius: 6px;
+  background: var(--soft);
 }
 
-.opening-ocr-table-wrap table {
-  width: 100%;
-  min-width: 620px;
-  border-collapse: collapse;
-  font-size: 12px;
+.opening-ocr-result-field span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
 }
 
-.opening-ocr-table-wrap th,
-.opening-ocr-table-wrap td {
-  padding: 6px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
-  vertical-align: top;
+.opening-ocr-result-field strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
-.opening-ocr-table-wrap th {
-  position: sticky;
-  top: 0;
-  background: #f4f8f8;
-  z-index: 1;
+.opening-ocr-result-field.emphasis {
+  color: #fff;
+  background: var(--brand);
+}
+
+.opening-ocr-result-field.emphasis span {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.opening-ocr-result-field.trade {
+  border: 1px solid rgba(23, 105, 111, 0.24);
+  background: #eef8f7;
+}
+
+.opening-ocr-length-formula {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
 }
 
 .file-drop {
@@ -1346,14 +1379,14 @@ tbody tr.selected td {
   white-space: nowrap;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1500px) {
   .workspace {
     grid-template-columns: 300px minmax(0, 1fr);
   }
 
   .summary-panel {
     grid-column: 1 / -1;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1363,6 +1396,10 @@ tbody tr.selected td {
   .workspace,
   .summary-panel {
     grid-template-columns: 1fr;
+  }
+
+  .opening-ocr-result-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .topbar,
