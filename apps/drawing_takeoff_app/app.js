@@ -434,9 +434,14 @@ function parseOpeningHardwareInfo(rawText) {
   const text = String(rawText || "").normalize("NFKC");
   const hardwareTerms = [
     ["クレセント", /クレセント/],
-    ["付属金物一式", /付属金物一式/],
+    ["表示錠", /表示錠/],
+    ["空錠", /空錠/],
+    ["鎌錠", /鎌錠/],
+    ["本締錠", /本締錠/],
     ["シリンダー錠", /シリンダー錠/],
     ["鍵", /(?:鍵|錠前)/],
+    ["明かり窓", /明かり窓/],
+    ["ソフトクローズ機能付き（開閉両方）", /ソフトクローズ機能付き\s*[（(]?\s*開閉両方\s*[）)]?/],
     ["網戸", /網戸/],
     ["可動スクリーン", /可動スク(?:リ|ゲク)\s*[-ー]?\s*ン/],
     ["片開きスクリーン", /片開きスクリ\s*[-ー]?\s*ン/],
@@ -444,9 +449,12 @@ function parseOpeningHardwareInfo(rawText) {
     ["水切皿板", /(?<!アルミ)水切皿板/],
     ["ドアクローザー", /ドアクローザ(?:ー)?/],
     ["レバーハンドル", /レバーハンドル/],
+    ["引手", /引手/],
+    ["戸車", /戸車/],
     ["戸当り", /戸当(?:り|リ)/],
     ["丁番", /丁番/],
-    ["フロアヒンジ", /フロアヒンジ/]
+    ["フロアヒンジ", /フロアヒンジ/],
+    ["付属金物一式", /付属金物一式/]
   ];
   return hardwareTerms.filter(([, pattern]) => pattern.test(text)).map(([label]) => label).join("・");
 }
@@ -544,6 +552,10 @@ function normalizeOpeningOcrResult(value = {}) {
   const sashTypeManual = Boolean(value.sashTypeManual);
   const parsedSashType = parseOpeningSashType(value.rawText);
   const sashType = String(sashTypeManual ? (value.sashType || "") : (parsedSashType || value.sashType || "")).trim();
+  const tradeManual = Boolean(value.tradeManual);
+  const trade = tradeManual
+    ? openingTradeName(value.trade)
+    : classifyOpeningOcrTrade({ ...value, symbol, sashType });
   const dimensionsManual = Boolean(value.dimensionsManual);
   const parsedDimensions = parseOpeningOcrDimensions(value.rawText, {
     symbol,
@@ -553,7 +565,7 @@ function normalizeOpeningOcrResult(value = {}) {
   const widthMm = Math.max(0, Number(refreshWindowDimensions ? parsedDimensions.widthMm : value.widthMm) || Number(value.widthMm) || 0);
   const heightMm = Math.max(0, Number(refreshWindowDimensions ? parsedDimensions.heightMm : value.heightMm) || Number(value.heightMm) || 0);
   const quantity = Math.max(1, Math.round(Number(value.quantity) || 1));
-  const perimeterLengthM = openingPerimeterLengthM(widthMm, heightMm, quantity);
+  const perimeterLengthM = trade === "木建具" ? 0 : openingPerimeterLengthM(widthMm, heightMm, quantity);
   const parsedGlass = parseOpeningGlassDimensions(value.rawText, {
     widthMm,
     heightMm,
@@ -567,10 +579,7 @@ function normalizeOpeningOcrResult(value = {}) {
   const glassAreaM2 = openingGlassAreaM2(glassWidthMm, glassHeightMm, quantity);
   const glassThicknessManual = Boolean(value.glassThicknessManual);
   const hardwareInfoManual = Boolean(value.hardwareInfoManual);
-  const tradeManual = Boolean(value.tradeManual);
-  const trade = tradeManual
-    ? openingTradeName(value.trade)
-    : classifyOpeningOcrTrade({ ...value, symbol, sashType });
+  const parsedHardwareInfo = parseOpeningHardwareInfo(value.rawText);
   return {
     id: value.id || `ocr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     symbol,
@@ -582,7 +591,7 @@ function normalizeOpeningOcrResult(value = {}) {
     glassType: collapseRepeatedOpeningOcrText(value.glassType),
     glassThickness: String(glassThicknessManual ? (value.glassThickness || "") : (value.glassThickness || parseOpeningGlassThickness(value.rawText))).trim(),
     glassThicknessManual,
-    hardwareInfo: String(hardwareInfoManual ? (value.hardwareInfo || "") : (value.hardwareInfo || parseOpeningHardwareInfo(value.rawText))).trim(),
+    hardwareInfo: String(hardwareInfoManual ? (value.hardwareInfo || "") : (parsedHardwareInfo || value.hardwareInfo || "")).trim(),
     hardwareInfoManual,
     trade,
     tradeManual,
@@ -597,9 +606,9 @@ function normalizeOpeningOcrResult(value = {}) {
     glassAreaManual: Boolean(value.glassAreaManual),
     glassAreaM2: Math.max(0, Number(value.glassAreaManual ? value.glassAreaM2 : glassAreaM2) || 0),
     sashMortarLengthManual: Boolean(value.sashMortarLengthManual),
-    sashMortarLengthM: Math.max(0, Number(value.sashMortarLengthManual ? value.sashMortarLengthM : perimeterLengthM) || 0),
+    sashMortarLengthM: trade === "木建具" ? 0 : Math.max(0, Number(value.sashMortarLengthManual ? value.sashMortarLengthM : perimeterLengthM) || 0),
     caulkingLengthManual: Boolean(value.caulkingLengthManual),
-    caulkingLengthM: Math.max(0, Number(value.caulkingLengthManual ? value.caulkingLengthM : perimeterLengthM) || 0),
+    caulkingLengthM: trade === "木建具" ? 0 : Math.max(0, Number(value.caulkingLengthManual ? value.caulkingLengthM : perimeterLengthM) || 0),
     sashMortarTrade: "左官工事",
     caulkingTrade: "防水工事",
     rawText: String(value.rawText || "").trim(),
@@ -844,10 +853,18 @@ function updateOpeningOcrField(result, key, rawValue) {
   if (["symbol", "sashType"].includes(key) && !result.tradeManual) {
     result.trade = classifyOpeningOcrTrade(result);
   }
+  const resultTrade = classifyOpeningOcrTrade(result);
+  if (resultTrade === "木建具") {
+    result.sashMortarLengthM = 0;
+    result.caulkingLengthM = 0;
+  } else if (["symbol", "sashType"].includes(key)) {
+    if (!result.sashMortarLengthManual) result.sashMortarLengthM = openingPerimeterLengthM(result.widthMm, result.heightMm, result.quantity);
+    if (!result.caulkingLengthManual) result.caulkingLengthM = openingPerimeterLengthM(result.widthMm, result.heightMm, result.quantity);
+  }
 
   if (["widthMm", "heightMm", "quantity"].includes(key)) {
-    result.sashMortarLengthM = openingPerimeterLengthM(result.widthMm, result.heightMm, result.quantity);
-    result.caulkingLengthM = result.sashMortarLengthM;
+    result.sashMortarLengthM = resultTrade === "木建具" ? 0 : openingPerimeterLengthM(result.widthMm, result.heightMm, result.quantity);
+    result.caulkingLengthM = resultTrade === "木建具" ? 0 : result.sashMortarLengthM;
     if (!result.glassIsPartial) {
       if (key === "widthMm" && result.glassWidthMm === previousWidthMm) result.glassWidthMm = result.widthMm;
       if (key === "heightMm" && result.glassHeightMm === previousHeightMm) result.glassHeightMm = result.heightMm;
@@ -920,11 +937,13 @@ function renderOpeningOcrResults() {
       event.preventDefault();
       selectCard();
     });
+    const resultTrade = classifyOpeningOcrTrade(result);
+    const isWoodOpening = resultTrade === "木建具";
     const fields = [
       { label: "符号", key: "symbol", value: result.symbol, modifier: "emphasis" },
       { label: "場所・部屋名", key: "location", value: result.location },
       { label: "色", key: "color", value: result.color },
-      { label: "サッシ種類", key: "sashType", value: result.sashType, modifier: "wide" },
+      { label: "種類", key: "sashType", value: result.sashType, modifier: "wide" },
       { label: "ガラス種類", key: "glassType", value: result.glassType, modifier: "wide", placeholder: "例：透明ガラス" },
       { label: "ガラス厚み", key: "glassThickness", value: result.glassThickness, modifier: "wide", placeholder: "例：6.0mm / 6+A12+6" },
       { label: "概要", key: "hardwareInfo", value: result.hardwareInfo, modifier: "overview", placeholder: "金物情報（鍵・網戸・クレセントなど）" },
@@ -933,10 +952,14 @@ function renderOpeningOcrResults() {
       { label: "個数", key: "quantity", value: result.quantity || 1, type: "number", unit: "箇所", step: "1", min: "1" },
       { label: "ガラス幅 W", key: "glassWidthMm", value: result.glassWidthMm, type: "number", unit: "mm", step: "1" },
       { label: "ガラス高さ H", key: "glassHeightMm", value: result.glassHeightMm, type: "number", unit: "mm", step: "1" },
-      { label: `ガラス面積（ガラス工事）${result.glassIsPartial ? "・部分" : ""}`, key: "glassAreaM2", value: result.glassAreaM2, type: "number", unit: "㎡", step: "0.01", modifier: "trade" },
-      { label: "サッシモルタル（左官工事）", key: "sashMortarLengthM", value: result.sashMortarLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" },
-      { label: "コーキング（防水工事）", key: "caulkingLengthM", value: result.caulkingLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" }
+      { label: `ガラス面積（ガラス工事）${result.glassIsPartial ? "・部分" : ""}`, key: "glassAreaM2", value: result.glassAreaM2, type: "number", unit: "㎡", step: "0.01", modifier: "trade" }
     ];
+    if (!isWoodOpening) {
+      fields.push(
+        { label: "サッシモルタル（左官工事）", key: "sashMortarLengthM", value: result.sashMortarLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" },
+        { label: "コーキング（防水工事）", key: "caulkingLengthM", value: result.caulkingLengthM, type: "number", unit: "m", step: "0.01", modifier: "trade" }
+      );
+    }
     fields.forEach(({ label, key, value, modifier = "", type = "text", unit = "", step = "", min = "0", placeholder = "" }) => {
       const field = document.createElement("div");
       field.className = `opening-ocr-result-field ${modifier}`.trim();
@@ -989,9 +1012,14 @@ function renderOpeningOcrResults() {
     });
     const formula = document.createElement("p");
     formula.className = "opening-ocr-length-formula";
-    formula.textContent = result.widthMm && result.heightMm
-      ? `${result.glassAreaM2 ? `ガラス: ${result.glassType || "種類未検出"}${result.glassThickness ? ` / 厚み ${result.glassThickness}` : ""} / ${result.glassWidthMm.toLocaleString("ja-JP")} × ${result.glassHeightMm.toLocaleString("ja-JP")} mm × ${result.quantity || 1}箇所 / ` : ""}外周: 2 × (W + H) × 個数`
-      : "幅と高さを検出すると、ガラス面積と左官・防水の長さを自動計算します。";
+    const glassFormula = result.glassAreaM2
+      ? `ガラス: ${result.glassType || "種類未検出"}${result.glassThickness ? ` / 厚み ${result.glassThickness}` : ""} / ${result.glassWidthMm.toLocaleString("ja-JP")} × ${result.glassHeightMm.toLocaleString("ja-JP")} mm × ${result.quantity || 1}箇所`
+      : "";
+    formula.textContent = isWoodOpening
+      ? (glassFormula || "木建具のため、モルタルとコーキングは計上しません。")
+      : result.widthMm && result.heightMm
+        ? `${glassFormula ? `${glassFormula} / ` : ""}外周: 2 × (W + H) × 個数`
+        : "幅と高さを検出すると、ガラス面積と左官・防水の長さを自動計算します。";
     card.appendChild(formula);
     els.openingOcrResultsBody.appendChild(card);
   });
