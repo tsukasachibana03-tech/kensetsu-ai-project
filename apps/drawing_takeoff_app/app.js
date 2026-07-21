@@ -575,11 +575,11 @@ function normalizeOpeningOcrResult(value = {}) {
     id: value.id || `ocr-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     symbol,
     symbolManual,
-    location: String(value.location || "").trim(),
-    color: String(value.color || "").trim(),
-    sashType,
+    location: collapseRepeatedOpeningOcrText(value.location),
+    color: collapseRepeatedOpeningOcrText(value.color),
+    sashType: collapseRepeatedOpeningOcrText(sashType),
     sashTypeManual,
-    glassType: String(value.glassType || "").trim(),
+    glassType: collapseRepeatedOpeningOcrText(value.glassType),
     glassThickness: String(glassThicknessManual ? (value.glassThickness || "") : (value.glassThickness || parseOpeningGlassThickness(value.rawText))).trim(),
     glassThicknessManual,
     hardwareInfo: String(hardwareInfoManual ? (value.hardwareInfo || "") : (value.hardwareInfo || parseOpeningHardwareInfo(value.rawText))).trim(),
@@ -722,7 +722,30 @@ function parseOpeningOcrText(rawText, symbolText = "") {
   };
 }
 
-function openingOcrFieldValue(key, rawText) {
+function cleanOpeningOcrFieldText(rawText, key = "") {
+  const lines = String(rawText || "").normalize("NFKC").replace(/\r/g, "").split("\n")
+    .map((line) => line.replace(/^(?:符号|記号|場所|部屋名|室名|取付場所|色|カラー|仕上色|サッシ種類|種類|ガラス|硝子|ガラス厚み|厚み|概要|金物)\s*[:：]?\s*/i, "").trim())
+    .filter((line, index, values) => line && values.indexOf(line) === index);
+  const separator = key === "hardwareInfo" ? "・" : " ";
+  return collapseRepeatedOpeningOcrText(lines.join(separator).replace(/[ \t\u3000]+/g, " ").trim(), separator);
+}
+
+function collapseRepeatedOpeningOcrText(value, separator = " ") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const parts = text.split(separator).map((part) => part.trim()).filter(Boolean);
+  for (let size = 1; size <= Math.floor(parts.length / 2); size += 1) {
+    if (parts.length % size !== 0) continue;
+    const first = parts.slice(0, size).join(separator);
+    const repeated = Array.from({ length: parts.length / size }, (_, index) => (
+      parts.slice(index * size, (index + 1) * size).join(separator)
+    ));
+    if (repeated.every((part) => part === first)) return first;
+  }
+  return text;
+}
+
+function openingOcrFieldValue(key, rawText, options = {}) {
   const text = String(rawText || "").normalize("NFKC").replace(/\r/g, "").trim();
   if (!text) return "";
   const numericKeys = new Set([
@@ -732,6 +755,11 @@ function openingOcrFieldValue(key, rawText) {
   if (numericKeys.has(key)) {
     const numberMatch = text.replace(/,/g, "").match(/\d{1,5}(?:\.\d+)?/);
     return numberMatch ? Number(numberMatch[0]) : "";
+  }
+  const exactText = cleanOpeningOcrFieldText(text, key);
+  if (options.preferExact && exactText) {
+    if (key === "symbol") return parseOpeningOcrSymbolText(exactText) || exactText.replace(/\s+/g, "").toUpperCase();
+    return exactText;
   }
   const parsed = parseOpeningOcrText(text, key === "symbol" ? text : "");
   const parsedValue = parsed[key];
@@ -778,7 +806,7 @@ function clearOpeningOcrFieldTarget({ resetMode = false } = {}) {
 
 function startOpeningOcrFieldMode(result, key, label, input) {
   clearOpeningOcrFieldTarget();
-  openingOcrFieldTarget = { resultId: result.id, key, label };
+  openingOcrFieldTarget = { resultId: result.id, key, label, wasEmpty: !String(input.value || "").trim() };
   selectedOpeningOcrId = result.id;
   setOpeningOcrTargetVisual(input, true);
   mode = "openingOcrField";
@@ -1102,13 +1130,27 @@ async function runOpeningOcr(rect) {
     }
     await worker.setParameters?.({
       preserve_interword_spaces: "1",
-      tessedit_pageseg_mode: window.Tesseract.PSM?.SPARSE_TEXT || "11"
+      tessedit_pageseg_mode: fieldTarget
+        ? (fieldTarget.key === "hardwareInfo" ? (window.Tesseract.PSM?.SINGLE_BLOCK || "6") : (window.Tesseract.PSM?.SINGLE_LINE || "7"))
+        : (window.Tesseract.PSM?.SPARSE_TEXT || "11")
     });
-    const result = await worker.recognize(openingOcrCrop(rect));
-    const rawText = result?.data?.text || "";
+    const result = await worker.recognize(fieldTarget
+      ? openingOcrCrop(rect, { maxDimension: 3200, maxUpscale: 6 })
+      : openingOcrCrop(rect));
+    let rawText = result?.data?.text || "";
+    if (fieldTarget && !rawText.trim()) {
+      const retryResult = await worker.recognize(openingOcrCrop(rect, {
+        binary: true,
+        maxDimension: 3200,
+        maxUpscale: 6
+      }));
+      rawText = retryResult?.data?.text || "";
+    }
     if (fieldTarget) {
-      const combinedFieldText = [pdfText, rawText].filter((value) => value.trim()).join("\n");
-      const fieldValue = openingOcrFieldValue(fieldTarget.key, combinedFieldText);
+      const enclosedFieldText = rawText.trim() || pdfText.trim();
+      const fieldValue = openingOcrFieldValue(fieldTarget.key, enclosedFieldText, {
+        preferExact: true
+      });
       const targetResult = openingOcrResults.find((item) => item.id === fieldTarget.resultId);
       if (!targetResult) {
         clearOpeningOcrFieldTarget({ resetMode: true });
@@ -1121,7 +1163,7 @@ async function runOpeningOcr(rect) {
       }
       targetResult.rawText = [
         targetResult.rawText,
-        `[項目再OCR: ${fieldTarget.label}]\n${combinedFieldText.trim()}`
+        `[項目再OCR: ${fieldTarget.label}]\n${enclosedFieldText}`
       ].filter(Boolean).join("\n\n");
       clearOpeningOcrFieldTarget({ resetMode: true });
       updateOpeningOcrField(targetResult, fieldTarget.key, fieldValue);
