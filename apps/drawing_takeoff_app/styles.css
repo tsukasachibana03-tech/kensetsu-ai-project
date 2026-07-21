@@ -1071,6 +1071,7 @@ select:focus {
 
 .substrate-swatch.is-steel { background: #2f6fb5; }
 .substrate-swatch.is-gl { background: #d97706; }
+.substrate-swatch.is-lumber { background: #7c3aed; }
 
 .finish-formula-select {
   min-width: 0;
