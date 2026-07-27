@@ -3,6 +3,9 @@ import hashlib
 import json
 import os
 import re
+import subprocess
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +21,7 @@ from psycopg.types.json import Jsonb
 
 NATIVE_DIR = Path(__file__).resolve().parent
 APP_DIR = NATIVE_DIR.parents[1]
+PROJECT_DIR = APP_DIR.parents[1]
 SCHEMA_PATH = NATIVE_DIR.parent / "database" / "001_schema.sql"
 CONFIG_PATH = Path(
     os.environ.get(
@@ -37,6 +41,16 @@ DROPBOX_DATA_PATH = Path(
         str(APP_DIR.parents[2] / "mitsumori_data.json"),
     )
 )
+GIT_SYNC_INTERVAL = max(5, int(os.environ.get("GITHUB_SYNC_INTERVAL_SECONDS", "15")))
+GIT_SYNC_QUIET = max(GIT_SYNC_INTERVAL, int(os.environ.get("GITHUB_SYNC_QUIET_SECONDS", "45")))
+GIT_SYNC_PATHS = [
+    "apps/mitsumori_app",
+    "index.html",
+    "README.md",
+    ":(exclude)apps/mitsumori_app/mitsumori_data.json",
+    ":(exclude)data/mitsumori_data.json",
+    ":(exclude)mitsumori_data.json",
+]
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
@@ -253,6 +267,79 @@ def safe_print_name(value):
     return value[:80] or "estimate"
 
 
+def run_git(*arguments, check=True):
+    command = [
+        os.environ.get("GIT_EXE", "git"),
+        "-c",
+        f"safe.directory={PROJECT_DIR}",
+        *arguments,
+    ]
+    options = {
+        "cwd": PROJECT_DIR,
+        "capture_output": True,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "timeout": 120,
+        "check": check,
+    }
+    if os.name == "nt":
+        options["creationflags"] = subprocess.CREATE_NO_WINDOW
+    return subprocess.run(command, **options)
+
+
+def git_change_fingerprint():
+    status = run_git("status", "--porcelain", "--", *GIT_SYNC_PATHS).stdout
+    if not status.strip():
+        return ""
+    working_diff = run_git("diff", "--binary", "--", *GIT_SYNC_PATHS).stdout
+    staged_diff = run_git("diff", "--cached", "--binary", "--", *GIT_SYNC_PATHS).stdout
+    return revision_of(f"{status}\n{working_diff}\n{staged_diff}")
+
+
+def sync_app_to_github():
+    branch = run_git("branch", "--show-current").stdout.strip()
+    if branch != "main":
+        return
+    if not run_git("status", "--porcelain", "--", *GIT_SYNC_PATHS).stdout.strip():
+        return
+
+    run_git("add", "--", *GIT_SYNC_PATHS)
+    commit = run_git("commit", "-m", "Save latest estimate app", check=False)
+    if commit.returncode != 0:
+        return
+    run_git("fetch", "origin", "refs/heads/main:refs/remotes/origin/main")
+    rebase = run_git("rebase", "origin/main", check=False)
+    if rebase.returncode != 0:
+        run_git("rebase", "--abort", check=False)
+        raise RuntimeError(rebase.stderr.strip() or "GitHub rebase failed")
+    run_git("push", "origin", "HEAD:main")
+
+
+def github_sync_worker():
+    previous_fingerprint = None
+    last_change_at = time.monotonic()
+    while True:
+        try:
+            fingerprint = git_change_fingerprint()
+            if fingerprint != previous_fingerprint:
+                previous_fingerprint = fingerprint
+                last_change_at = time.monotonic()
+            elif fingerprint and time.monotonic() - last_change_at >= GIT_SYNC_QUIET:
+                sync_app_to_github()
+                previous_fingerprint = git_change_fingerprint()
+                last_change_at = time.monotonic()
+        except Exception as error:
+            print(f"GitHub app sync failed: {error}", flush=True)
+        time.sleep(GIT_SYNC_INTERVAL)
+
+
+def start_github_auto_sync():
+    if os.environ.get("DISABLE_GITHUB_SYNC") == "1":
+        return
+    threading.Thread(target=github_sync_worker, name="github-auto-sync", daemon=True).start()
+
+
 @app.get("/api/health")
 def health():
     with connect() as connection:
@@ -265,6 +352,7 @@ def health():
         estimateCount=stored["estimate_count"] if stored else 0,
         updatedAt=stored["updated_at"].isoformat() if stored else None,
         dropboxData=str(DROPBOX_DATA_PATH),
+        githubAutoSync=os.environ.get("DISABLE_GITHUB_SYNC") != "1",
     )
 
 
@@ -404,6 +492,7 @@ def main():
         import_file(arguments.import_path)
         return
     ensure_schema()
+    start_github_auto_sync()
     app.run(host="127.0.0.1", port=arguments.port, threaded=True, use_reloader=False)
 
 
