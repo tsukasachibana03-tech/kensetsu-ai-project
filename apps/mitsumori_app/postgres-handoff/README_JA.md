@@ -3,7 +3,17 @@
 このフォルダーは、見積りアプリと保存済み見積りをノートPCへ引き継ぐための一式です。
 見積りデータはPostgreSQLへ保存され、更新前の内容も履歴として残ります。
 
-## WindowsノートPC
+## PostgreSQLをWindowsへ直接インストールした場合
+
+1. `setup-native-windows.ps1` を右クリックし、「PowerShellで実行」を選びます。
+2. PostgreSQLのインストール時に決めたパスワードを入力します。
+3. 現在の見積りデータが自動で取り込まれ、アプリが開きます。
+4. 2回目以降は `start-native-windows.ps1` で開きます。
+
+管理者用パスワードは保存しません。見積りアプリ専用の接続情報だけを、
+そのWindows利用者のローカル設定へ保存します。
+
+## Docker Desktopを使う場合
 
 1. Dropboxの同期が終わるまで待ちます。
 2. Docker Desktopをインストールして起動します。
