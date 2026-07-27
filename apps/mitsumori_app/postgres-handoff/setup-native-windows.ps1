@@ -16,16 +16,16 @@ $dataFile = $dataCandidates |
   Select-Object -First 1
 
 if (-not (Test-Path $psql)) {
-  throw "PostgreSQL 18が見つかりません。先にPostgreSQLをインストールしてください。"
+  throw "PostgreSQL 18 was not found. Install PostgreSQL first."
 }
 if (-not (Test-Path $python)) {
-  throw "pgAdminの実行環境が見つかりません。PostgreSQLをpgAdmin付きでインストールしてください。"
+  throw "The pgAdmin runtime was not found. Install PostgreSQL with pgAdmin."
 }
 if (-not $dataFile) {
-  throw "引継ぎ元のmitsumori_data.jsonが見つかりません。"
+  throw "The handoff source file mitsumori_data.json was not found."
 }
 
-$securePassword = Read-Host "PostgreSQLのインストール時に決めたパスワードを入力してください" -AsSecureString
+$securePassword = Read-Host "Enter the PostgreSQL password you chose during installation" -AsSecureString
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $adminPassword = $null
 
@@ -40,7 +40,7 @@ try {
   $env:PGPASSWORD = $adminPassword
   $roleExists = (& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='mitsumori_app';").Trim()
   if ($LASTEXITCODE -ne 0) {
-    throw "PostgreSQLへ接続できませんでした。パスワードを確認してください。"
+    throw "Could not connect to PostgreSQL. Check the password."
   }
 
   if ($roleExists -eq "1") {
@@ -49,14 +49,14 @@ try {
     & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE mitsumori_app WITH LOGIN PASSWORD '$appPassword';"
   }
   if ($LASTEXITCODE -ne 0) {
-    throw "見積りアプリ用の利用者作成に失敗しました。"
+    throw "Could not create the estimate app database user."
   }
 
   $databaseExists = (& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='mitsumori';").Trim()
   if ($databaseExists -ne "1") {
     & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE mitsumori OWNER mitsumori_app;"
     if ($LASTEXITCODE -ne 0) {
-      throw "見積りデータベースの作成に失敗しました。"
+      throw "Could not create the estimate database."
     }
   } else {
     & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "ALTER DATABASE mitsumori OWNER TO mitsumori_app;"
@@ -77,13 +77,13 @@ try {
   $env:PGPASSWORD = $appPassword
   & $psql -h 127.0.0.1 -p 5432 -U mitsumori_app -d mitsumori -v ON_ERROR_STOP=1 -f $schemaFile
   if ($LASTEXITCODE -ne 0) {
-    throw "見積りデータベースの準備に失敗しました。"
+    throw "Could not prepare the estimate database."
   }
 
   $env:POSTGRES_BIN = Join-Path $postgresRoot "bin"
   & $python $serverScript --import $dataFile
   if ($LASTEXITCODE -ne 0) {
-    throw "見積りデータの取り込みに失敗しました。"
+    throw "Could not import the estimate data."
   }
 } finally {
   Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
@@ -95,5 +95,5 @@ try {
 }
 
 Write-Host ""
-Write-Host "見積りデータをPostgreSQLへ引き継ぎました。"
+Write-Host "Estimate data was handed off to PostgreSQL."
 & (Join-Path $PSScriptRoot "start-native-windows.ps1")

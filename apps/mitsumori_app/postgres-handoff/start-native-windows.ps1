@@ -9,7 +9,7 @@ $runtimeDirectory = Join-Path $env:LOCALAPPDATA "MitsumoriPostgres"
 $pidFile = Join-Path $runtimeDirectory "server.pid"
 
 if (-not (Test-Path $configPath)) {
-  throw "初期設定がまだです。setup-native-windows.ps1を先に実行してください。"
+  throw "Initial setup is required. Run setup-native-windows.ps1 first."
 }
 
 try {
@@ -18,7 +18,7 @@ try {
     $browserInfo = [Diagnostics.ProcessStartInfo]::new("http://127.0.0.1:8766/")
     $browserInfo.UseShellExecute = $true
     [Diagnostics.Process]::Start($browserInfo) | Out-Null
-    Write-Host "PostgreSQL版の見積りアプリを開きました。"
+    Write-Host "Opened the PostgreSQL estimate app."
     exit 0
   }
 } catch {
@@ -43,7 +43,7 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
       $browserInfo = [Diagnostics.ProcessStartInfo]::new("http://127.0.0.1:8766/")
       $browserInfo.UseShellExecute = $true
       [Diagnostics.Process]::Start($browserInfo) | Out-Null
-      Write-Host "PostgreSQL版の見積りアプリを開きました。見積り件数: $($health.estimateCount)"
+      Write-Host "Opened the PostgreSQL estimate app. Estimate count: $($health.estimateCount)"
       exit 0
     }
   } catch {
@@ -51,4 +51,4 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
   }
 }
 
-throw "見積りアプリを起動できませんでした。PostgreSQLサービスを確認してください。"
+throw "Could not start the estimate app. Check the PostgreSQL service."
