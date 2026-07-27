@@ -9,6 +9,8 @@
 - 別のPCがDropbox側を更新した場合は、アプリを開いたときや「保存済みデータ読込」を押したときに新しい内容を判定します。
 - PostgreSQLには更新前データの履歴が残ります。
 - Dropboxには直前の正常データが `mitsumori_data.json.last-good` として残ります。
+- アプリのプログラム変更は、編集が落ち着いた後にGitHubの `main` へ自動更新します。
+- 見積りデータ、バックアップ、接続パスワードはGitHubへ送りません。
 - PostgreSQLの接続パスワードはWindowsの利用者用フォルダーだけに保存し、DropboxやGitHubには保存しません。
 
 ## Windowsで開く
