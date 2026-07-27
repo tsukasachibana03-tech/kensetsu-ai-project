@@ -1401,7 +1401,7 @@
     clearTimeout(dataSaveTimer);
     dataSaveTimer = setTimeout(() => {
       saveDataFile({ silent: true }).catch(() => {
-        setDataFileStatus("Dropbox共有データ: 自動保存できませんでした。手動保存してください。");
+        setDataFileStatus("共有見積データ: 自動保存できませんでした。手動保存してください。");
       });
     }, 900);
   }
@@ -1453,11 +1453,11 @@
         return;
       } catch (error) {
         if (error?.name === "AbortError") throw error;
-        openDataFileInput("Dropbox共有データ: ファイル選択で見積データを選んでください。");
+        openDataFileInput("共有見積データ: ファイル選択で見積データを選んでください。");
         return;
       }
     }
-    openDataFileInput("Dropbox共有データ: ファイル選択で見積データを選んでください。");
+    openDataFileInput("共有見積データ: ファイル選択で見積データを選んでください。");
   }
 
   function openDataFileInput(message = "") {
@@ -1472,7 +1472,7 @@
     await loadDataFileText(await file.text(), file.name);
     dataFileHandle = handle;
     dataFileName = file.name;
-    setDataFileStatus(`Dropbox共有データ: ${dataFileName} を使用中（変更時に自動保存）`);
+    setDataFileStatus(`共有見積データ: ${dataFileName} を使用中（変更時に自動保存）`);
     await ensureFilePermission(handle, "readwrite");
   }
 
@@ -1503,12 +1503,12 @@
     } finally {
       suppressDataAutosave = previousSuppressState;
     }
-    setDataFileStatus(`Dropbox共有データ: ${fileName} を読み込みました`);
+    setDataFileStatus(`共有見積データ: ${fileName} を読み込みました`);
   }
 
   async function loadBundledDataFile() {
     if (window.location.protocol === "file:") {
-      openDataFileInput("Dropbox共有データ: mitsumori_data.json を選択してください。");
+      openDataFileInput("共有見積データ: mitsumori_data.json を選択してください。");
       return;
     }
     const response = await fetch("api/latest-data", { cache: "no-store" }).catch(() => null)
@@ -1521,7 +1521,8 @@
     await loadDataFileText(await response.text(), "mitsumori_data.json", { revision });
     dataFileHandle = null;
     dataFileName = "mitsumori_data.json";
-    setDataFileStatus(`Dropbox共有データ: ${sourceCount}か所を確認し、他のPCを含む最新版を読み込みました`);
+    const storageName = response.headers.get("X-Mitsumori-Storage") || `Dropbox（${sourceCount}か所）`;
+    setDataFileStatus(`共有見積データ: ${storageName}の最新版を読み込みました`);
   }
 
   function canUseLocalSaveServer() {
@@ -1571,7 +1572,7 @@
     rememberSaveBackup(content);
     if (saveAs) {
       downloadFile(content, timestampedDataFileName(), "application/json;charset=utf-8");
-      if (!silent) setDataFileStatus("Dropbox共有データ: 別名JSONを作成しました。");
+      if (!silent) setDataFileStatus("共有見積データ: 別名JSONを作成しました。");
       return;
     }
     if (canUseLocalSaveServer()) {
@@ -1579,24 +1580,24 @@
         isWritingDataFile = true;
         const result = await saveDataFileToLocalServer(content);
         dataFileName = result.fileName || "mitsumori_data.json";
-        if (!silent) setDataFileStatus("Dropbox共有データ: 安全保存しました。");
+        if (!silent) setDataFileStatus("共有見積データ: 安全保存しました。");
         return;
       } catch (error) {
         if (error.status === 409 || error.code === "dropbox_data_conflict") {
-          setDataFileStatus("Dropbox共有データ: 他のPCの新しい編集を検出しました。「保存済みデータ読込」で確認してください。");
+          setDataFileStatus("共有見積データ: 他のPCの新しい編集を検出しました。「保存済みデータ読込」で確認してください。");
           if (!silent) alert("他のPCで更新された見積りがあります。\n「保存済みデータ読込」で最新版を確認してください。");
           return;
         }
         if (!silent) {
           downloadFile(content, timestampedDataFileName(), "application/json;charset=utf-8");
-          setDataFileStatus("Dropbox共有データ: アプリ内バックアップへ保存しました。安全保存版URLから開いてください。");
+          setDataFileStatus("共有見積データ: アプリ内バックアップへ保存しました。安全保存版URLから開いてください。");
         }
         return;
       } finally {
         isWritingDataFile = false;
       }
     }
-    if (!silent) setDataFileStatus("Dropbox共有データ: アプリ内バックアップへ保存しました。安全保存版URLから開いてください。");
+    if (!silent) setDataFileStatus("共有見積データ: アプリ内バックアップへ保存しました。安全保存版URLから開いてください。");
   }
 
   function activeEstimateRecord() {
@@ -5077,6 +5078,11 @@
     const button = $("previewBrowserPrintButton");
     const originalText = button.textContent;
     const fileName = `${safeFileName(state.projectName || "見積書")}.pdf`;
+    const pdfWindow = window.open("about:blank", "_blank");
+    if (pdfWindow) {
+      pdfWindow.document.title = "印刷用PDF作成中";
+      pdfWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">印刷用PDFを作成しています...</p>';
+    }
     button.disabled = true;
     button.textContent = "印刷用PDFを準備中...";
     let pdfBlob = null;
@@ -5094,11 +5100,21 @@
         body: pdfBlob
       });
       if (!response.ok) throw new Error(await response.text() || `HTTP ${response.status}`);
+      const result = await response.json().catch(() => ({}));
+      if (result.url) {
+        if (pdfWindow && !pdfWindow.closed) {
+          pdfWindow.location.replace(result.url);
+        } else {
+          window.open(result.url, "_blank");
+        }
+      } else if (pdfWindow && !pdfWindow.closed) {
+        pdfWindow.close();
+      }
       button.textContent = "PDFを開きました";
       setTimeout(() => { button.textContent = originalText; }, 1800);
     } catch (error) {
       console.error(error);
-      if (pdfBlob) openPdfBlob(pdfBlob, fileName, null);
+      if (pdfBlob) openPdfBlob(pdfBlob, fileName, pdfWindow);
       alert("標準PDFアプリを開けなかったため、印刷用PDFをブラウザーで開いて保存します。PDF画面から印刷してください。");
       button.textContent = originalText;
     } finally {
@@ -5754,22 +5770,22 @@ ${worksheets}
   $("resetMetalTemplateButton").addEventListener("click", resetActiveMetalTemplate);
   $("dataLoadButton").addEventListener("click", () => {
     loadDataFile().catch((error) => {
-      setDataFileStatus(`Dropbox共有データ: 読み込みできませんでした（${error.message}）`);
+      setDataFileStatus(`共有見積データ: 読み込みできませんでした（${error.message}）`);
     });
   });
   $("bundledDataLoadButton").addEventListener("click", () => {
     loadBundledDataFile().catch((error) => {
-      setDataFileStatus(`Dropbox共有データ: 保存済みデータを読み込みできませんでした（${error.message}）`);
+      setDataFileStatus(`共有見積データ: 保存済みデータを読み込みできませんでした（${error.message}）`);
     });
   });
   $("dataSaveButton").addEventListener("click", () => {
     saveDataFile().catch((error) => {
-      setDataFileStatus(`Dropbox共有データ: 保存できませんでした（${error.message}）`);
+      setDataFileStatus(`共有見積データ: 保存できませんでした（${error.message}）`);
     });
   });
   $("dataSaveAsButton").addEventListener("click", () => {
     saveDataFile({ saveAs: true }).catch((error) => {
-      setDataFileStatus(`Dropbox共有データ: 別名保存できませんでした（${error.message}）`);
+      setDataFileStatus(`共有見積データ: 別名保存できませんでした（${error.message}）`);
     });
   });
   $("dataFileInput").addEventListener("change", (event) => {
@@ -5778,7 +5794,7 @@ ${worksheets}
     file.text()
       .then((text) => loadDataFileText(text, file.name))
       .catch((error) => {
-        setDataFileStatus(`Dropbox共有データ: 読み込みできませんでした（${error.message}）`);
+        setDataFileStatus(`共有見積データ: 読み込みできませんでした（${error.message}）`);
       })
       .finally(() => {
         event.target.value = "";
@@ -5885,7 +5901,7 @@ ${worksheets}
 
   bindFields();
   if (canUseLocalSaveServer()) {
-    setDataFileStatus("Dropbox共有データ: 他のPCを含む最新版を確認中です。");
+    setDataFileStatus("共有見積データ: 他のPCを含む最新版を確認中です。");
     loadBundledDataFile().catch((error) => {
       const previousSuppressState = suppressDataAutosave;
       suppressDataAutosave = true;
@@ -5894,7 +5910,7 @@ ${worksheets}
       } finally {
         suppressDataAutosave = previousSuppressState;
       }
-      setDataFileStatus(`Dropbox共有データ: 最新版を確認できませんでした（${error.message}）`);
+      setDataFileStatus(`共有見積データ: 最新版を確認できませんでした（${error.message}）`);
     });
   } else {
     render();

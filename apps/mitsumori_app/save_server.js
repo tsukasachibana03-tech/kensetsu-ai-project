@@ -401,7 +401,8 @@ async function handleLatestData(response) {
     send(response, 200, latest.content, "application/json; charset=utf-8", {
       "X-Mitsumori-Data-Revision": latest.revision,
       "X-Mitsumori-Data-Source-Count": String(latest.sourcePaths.length),
-      "X-Mitsumori-Data-Source": encodeURIComponent(path.relative(dropboxAccountRoot, latest.latestSourcePath))
+      "X-Mitsumori-Data-Source": encodeURIComponent(path.relative(dropboxAccountRoot, latest.latestSourcePath)),
+      "X-Mitsumori-Storage": "Dropbox"
     });
   } catch (error) {
     send(response, 404, `latest data not found: ${error.message}`);
