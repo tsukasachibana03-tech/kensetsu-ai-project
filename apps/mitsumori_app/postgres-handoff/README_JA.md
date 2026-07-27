@@ -1,55 +1,32 @@
 # 見積りアプリ PostgreSQL 引継ぎ
 
-このフォルダーは、見積りアプリと保存済み見積りをノートPCへ引き継ぐための一式です。
-見積りデータはPostgreSQLへ保存され、更新前の内容も履歴として残ります。
+このフォルダーは、見積りアプリと保存済み見積りをノートPCへ引き継ぐためのものです。
 
-## PostgreSQLをWindowsへ直接インストールした場合
+## 保存の仕組み
 
-1. `setup-native-windows.ps1` を右クリックし、「PowerShellで実行」を選びます。
-2. PostgreSQLのインストール時に決めたパスワードを入力します。
-3. 現在の見積りデータが自動で取り込まれ、アプリが開きます。
-4. 2回目以降は `start-native-windows.ps1` で開きます。
+- ノートPCではPostgreSQLへ保存します。
+- 同時にDropbox直下の `mitsumori_data.json` へ最新版を自動保存します。
+- 別のPCがDropbox側を更新した場合は、アプリを開いたときや「保存済みデータ読込」を押したときに新しい内容を判定します。
+- PostgreSQLには更新前データの履歴が残ります。
+- Dropboxには直前の正常データが `mitsumori_data.json.last-good` として残ります。
+- PostgreSQLの接続パスワードはWindowsの利用者用フォルダーだけに保存し、DropboxやGitHubには保存しません。
 
-管理者用パスワードは保存しません。見積りアプリ専用の接続情報だけを、
-そのWindows利用者のローカル設定へ保存します。
+## Windowsで開く
 
-## Docker Desktopを使う場合
-
-1. Dropboxの同期が終わるまで待ちます。
-2. Docker Desktopをインストールして起動します。
-3. `start-windows.ps1` を右クリックし、「PowerShellで実行」を選びます。
-4. 見積りアプリが自動で開きます。
-
-初回だけ安全なデータベース用パスワードが自動作成されます。
-`imports/mitsumori_data.json` は、データベースが空のときだけ自動で取り込まれます。
-
-## MacノートPC
-
-1. Dropboxの同期が終わるまで待ちます。
-2. Docker Desktopをインストールして起動します。
-3. ターミナルでこのフォルダーを開き、最初の一度だけ
-   `chmod +x *.command` を実行します。
-4. `start-mac.command` をダブルクリックします。
-
-## 保存と読込
-
-- アプリ上部の「保存」でPostgreSQLへ保存します。
-- 「保存済みデータ読込」でPostgreSQLの最新版を読み込みます。
-- 別PCの更新を検出した場合は上書きせず、再読込を案内します。
+初回だけDropbox直下の `見積り引継ぎ開始.bat` を実行します。
+引継ぎ完了後は、Dropbox直下の `見積りアプリを開く.bat` をダブルクリックします。
 
 ## バックアップ
 
-- Windows: `backup-windows.ps1`
-- Mac: `backup-mac.command`
+`backup-windows.ps1` を実行すると、PostgreSQLの最新版を `backups` フォルダーへJSON形式で保存します。
+`restore-windows.ps1` は、そのフォルダー内で最も新しいバックアップを復元します。
 
-作成されたJSONは `backups` に保存され、Dropboxでも同期されます。
-復元は同じフォルダーの `restore` ファイルを実行します。
+## 主な保存場所
 
-## 保存場所
+- PostgreSQL本体: ノートPC内のデータベース
+- PC間で共有する最新版: Dropbox直下の `mitsumori_data.json`
+- 直前の正常データ: Dropbox直下の `mitsumori_data.json.last-good`
+- 手動バックアップ: `postgres-handoff/backups`
+- 印刷用PDF: Windowsのドキュメント内 `MitsumoriPrints`
 
-- 見積りデータ本体: Docker内のPostgreSQL
-- 引継ぎ元JSON: `imports/mitsumori_data.json`
-- バックアップ: `backups`
-- 印刷用PDF: `prints`
-
-PostgreSQLの5433番ポートは、インターネットへ公開しないでください。
+PostgreSQLの5432番ポートと見積りアプリの8766番ポートは、インターネットへ公開しないでください。

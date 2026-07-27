@@ -14,7 +14,7 @@ if (-not (Test-Path $configPath)) {
 
 try {
   $health = Invoke-RestMethod -Uri "http://127.0.0.1:8766/api/health" -TimeoutSec 2
-  if ($health.ok -and $health.storage -eq "PostgreSQL") {
+  if ($health.ok -and $health.storage -like "PostgreSQL*") {
     $browserInfo = [Diagnostics.ProcessStartInfo]::new("http://127.0.0.1:8766/")
     $browserInfo.UseShellExecute = $true
     [Diagnostics.Process]::Start($browserInfo) | Out-Null
@@ -26,14 +26,18 @@ try {
 }
 
 New-Item -ItemType Directory -Path $runtimeDirectory -Force | Out-Null
-$processInfo = [Diagnostics.ProcessStartInfo]::new()
-$processInfo.FileName = $python
-$processInfo.Arguments = "`"$serverScript`" --port 8766"
-$processInfo.WorkingDirectory = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$processInfo.UseShellExecute = $false
-$processInfo.CreateNoWindow = $true
-$processInfo.EnvironmentVariables["POSTGRES_BIN"] = Join-Path $postgresRoot "bin"
-$serverProcess = [Diagnostics.Process]::Start($processInfo)
+$standardOutput = Join-Path $runtimeDirectory "server.out.log"
+$standardError = Join-Path $runtimeDirectory "server.err.log"
+$env:POSTGRES_BIN = Join-Path $postgresRoot "bin"
+$serverProcess = Start-Process `
+  -FilePath $python `
+  -ArgumentList @("-u", "`"$serverScript`"", "--port", "8766") `
+  -WorkingDirectory (Resolve-Path (Join-Path $PSScriptRoot "..")).Path `
+  -WindowStyle Hidden `
+  -RedirectStandardOutput $standardOutput `
+  -RedirectStandardError $standardError `
+  -PassThru
+Remove-Item Env:POSTGRES_BIN -ErrorAction SilentlyContinue
 [IO.File]::WriteAllText($pidFile, [string]$serverProcess.Id)
 
 for ($attempt = 0; $attempt -lt 30; $attempt++) {
@@ -51,4 +55,5 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
   }
 }
 
-throw "Could not start the estimate app. Check the PostgreSQL service."
+$errorDetails = Get-Content -LiteralPath $standardError -Raw -ErrorAction SilentlyContinue
+throw "Could not start the estimate app. Check the PostgreSQL service.`n$errorDetails"

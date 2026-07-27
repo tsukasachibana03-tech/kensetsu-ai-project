@@ -63,3 +63,6 @@ apps/mitsumori_app/mitsumori_data.json
 apps/mitsumori_app/mitsumori_data.json.*
 data/mitsumori_data.json
 data/mitsumori_data.json.*
+apps/mitsumori_app/postgres-handoff/backups/
+apps/mitsumori_app/postgres-handoff/prints/
+apps/mitsumori_app/postgres-handoff/imports/*.json
