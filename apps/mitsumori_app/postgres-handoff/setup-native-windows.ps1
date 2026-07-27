@@ -89,10 +89,12 @@ try {
   $appPassword = (($randomBytes | ForEach-Object { $_.ToString("x2") }) -join "")
 
   $env:PGPASSWORD = $adminPassword
-  $roleExists = (& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='mitsumori_app';").Trim()
-  if ($LASTEXITCODE -ne 0) {
+  $roleOutput = @(& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='mitsumori_app';")
+  $roleExitCode = $LASTEXITCODE
+  if ($roleExitCode -ne 0) {
     throw "Could not connect to PostgreSQL. Check the password."
   }
+  $roleExists = ($roleOutput -join "").Trim()
 
   if ($roleExists -eq "1") {
     & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "ALTER ROLE mitsumori_app WITH LOGIN PASSWORD '$appPassword';"
@@ -103,7 +105,12 @@ try {
     throw "Could not create the estimate app database user."
   }
 
-  $databaseExists = (& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='mitsumori';").Trim()
+  $databaseOutput = @(& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='mitsumori';")
+  $databaseExitCode = $LASTEXITCODE
+  if ($databaseExitCode -ne 0) {
+    throw "Could not check the estimate database."
+  }
+  $databaseExists = ($databaseOutput -join "").Trim()
   if ($databaseExists -ne "1") {
     & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE mitsumori OWNER mitsumori_app;"
     if ($LASTEXITCODE -ne 0) {
