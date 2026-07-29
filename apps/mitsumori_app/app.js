@@ -105,6 +105,43 @@
     { type: "item", category: "取り込み", name: "調整", summary: "", qty: 1, unit: "式", price: -895, remarks: "見積書20260619 PDF" }
   ];
 
+  const ueharaEstimateRevision = "uehara-2026-07-14-final";
+  const ueharaLatestTradeAmounts = {
+    "仮設工事": 592000,
+    "土工事": 2336000,
+    "鉄筋工事": 3191000,
+    "コンクリート工事": 4181000,
+    "型枠工事": 3149000,
+    "左官工事": 975000,
+    "金属工事": 101000,
+    "コンクリートブロック工事": 537000
+  };
+
+  function createUeharaLatestSheets() {
+    return tradePresets.map((trade) => {
+      const confirmedAmount = ueharaLatestTradeAmounts[trade.name];
+      return {
+        name: trade.name,
+        items: confirmedAmount === undefined ? [] : [
+          { type: "section", category: "2026年7月14日確定見積", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
+          {
+            type: "item",
+            category: "2026年7月14日確定見積",
+            name: `${trade.name} 見積書確定額`,
+            summary: "上原邸新築工事見積書",
+            qty: 1,
+            unit: "式",
+            price: confirmedAmount,
+            remarks: "原本PDFの工種別内訳を反映",
+            manualQty: true,
+            manualVisibility: true,
+            hidden: false
+          }
+        ]
+      };
+    });
+  }
+
   const concreteTemplateItems = [
     { type: "section", category: "基本明細", name: "", summary: "", qty: "", unit: "", price: "", remarks: "" },
     { type: "item", category: "基本明細", name: "均しコンクリート", summary: "FC18/Nmm3 S=18cm", qty: 0, unit: "㎥", price: 19700, remarks: "" },
@@ -1186,27 +1223,28 @@
 
   function createUeharaEstimateState() {
     const next = clone(defaults);
-    next.clientName = "上原 様";
+    next.clientName = "有限会社仲村建設 御中";
     next.projectName = "上原邸新築工事";
     next.siteAddress = "豊見城市字我那覇蔵無地原436-21";
+    next.issueDate = "2026-07-14";
     next.siteArea = ueharaAreas.siteArea;
     next.buildingArea = ueharaAreas.buildingArea;
     next.totalFloorArea = ueharaAreas.totalFloorArea;
     next.estimateMode = "byTrade";
+    next.taxRate = 10;
+    next.commonTemporaryCost = 0;
+    next.siteManagementRate = 6.5;
+    next.generalManagementRate = 5;
+    next.discount = 0;
+    next.netAmount = 18500000;
+    next.sourceRevision = ueharaEstimateRevision;
     next.notes = [
-      "棚原工務店 上原邸PDFより鉄筋工事を取り込み。",
-      "普久原工業PDFより仮設工事を取り込み。",
-      "台風時、台風対策は別途常用となります。",
-      "見積り外の足場等は、相談のうえ別途となります。"
+      "2026年7月14日発行「上原邸新築工事見積書」全11ページを反映。",
+      "直接工事費15,062,000円、現場管理費979,030円、一般管理費802,052円。",
+      "税抜工事価格16,843,082円、消費税1,684,308円、税込工事価格18,527,390円。",
+      "表紙NET金額18,500,000円（消費税込）。"
     ].join("\n");
-    next.sheets = tradePresets.map((trade) => ({
-      name: trade.name,
-      items: trade.name === "仮設工事"
-        ? clone(ueharaTemporaryItems)
-        : trade.name === "鉄筋工事"
-          ? clone(ueharaEstimateItems)
-          : []
-    }));
+    next.sheets = createUeharaLatestSheets();
     next.activeSheetIndex = Math.max(0, next.sheets.findIndex((sheet) => sheet.name === "仮設工事"));
     return next;
   }
@@ -1234,7 +1272,26 @@
   }
 
   function restoreUeharaTemporaryContent(estimateState) {
-    return normalizeState(estimateState);
+    const normalized = normalizeState(estimateState);
+    if (!String(normalized.projectName || "").includes("上原邸")) return normalized;
+    if (normalized.sourceRevision === ueharaEstimateRevision) return normalized;
+    const latest = createUeharaEstimateState();
+    return normalizeState({
+      ...normalized,
+      clientName: latest.clientName,
+      issueDate: latest.issueDate,
+      siteAddress: latest.siteAddress,
+      taxRate: latest.taxRate,
+      commonTemporaryCost: latest.commonTemporaryCost,
+      siteManagementRate: latest.siteManagementRate,
+      generalManagementRate: latest.generalManagementRate,
+      discount: latest.discount,
+      netAmount: latest.netAmount,
+      notes: latest.notes,
+      sheets: latest.sheets,
+      activeSheetIndex: latest.activeSheetIndex,
+      sourceRevision: latest.sourceRevision
+    });
   }
 
   const fields = [
