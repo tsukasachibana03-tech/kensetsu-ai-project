@@ -10,6 +10,8 @@
     }
   </script>
   <link rel="stylesheet" href="styles.css?v=20260720-net-font-36">
+  <link rel="stylesheet" href="business-directory.css?v=20260730-directory">
+  <link rel="stylesheet" href="gmail-integration.css?v=20260730-gmail">
 </head>
 <body>
   <div class="app-shell">
@@ -19,6 +21,9 @@
         <h1>工事見積アプリ</h1>
       </div>
       <div class="topbar-actions">
+        <a class="button-link ghost" href="https://gray-cliff-094ab5400.7.azurestaticapps.net/" target="_blank" rel="noreferrer">工程管理</a>
+        <button type="button" id="customerDirectoryButton" class="ghost">顧客管理</button>
+        <button type="button" id="vendorDirectoryButton" class="ghost">業者管理</button>
         <button type="button" id="saveButton" title="保存">保存</button>
         <button type="button" id="clearButton" class="ghost" title="入力を初期化">初期化</button>
         <button type="button" id="excelButton" title="Excel出力">Excel</button>
@@ -315,5 +320,7 @@
   </section>
 
   <script src="app.js?v=20260720-native-print-pdf"></script>
+  <script src="gmail-integration.js?v=20260730-gmail"></script>
+  <script src="business-directory.js?v=20260730-directory"></script>
 </body>
 </html>
