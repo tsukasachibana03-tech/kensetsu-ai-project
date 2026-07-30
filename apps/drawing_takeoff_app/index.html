@@ -42,6 +42,25 @@
           <p id="projectStatus" class="status">現場ごとに図面と拾い明細を保存できます。</p>
         </section>
 
+        <section class="panel drawing-info-panel">
+          <div class="drawing-info-heading">
+            <h2>図面から判別した工事情報</h2>
+            <span id="projectInfoConfidence" class="ai-badge">図面待ち</span>
+          </div>
+          <p id="projectInfoStatus" class="status">図面の文字認識後、AIが工事名や住所などを自動入力します。</p>
+          <label>工事名<input id="detectedProjectNameInput" type="text" placeholder="図面から自動判別"></label>
+          <label>工事場所・住所<input id="siteAddressInput" type="text" placeholder="図面から自動判別"></label>
+          <div class="drawing-info-grid">
+            <label>施主・発注者<input id="clientNameInput" type="text" placeholder="自動判別"></label>
+            <label>建物用途<input id="buildingUseInput" type="text" placeholder="自動判別"></label>
+            <label>工事種別<input id="constructionTypeInput" type="text" placeholder="新築・改修など"></label>
+            <label>構造・階数<input id="structureFloorsInput" type="text" placeholder="RC造・2階など"></label>
+            <label>敷地面積<input id="siteAreaInput" type="text" placeholder="㎡"></label>
+            <label>延べ面積<input id="totalFloorAreaInput" type="text" placeholder="㎡"></label>
+          </div>
+          <label>設計者・設計事務所<input id="designerInput" type="text" placeholder="図面から自動判別"></label>
+        </section>
+
         <section class="panel drawing-panel">
           <h2>図面</h2>
           <label class="file-drop" id="drawingDrop">

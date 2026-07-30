@@ -6,6 +6,17 @@ const els = {
   projectSelect: document.getElementById("projectSelect"),
   projectNameInput: document.getElementById("projectNameInput"),
   projectStatus: document.getElementById("projectStatus"),
+  detectedProjectNameInput: document.getElementById("detectedProjectNameInput"),
+  siteAddressInput: document.getElementById("siteAddressInput"),
+  clientNameInput: document.getElementById("clientNameInput"),
+  buildingUseInput: document.getElementById("buildingUseInput"),
+  constructionTypeInput: document.getElementById("constructionTypeInput"),
+  structureFloorsInput: document.getElementById("structureFloorsInput"),
+  siteAreaInput: document.getElementById("siteAreaInput"),
+  totalFloorAreaInput: document.getElementById("totalFloorAreaInput"),
+  designerInput: document.getElementById("designerInput"),
+  projectInfoStatus: document.getElementById("projectInfoStatus"),
+  projectInfoConfidence: document.getElementById("projectInfoConfidence"),
   newProjectButton: document.getElementById("newProjectButton"),
   duplicateProjectButton: document.getElementById("duplicateProjectButton"),
   deleteProjectButton: document.getElementById("deleteProjectButton"),
@@ -275,6 +286,7 @@ let activeExternalFinishRow = null;
 let activeHardwareLengthItemId = "";
 let activeTradeSheet = "";
 let projectBook = { activeId: "", projects: [] };
+let projectInfo = {};
 let isApplyingProject = false;
 let roomMenuSearchEnabled = false;
 let openingOcrResults = [];
@@ -3303,6 +3315,132 @@ function cleanProjectName(value, fallback = "現場1") {
   return String(value || "").trim() || fallback;
 }
 
+const projectInfoInputMap = {
+  projectName: "detectedProjectNameInput",
+  siteAddress: "siteAddressInput",
+  clientName: "clientNameInput",
+  buildingUse: "buildingUseInput",
+  constructionType: "constructionTypeInput",
+  structureFloors: "structureFloorsInput",
+  siteArea: "siteAreaInput",
+  totalFloorArea: "totalFloorAreaInput",
+  designer: "designerInput"
+};
+
+function cleanDetectedValue(value) {
+  return String(value || "")
+    .replace(/[|｜]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s:：・\-]+|[\s:：・\-]+$/g, "")
+    .trim()
+    .slice(0, 120);
+}
+
+function firstLabeledValue(text, labels) {
+  const source = String(text || "").replace(/\r/g, "");
+  for (const label of labels) {
+    const pattern = new RegExp(`(?:^|\\n)\\s*(?:${label})\\s*[:：]?\\s*([^\\n]{2,120})`, "im");
+    const match = source.match(pattern);
+    if (match?.[1]) {
+      const value = cleanDetectedValue(match[1]);
+      if (value && !/^(名称|住所|所在地|氏名|未定|なし)$/i.test(value)) return value;
+    }
+  }
+  return "";
+}
+
+function detectJapaneseAddress(text) {
+  const labeled = firstLabeledValue(text, ["工事場所", "建設地", "建築場所", "計画地", "所在地", "住所"]);
+  if (labeled) return labeled;
+  const compactLines = String(text || "").split(/\n+/).map(cleanDetectedValue).filter(Boolean);
+  const address = compactLines.find((line) =>
+    /(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県).{2,45}(?:市|区|郡|町|村).{0,45}/.test(line)
+    || /沖縄県.{2,80}/.test(line)
+  );
+  return cleanDetectedValue(address || "");
+}
+
+function detectArea(text, labels) {
+  const labelPattern = labels.join("|");
+  const match = String(text || "").match(
+    new RegExp(`(?:${labelPattern})\\s*[:：]?\\s*([\\d,.]+)\\s*(?:m2|㎡|m²|平方メートル)`, "i")
+  );
+  return match?.[1] ? `${match[1].replace(/,/g, "")}㎡` : "";
+}
+
+function detectProjectInfo(text, sourceCount = 1) {
+  const normalized = String(text || "")
+    .replace(/[ \t\u3000]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n");
+  const projectName = firstLabeledValue(normalized, [
+    "工事名称", "工事名", "件名", "PROJECT\\s*NAME", "計画名称", "建物名称"
+  ]);
+  const clientName = firstLabeledValue(normalized, [
+    "建築主", "発注者", "施主", "注文者", "CLIENT", "OWNER"
+  ]);
+  const buildingUse = firstLabeledValue(normalized, [
+    "主要用途", "建物用途", "用途"
+  ]);
+  const designer = firstLabeledValue(normalized, [
+    "設計者", "設計事務所", "設計監理", "ARCHITECT"
+  ]);
+  const constructionType = firstLabeledValue(normalized, [
+    "工事種別", "工事区分"
+  ]) || (normalized.match(/(?:新築|増築|改築|改修|修繕|解体)\s*(?:工事)?/)?.[0] || "");
+  const structure = firstLabeledValue(normalized, ["構造", "主体構造"]);
+  const floors = firstLabeledValue(normalized, ["階数", "建物階数"])
+    || normalized.match(/(?:地上\s*\d+\s*階(?:地下\s*\d+\s*階)?|(?:平屋|[1-9]\d*階建))/)?.[0]
+    || "";
+  const values = {
+    projectName,
+    siteAddress: detectJapaneseAddress(normalized),
+    clientName,
+    buildingUse,
+    constructionType: cleanDetectedValue(constructionType),
+    structureFloors: cleanDetectedValue([structure, floors].filter(Boolean).join(" / ")),
+    siteArea: detectArea(normalized, ["敷地面積"]),
+    totalFloorArea: detectArea(normalized, ["延べ面積", "延床面積", "延べ床面積"]),
+    designer
+  };
+  const detectedCount = Object.values(values).filter(Boolean).length;
+  const confidence = detectedCount >= 6 ? "高" : detectedCount >= 3 ? "中" : detectedCount ? "低" : "";
+  return {
+    ...values,
+    confidence,
+    detectedCount,
+    sourceCount,
+    analyzedAt: new Date().toISOString()
+  };
+}
+
+function renderProjectInfo() {
+  Object.entries(projectInfoInputMap).forEach(([key, elementKey]) => {
+    const input = els[elementKey];
+    if (input && document.activeElement !== input) input.value = projectInfo[key] || "";
+  });
+  const count = Number(projectInfo.detectedCount || 0);
+  els.projectInfoConfidence.textContent = count ? `AI判定 ${projectInfo.confidence || "低"}` : "判定情報なし";
+  els.projectInfoStatus.textContent = count
+    ? `${projectInfo.sourceCount || 1}件の図面から${count}項目を判別しました。内容を確認して必要なら修正してください。`
+    : "図面の文字認識後、AIが工事名や住所などを自動入力します。";
+}
+
+function analyzeProjectInfoFromEntries(entries) {
+  const sources = entries
+    .map((entry) => String(entry.textSample || "").trim())
+    .filter(Boolean);
+  if (!sources.length) return;
+  const detected = detectProjectInfo(sources.join("\n\n"), sources.length);
+  projectInfo = { ...projectInfo, ...Object.fromEntries(
+    Object.entries(detected).filter(([, value]) => value !== "")
+  ) };
+  projectInfo.detectedCount = Object.keys(projectInfoInputMap).filter((key) => projectInfo[key]).length;
+  if (detected.projectName && /^(?:現場\d+|新規概算見積)$/u.test(cleanProjectName(els.projectNameInput?.value))) {
+    renameCurrentProject(detected.projectName, { persist: false });
+  }
+  renderProjectInfo();
+}
+
 function currentProject() {
   return projectBook.projects.find((project) => project.id === projectBook.activeId) || null;
 }
@@ -3351,6 +3489,7 @@ function captureAppState(options = {}) {
   const projectName = cleanProjectName(els.projectNameInput?.value || project?.name || "現場1");
   return {
     projectName,
+    projectInfo: { ...projectInfo },
     drawingFileName,
     drawingKind,
     currentPage,
@@ -3378,6 +3517,7 @@ function serializableAppState(state = {}) {
     : null;
   return {
     projectName: state.projectName || "",
+    projectInfo: { ...(state.projectInfo || {}) },
     drawingFileName: state.drawingFileName || "",
     drawingKind: state.drawingKind || "",
     currentPage: state.currentPage || 1,
@@ -3665,6 +3805,8 @@ function applyAppState(data = {}) {
   currentPage = data.currentPage || 1;
   pageCount = data.pageCount || 1;
   scale = data.scale || null;
+  projectInfo = { ...(data.projectInfo || {}) };
+  renderProjectInfo();
   const savedRoom = data.currentRoom
     ? finishTableLocation(data.currentRoom.floor, data.currentRoom.room)
     : finishTableLocation();
@@ -6197,6 +6339,9 @@ async function sendTakeoffToEstimate() {
     const payload = {
       type: "takeoff-to-estimate",
       projectName: cleanProjectName(els.projectNameInput?.value || "現場1"),
+      projectInfo: { ...projectInfo },
+      siteAddress: projectInfo.siteAddress || "",
+      clientName: projectInfo.clientName || "",
       updatedAt: new Date().toISOString(),
       itemCount: items.length,
       total: items.reduce((sum, item) => sum + item.amount, 0),
@@ -6501,6 +6646,34 @@ async function prepareDroppedPdfText(entries) {
   }
 }
 
+async function prepareDroppedImageText(entries) {
+  const imageEntries = entries.filter((entry) => entry.file && fileExtension(entry.file) !== "pdf");
+  if (!imageEntries.length) return;
+  if (!window.Tesseract) {
+    await import("./tesseract.min.js?v=20260730-import-ocr");
+  }
+  if (!window.Tesseract) throw new Error("OCRライブラリを読み込めませんでした。");
+  const worker = await window.Tesseract.createWorker(["jpn", "eng"], 1, {
+    workerPath: "./tesseract-worker.min.js",
+    logger: (message) => {
+      if (typeof message.progress === "number") {
+        setHint(`取込前OCR ${Math.round(message.progress * 100)}%: ${message.status || "文字認識"}`);
+      }
+    }
+  });
+  try {
+    await worker.setParameters?.({ preserve_interword_spaces: "1", tessedit_pageseg_mode: "11" });
+    for (let index = 0; index < imageEntries.length; index += 1) {
+      const entry = imageEntries[index];
+      setHint(`取込前OCR: ${entry.name}（${index + 1}/${imageEntries.length}）`);
+      const result = await worker.recognize(entry.file);
+      entry.textSample = `【画像OCR】\n${cleanEmbeddedPdfText(result?.data?.text || "")}`.slice(0, 30000);
+    }
+  } finally {
+    await worker.terminate?.();
+  }
+}
+
 async function addDrawingFiles(files) {
   const drawingFiles = files.filter(isDrawingFile);
   if (drawingFiles.length === 0) return false;
@@ -6530,6 +6703,8 @@ async function addDrawingFiles(files) {
   });
 
   await prepareDroppedPdfText(addedEntries);
+  await prepareDroppedImageText(addedEntries);
+  analyzeProjectInfoFromEntries(drawingEntries);
   renderDrawingList();
   await loadFirstReadableEntry(addedEntries);
   saveQuietly();
@@ -6960,6 +7135,23 @@ els.projectNameInput.addEventListener("change", () => {
   renameCurrentProject(els.projectNameInput.value);
   saveCurrentProjectState();
   setHint("現場名を保存しました。");
+});
+Object.entries(projectInfoInputMap).forEach(([key, elementKey]) => {
+  els[elementKey]?.addEventListener("change", () => {
+    projectInfo = {
+      ...projectInfo,
+      [key]: cleanDetectedValue(els[elementKey].value),
+      detectedCount: Object.keys(projectInfoInputMap).filter((field) =>
+        field === key ? cleanDetectedValue(els[elementKey].value) : projectInfo[field]
+      ).length
+    };
+    if (key === "projectName" && projectInfo.projectName) {
+      renameCurrentProject(projectInfo.projectName, { persist: false });
+    }
+    renderProjectInfo();
+    saveQuietly();
+    setHint("図面から判別した工事情報を保存しました。");
+  });
 });
 els.newProjectButton.addEventListener("click", () => {
   createNewProject().catch(handleFileLoadError);
