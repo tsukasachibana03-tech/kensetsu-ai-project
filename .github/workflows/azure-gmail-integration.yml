@@ -1,0 +1,73 @@
+name: Deploy estimate app and Gmail API
+
+on:
+  push:
+    branches:
+      - agent/gmail-integration
+    paths:
+      - "apps/mitsumori_app/**"
+      - "api/**"
+      - ".github/workflows/azure-gmail-integration.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy_estimate_app:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: f96b7be0-c8ec-48e6-b573-d93fbc5679bf
+          tenant-id: 7a3f7dab-143b-4154-b660-b4f1d95b9351
+          subscription-id: 71d07b94-43f9-44bf-aa16-2e53a097acd9
+
+      - name: Get the estimate app deployment token
+        shell: bash
+        run: |
+          token="$(az staticwebapp secrets list \
+            --name swa-chibana-estimate-71d07b94 \
+            --resource-group rg-chibana-web-jpe \
+            --query properties.apiKey \
+            --output tsv)"
+          echo "::add-mask::$token"
+          echo "SWA_DEPLOYMENT_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Deploy estimate app
+        run: >
+          npx --yes @azure/static-web-apps-cli deploy apps/mitsumori_app
+          --deployment-token "${{ env.SWA_DEPLOYMENT_TOKEN }}"
+          --env production
+
+  deploy_gmail_api:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: f96b7be0-c8ec-48e6-b573-d93fbc5679bf
+          tenant-id: 7a3f7dab-143b-4154-b660-b4f1d95b9351
+          subscription-id: 71d07b94-43f9-44bf-aa16-2e53a097acd9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Gmail API dependencies
+        working-directory: api
+        run: npm install --omit=dev
+
+      - name: Deploy Gmail API
+        uses: Azure/functions-action@v1
+        with:
+          app-name: chibana-gmail-api-71d07b94
+          package: api
