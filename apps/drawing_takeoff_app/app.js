@@ -6247,7 +6247,7 @@ function renderDrawingList() {
   updateDrawingActionState();
 }
 
-function addDrawingFiles(files) {
+async function addDrawingFiles(files) {
   const drawingFiles = files.filter(isDrawingFile);
   if (drawingFiles.length === 0) return false;
   saveActiveEntryState();
@@ -6276,10 +6276,13 @@ function addDrawingFiles(files) {
   });
 
   renderDrawingList();
-  loadFirstReadableEntry(addedEntries);
-  if (drawingFiles.length > 1) {
-    setHint(`${drawingFiles.length}件の図面を追加しました。一覧から切り替えできます。`);
-  }
+  await loadFirstReadableEntry(addedEntries);
+  saveQuietly();
+  setHint(
+    drawingFiles.length > 1
+      ? `${drawingFiles.length}件の図面を登録しました。現在は1件目を表示しています。左の図面一覧から切り替えられます。`
+      : `${drawingFiles[0].name}を登録しました。`
+  );
   return true;
 }
 
@@ -6516,16 +6519,15 @@ function handleFileLoadError(error) {
 
 function loadDrawingSafely(file) {
   if (isDrawingFile(file)) {
-    addDrawingFiles([file]);
-    return Promise.resolve();
+    return addDrawingFiles([file]);
   }
   return loadDrawing(file).catch(handleFileLoadError);
 }
 
-function handleDroppedFiles(fileList) {
+async function handleDroppedFiles(fileList) {
   const files = Array.from(fileList || []);
   const jsonFile = files.find(isJsonFile);
-  if (addDrawingFiles(files)) return;
+  if (await addDrawingFiles(files)) return;
   if (jsonFile) {
     importJson(jsonFile).catch(handleFileLoadError);
     return;
@@ -6558,7 +6560,7 @@ function setupDropTarget(target) {
     event.stopPropagation();
     dragDepth = 0;
     target.classList.remove("is-dragging");
-    handleDroppedFiles(event.dataTransfer.files);
+    handleDroppedFiles(event.dataTransfer.files).catch(handleFileLoadError);
   });
 }
 
@@ -6714,9 +6716,9 @@ els.deleteProjectButton.addEventListener("click", () => {
   deleteCurrentProject().catch(handleFileLoadError);
 });
 
-els.drawingInput.addEventListener("change", (event) => {
+els.drawingInput.addEventListener("change", async (event) => {
   const files = Array.from(event.target.files || []);
-  if (files.length) addDrawingFiles(files);
+  if (files.length) await addDrawingFiles(files);
   event.target.value = "";
 });
 
