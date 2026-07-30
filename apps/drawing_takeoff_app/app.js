@@ -2948,6 +2948,61 @@ function embeddedPdfText(textContent) {
     .trim();
 }
 
+function embeddedPdfTextNeedsOcr(text) {
+  const clean = cleanEmbeddedPdfText(text);
+  const japaneseCount = (clean.match(/[ぁ-んァ-ヶ一-龠々〆ヵヶ]/g) || []).length;
+  return clean.length < 80 || japaneseCount < Math.max(8, Math.round(clean.length * 0.008));
+}
+
+async function runFullPagePdfOcr() {
+  if (!els.drawingCanvas.width || !els.drawingCanvas.height) return "";
+  if (!window.Tesseract) {
+    await import("./tesseract.min.js?v=20260730-full-page-ocr");
+  }
+  if (!window.Tesseract) throw new Error("OCRライブラリを読み込めませんでした。");
+
+  setHint("埋め込み文字で読めない日本語をOCRで補完しています…");
+  const canvas = openingOcrCrop(
+    { x: 0, y: 0, width: baseWidth, height: baseHeight },
+    { maxDimension: 3600, maxUpscale: 2 }
+  );
+  let worker = null;
+  try {
+    const options = {
+      workerPath: "./tesseract-worker.min.js",
+      logger: (message) => {
+        if (typeof message.progress === "number") {
+          setHint(`日本語OCR ${Math.round(message.progress * 100)}%: ${message.status || "文字認識"}`);
+        }
+      }
+    };
+    worker = await window.Tesseract.createWorker(["jpn", "eng"], 1, options);
+    await worker.setParameters?.({
+      preserve_interword_spaces: "1",
+      tessedit_pageseg_mode: "11"
+    });
+    const result = await worker.recognize(canvas);
+    const text = cleanEmbeddedPdfText(result?.data?.text || "");
+    if (!text) return "";
+
+    const entry = drawingEntries.find((candidate) => candidate.id === activeDrawingId);
+    if (entry) {
+      const existing = String(entry.textSample || "").trim();
+      entry.textSample = `${existing}${existing ? "\n\n" : ""}【画像OCR】\n${text}`.slice(0, 30000);
+    }
+    addMaterialSuggestions(extractMaterialCandidatesFromText(text), { persist: false });
+    addRoomSuggestions(extractRoomSuggestionsFromText(text, {
+      floor: inferFloorLabelFromText(drawingFileName),
+      source: drawingFileName || "図面OCR"
+    }), { persist: false });
+    saveQuietly();
+    setHint(`日本語OCRで${text.length.toLocaleString("ja-JP")}文字を補完し、候補へ反映しました。`);
+    return text;
+  } finally {
+    await worker?.terminate?.();
+  }
+}
+
 async function collectMaterialSuggestionsFromPdf(pdf, sourceName = "") {
   if (!pdf) return;
   const materialCandidates = [];
@@ -2982,6 +3037,8 @@ async function collectMaterialSuggestionsFromPdf(pdf, sourceName = "") {
     const characterCount = extractedPages.reduce((sum, text) => sum + text.length, 0);
     setHint(`PDFの埋め込み文字を${characterCount.toLocaleString("ja-JP")}文字読み取り、候補へ反映しました。`);
   }
+  const extractedText = extractedPages.join("\n\n");
+  return { text: extractedText, needsOcr: embeddedPdfTextNeedsOcr(extractedText) };
 }
 
 function openingTradeName(value) {
@@ -5825,7 +5882,6 @@ async function loadDrawing(file, options = {}) {
     imageBitmapSource = null;
     drawingKind = "pdf";
     els.pdfControls.hidden = false;
-    collectMaterialSuggestionsFromPdf(pdfDoc, file.name).catch(console.warn);
   } else if (file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext)) {
     const image = new Image();
     image.src = URL.createObjectURL(file);
@@ -5844,6 +5900,18 @@ async function loadDrawing(file, options = {}) {
     : "図面を読み込みました。最初に縮尺を2点で設定してください。");
   updateModeButtons();
   await renderDrawing();
+  if (pdfDoc) {
+    const embeddedResult = await collectMaterialSuggestionsFromPdf(pdfDoc, file.name).catch((error) => {
+      console.warn("PDF embedded text extraction failed", error);
+      return { text: "", needsOcr: true };
+    });
+    if (embeddedResult?.needsOcr) {
+      await runFullPagePdfOcr().catch((error) => {
+        console.warn("Full-page OCR failed", error);
+        setHint("日本語の自動OCRに失敗しました。図面を拡大してOCR範囲を指定してください。");
+      });
+    }
+  }
   await new Promise((resolve) => requestAnimationFrame(resolve));
   const availableWidth = Math.max(280, els.stageWrap.clientWidth - 40);
   changeZoom(availableWidth / baseWidth);
