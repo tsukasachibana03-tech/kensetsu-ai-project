@@ -3371,6 +3371,39 @@ async function loadBundledGiboProject() {
   return true;
 }
 
+async function prepareNewEstimateProject() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("mode") !== "new-estimate") return false;
+
+  const sessionKey = "drawing-takeoff-new-estimate-project";
+  const savedId = sessionStorage.getItem(sessionKey);
+  const savedProject = projectBook.projects.find((project) => project.id === savedId);
+  if (savedProject) {
+    if (savedProject.id !== projectBook.activeId) await switchProject(savedProject.id);
+    return true;
+  }
+
+  saveCurrentProjectState();
+  const requestedName = cleanProjectName(params.get("name"), "新規概算見積");
+  const project = createProject(requestedName);
+  const current = currentProject();
+  if (projectBook.projects.length === 1 && current && !stateHasWork(current.state)) {
+    projectBook.projects[0] = project;
+  } else {
+    projectBook.projects.push(project);
+  }
+  projectBook.activeId = project.id;
+  sessionStorage.setItem(sessionKey, project.id);
+  isApplyingProject = true;
+  applyAppState(project.state);
+  isApplyingProject = false;
+  renderProjectControls();
+  saveProjectBookQuietly();
+  await renderDrawing();
+  setHint("図面をドロップして、新規概算見積を開始してください。");
+  return true;
+}
+
 function loadProjectBookFromStorage() {
   const raw = localStorage.getItem(projectBookStorageKey);
   if (!raw) return null;
@@ -7114,6 +7147,7 @@ updateRoomStatus();
 renderRegisteredRoomSelect();
 renderDrawing();
 loadLatestFromDropbox()
+  .then(() => prepareNewEstimateProject())
   .then(() => loadBundledGiboProject())
   .then(() => loadProjectFromQuery())
   .catch(handleFileLoadError);
