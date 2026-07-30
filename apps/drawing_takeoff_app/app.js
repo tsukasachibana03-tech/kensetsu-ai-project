@@ -14,6 +14,7 @@ const els = {
   drawingDrop: document.getElementById("drawingDrop"),
   drawingList: document.getElementById("drawingList"),
   removeDrawingButton: document.getElementById("removeDrawingButton"),
+  fullPageOcrButton: document.getElementById("fullPageOcrButton"),
   canvasArea: document.getElementById("canvasArea"),
   drawingCanvas: document.getElementById("drawingCanvas"),
   overlayCanvas: document.getElementById("overlayCanvas"),
@@ -3008,6 +3009,7 @@ async function collectMaterialSuggestionsFromPdf(pdf, sourceName = "") {
   const materialCandidates = [];
   const roomCandidates = [];
   const extractedPages = [];
+  let currentPageNeedsOcr = false;
   const source = normalizeRoomText(sourceName || "読込PDF");
   const floor = inferFloorLabelFromText(source);
   const maxPages = Math.min(pdf.numPages || 0, 20);
@@ -3016,6 +3018,7 @@ async function collectMaterialSuggestionsFromPdf(pdf, sourceName = "") {
       const page = await pdf.getPage(pageNumber);
       const textContent = await page.getTextContent({ disableNormalization: false });
       const text = embeddedPdfText(textContent);
+      if (pageNumber === currentPage) currentPageNeedsOcr = embeddedPdfTextNeedsOcr(text);
       if (text) extractedPages.push(`【${pageNumber}ページ】\n${text}`);
       materialCandidates.push(...extractMaterialCandidatesFromText(text));
       roomCandidates.push(...extractRoomSuggestionsFromText(text, { floor, source }));
@@ -3038,7 +3041,7 @@ async function collectMaterialSuggestionsFromPdf(pdf, sourceName = "") {
     setHint(`PDFの埋め込み文字を${characterCount.toLocaleString("ja-JP")}文字読み取り、候補へ反映しました。`);
   }
   const extractedText = extractedPages.join("\n\n");
-  return { text: extractedText, needsOcr: embeddedPdfTextNeedsOcr(extractedText) };
+  return { text: extractedText, needsOcr: currentPageNeedsOcr || embeddedPdfTextNeedsOcr(extractedText) };
 }
 
 function openingTradeName(value) {
@@ -3699,6 +3702,7 @@ function applyAppState(data = {}) {
     ? activeEntry?.file ? drawingFileName : `${drawingFileName}（図面は再選択してください）`
     : "図面未読込";
   els.pdfControls.hidden = true;
+  if (els.fullPageOcrButton) els.fullPageOcrButton.disabled = true;
   updateScaleStatus();
   updateRoomStatus();
   renderRegisteredRoomSelect();
@@ -3806,6 +3810,7 @@ function resetDrawingSurface(message = "図面を読み込んでから、縮尺�
   els.drawingName.textContent = "図面未読込";
   updateScaleStatus();
   els.pdfControls.hidden = true;
+  if (els.fullPageOcrButton) els.fullPageOcrButton.disabled = true;
   setHint(message);
   renderRecords();
   renderDrawingList();
@@ -5882,6 +5887,7 @@ async function loadDrawing(file, options = {}) {
     imageBitmapSource = null;
     drawingKind = "pdf";
     els.pdfControls.hidden = false;
+    if (els.fullPageOcrButton) els.fullPageOcrButton.disabled = false;
   } else if (file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext)) {
     const image = new Image();
     image.src = URL.createObjectURL(file);
@@ -5892,6 +5898,7 @@ async function loadDrawing(file, options = {}) {
     currentPage = 1;
     drawingKind = "image";
     els.pdfControls.hidden = true;
+    if (els.fullPageOcrButton) els.fullPageOcrButton.disabled = false;
   } else {
     throw new Error("PDF、画像、保存JSONを読み込めます。対応していないファイル形式です。");
   }
@@ -7236,6 +7243,9 @@ els.clearTempButton.addEventListener("click", () => {
 els.deleteSelectedButton.addEventListener("click", deleteSelected);
 els.removeDrawingButton.addEventListener("click", () => {
   removeActiveDrawing().catch(handleFileLoadError);
+});
+els.fullPageOcrButton?.addEventListener("click", () => {
+  runFullPagePdfOcr().catch(handleFileLoadError);
 });
 els.clearAllButton.addEventListener("click", () => {
   if (!confirm("拾い明細をすべて消去しますか？")) return;
