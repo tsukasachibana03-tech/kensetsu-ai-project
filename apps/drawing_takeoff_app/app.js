@@ -5497,9 +5497,10 @@ function renderRecords() {
 }
 
 function renderSummary() {
-  const amount = records.reduce((sum, record) => sum + record.amount, 0);
-  const quantity = records.reduce((sum, record) => sum + record.quantity, 0);
-  if (els.recordCountView) els.recordCountView.textContent = String(records.length);
+  const projectRecords = collectProjectRecordEntries().map(({ record }) => record);
+  const amount = projectRecords.reduce((sum, record) => sum + record.amount, 0);
+  const quantity = projectRecords.reduce((sum, record) => sum + record.quantity, 0);
+  if (els.recordCountView) els.recordCountView.textContent = String(projectRecords.length);
   if (els.quantityTotalView) els.quantityTotalView.textContent = numberText(quantity);
   if (els.amountTotalView) els.amountTotalView.textContent = money(amount);
 
@@ -5507,8 +5508,8 @@ function renderSummary() {
   renderOpeningSummary();
 }
 
-function materialTradeName(record) {
-  return openingTradeName(record.estimateTrade) || classifyOpeningTrade(record, drawingFileName) || String(record.estimateTrade || "").trim() || "未分類";
+function materialTradeName(record, sourceDrawingName = drawingFileName) {
+  return openingTradeName(record.estimateTrade) || classifyOpeningTrade(record, sourceDrawingName) || String(record.estimateTrade || "").trim() || "未分類";
 }
 
 function materialTradeSortValue(trade) {
@@ -5518,8 +5519,8 @@ function materialTradeSortValue(trade) {
 
 function materialSheetGroups() {
   const groups = new Map();
-  records.filter((record) => record.recordType !== "deduction").forEach((record) => {
-    const trade = materialTradeName(record);
+  collectProjectRecordEntries().filter(({ record }) => record.recordType !== "deduction").forEach(({ record, drawingName }) => {
+    const trade = materialTradeName(record, drawingName);
     const material = recordMaterialLabel(record) || "未設定";
     const unit = record.unit || "";
     const key = `${trade}__${material}__${unit}`;
@@ -5918,7 +5919,7 @@ async function exportTransferJson() {
 
 function exportCsv() {
   const headers = ["階数", "部屋・範囲", "部位", "部材", "下地", "壁種", "壁下地", "天井下地", "工種", "巾木", "廻り縁", "腰壁", "式", "数量", "単位", "単価", "金額", "概要", "備考", "高さm", "周長m", "面積m2", "控除長さm", "控除面積m2"];
-  const rows = records.map((record) => [
+  const rows = collectProjectRecordEntries().map(({ record, drawingName }) => [
     record.floor,
     record.room,
     record.part,
@@ -5927,7 +5928,7 @@ function exportCsv() {
     record.wallTypeLabel || "",
     record.wallSubstrate || "",
     record.ceilingSubstrate || "",
-    openingTradeName(record.estimateTrade) || classifyOpeningTrade(record, drawingFileName),
+    openingTradeName(record.estimateTrade) || classifyOpeningTrade(record, drawingName),
     trimAvailabilityLabel(record.baseboard),
     trimAvailabilityLabel(record.ceilingTrim),
     wainscotAvailabilityLabel(record.wainscot),
@@ -5949,7 +5950,8 @@ function exportCsv() {
 }
 
 async function sendTakeoffToEstimate() {
-  if (!records.length) {
+  const projectRecordEntries = collectProjectRecordEntries();
+  if (!projectRecordEntries.length) {
     setHint("見積管理へ送る拾い明細がありません。");
     return;
   }
@@ -5963,9 +5965,9 @@ async function sendTakeoffToEstimate() {
 
   try {
     saveCurrentProjectState();
-    const items = records.map((record, index) => ({
+    const items = projectRecordEntries.map(({ record, drawingName }, index) => ({
       id: record.id || `takeoff-${index + 1}`,
-      trade: openingTradeName(record.estimateTrade) || classifyOpeningTrade(record, drawingFileName) || "未分類",
+      trade: openingTradeName(record.estimateTrade) || classifyOpeningTrade(record, drawingName) || "未分類",
       name: [record.part, record.material].filter(Boolean).join(" ") || record.expression || `拾い明細 ${index + 1}`,
       summary: record.estimateSummary || record.expression || "",
       quantity: Number(record.quantity || 0),
@@ -5973,7 +5975,7 @@ async function sendTakeoffToEstimate() {
       unitPrice: Number(record.price || 0),
       amount: Number(record.amount || 0),
       remarks: record.estimateRemarks || record.memo || "",
-      drawingName: record.drawingName || drawingFileName || ""
+      drawingName: record.drawingName || drawingName || ""
     }));
     const payload = {
       type: "takeoff-to-estimate",
