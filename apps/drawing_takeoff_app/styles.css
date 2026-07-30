@@ -115,7 +115,7 @@ h2 { font-size: 17px; }
 
 .workspace {
   display: grid;
-  grid-template-columns: 320px minmax(520px, 1fr) minmax(600px, 680px);
+  grid-template-columns: 280px minmax(620px, 1fr) minmax(440px, 500px);
   gap: 14px;
   max-width: 2200px;
   margin: 0 auto;

@@ -5741,6 +5741,9 @@ async function loadDrawing(file, options = {}) {
     : "図面を読み込みました。最初に縮尺を2点で設定してください。");
   updateModeButtons();
   await renderDrawing();
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  const availableWidth = Math.max(280, els.stageWrap.clientWidth - 40);
+  changeZoom(availableWidth / baseWidth);
   saveQuietly();
 }
 
