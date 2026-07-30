@@ -93,6 +93,7 @@ const els = {
   exportTransferButton: document.getElementById("exportTransferButton"),
   exportJsonButton: document.getElementById("exportJsonButton"),
   exportCsvButton: document.getElementById("exportCsvButton"),
+  sendToEstimateButton: document.getElementById("sendToEstimateButton"),
   findOpeningDrawingsButton: document.getElementById("findOpeningDrawingsButton"),
   exportOpeningListButton: document.getElementById("exportOpeningListButton"),
   exportOpeningCheckCsvButton: document.getElementById("exportOpeningCheckCsvButton"),
@@ -5904,6 +5905,61 @@ function exportCsv() {
   download("drawing-takeoff.csv", `\uFEFF${csv}`, "text/csv;charset=utf-8");
 }
 
+async function sendTakeoffToEstimate() {
+  if (!records.length) {
+    setHint("見積管理へ送る拾い明細がありません。");
+    return;
+  }
+
+  const button = els.sendToEstimateButton;
+  const originalLabel = button?.textContent || "見積管理へ送る";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "送信中…";
+  }
+
+  try {
+    saveCurrentProjectState();
+    const items = records.map((record, index) => ({
+      id: record.id || `takeoff-${index + 1}`,
+      trade: openingTradeName(record.estimateTrade) || classifyOpeningTrade(record, drawingFileName) || "未分類",
+      name: [record.part, record.material].filter(Boolean).join(" ") || record.expression || `拾い明細 ${index + 1}`,
+      summary: record.estimateSummary || record.expression || "",
+      quantity: Number(record.quantity || 0),
+      unit: record.unit || "",
+      unitPrice: Number(record.price || 0),
+      amount: Number(record.amount || 0),
+      remarks: record.estimateRemarks || record.memo || "",
+      drawingName: record.drawingName || drawingFileName || ""
+    }));
+    const payload = {
+      type: "takeoff-to-estimate",
+      projectName: cleanProjectName(els.projectNameInput?.value || "現場1"),
+      updatedAt: new Date().toISOString(),
+      itemCount: items.length,
+      total: items.reduce((sum, item) => sum + item.amount, 0),
+      items
+    };
+    const response = await fetch("/api/integration?channel=takeoff-to-estimate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || `送信に失敗しました（${response.status}）`);
+    }
+    setHint(`${items.length}件の拾い明細をAzureへ保存しました。見積管理で取り込めます。`);
+  } catch (error) {
+    setHint(`見積管理への送信に失敗しました: ${error.message || error}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
+}
+
 function exportOpeningEstimateList() {
   const items = buildOpeningEstimateItems();
   if (items.length === 0) {
@@ -6981,6 +7037,7 @@ els.exportTransferButton.addEventListener("click", () => {
   exportTransferJson().catch(handleFileLoadError);
 });
 els.exportCsvButton.addEventListener("click", exportCsv);
+els.sendToEstimateButton?.addEventListener("click", sendTakeoffToEstimate);
 els.findOpeningDrawingsButton.addEventListener("click", () => {
   findAndLoadOpeningDrawing().catch(handleFileLoadError);
 });
