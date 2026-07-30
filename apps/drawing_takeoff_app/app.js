@@ -1230,7 +1230,7 @@ async function openingPdfTextInRect(rect) {
     const [x, y] = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
     const width = Math.abs(Number(item.width || 0) * pdfDisplayScale);
     const height = Math.max(8, Math.abs(Number(item.height || 0) * pdfDisplayScale));
-    return { text: String(item.str || "").trim(), x, y, width, height };
+    return { text: cleanEmbeddedPdfText(item.str), x, y, width, height };
   }).filter((item) => {
     if (!item.text || item.x > right || item.x + item.width < rect.x || item.y < rect.y - item.height || item.y > bottom + item.height) return false;
     const key = `${item.text}|${Math.round(item.x * 10)}|${Math.round(item.y * 10)}`;
@@ -2888,18 +2888,80 @@ function toggleMaterialMenu() {
   else closeMaterialMenu();
 }
 
+function cleanEmbeddedPdfText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, " ")
+    .replace(/[‐‑‒–—―]/g, "-")
+    .replace(/[“”„]/g, '"')
+    .replace(/[‘’‚]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function embeddedPdfTextLines(textContent) {
+  const rows = [];
+  const seen = new Set();
+  (textContent?.items || []).forEach((item) => {
+    const text = cleanEmbeddedPdfText(item.str);
+    if (!text) return;
+    const transform = Array.isArray(item.transform) ? item.transform : [];
+    const x = finiteNumber(transform[4]);
+    const y = finiteNumber(transform[5]);
+    const height = Math.max(1, Math.abs(finiteNumber(item.height, transform[3] || 8)));
+    const width = Math.max(0, Math.abs(finiteNumber(item.width)));
+    const duplicateKey = `${text}|${Math.round(x * 4)}|${Math.round(y * 4)}`;
+    if (seen.has(duplicateKey)) return;
+    seen.add(duplicateKey);
+    let row = rows.find((candidate) => Math.abs(candidate.y - y) <= Math.max(2, height * 0.38));
+    if (!row) {
+      row = { y, height, items: [] };
+      rows.push(row);
+    }
+    row.items.push({ text, x, width, height });
+    row.height = Math.max(row.height, height);
+  });
+
+  return rows
+    .sort((a, b) => b.y - a.y)
+    .map((row) => {
+      const items = row.items.sort((a, b) => a.x - b.x);
+      let line = "";
+      let right = null;
+      items.forEach((item) => {
+        const gap = right === null ? 0 : item.x - right;
+        const needsSpace = line && gap > Math.max(1.5, item.height * 0.18);
+        line += `${needsSpace ? " " : ""}${item.text}`;
+        right = Math.max(right ?? item.x, item.x + item.width);
+      });
+      return cleanEmbeddedPdfText(line);
+    })
+    .filter(Boolean);
+}
+
+function embeddedPdfText(textContent) {
+  return embeddedPdfTextLines(textContent)
+    .join("\n")
+    .replace(/([A-Za-z])-\n([A-Za-z])/g, "$1$2")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 async function collectMaterialSuggestionsFromPdf(pdf, sourceName = "") {
   if (!pdf) return;
   const materialCandidates = [];
   const roomCandidates = [];
+  const extractedPages = [];
   const source = normalizeRoomText(sourceName || "読込PDF");
   const floor = inferFloorLabelFromText(source);
-  const maxPages = Math.min(pdf.numPages || 0, 6);
+  const maxPages = Math.min(pdf.numPages || 0, 20);
   for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
     try {
       const page = await pdf.getPage(pageNumber);
-      const textContent = await page.getTextContent();
-      const text = textContent.items.map((item) => item.str || "").join(" ");
+      const textContent = await page.getTextContent({ disableNormalization: false });
+      const text = embeddedPdfText(textContent);
+      if (text) extractedPages.push(`【${pageNumber}ページ】\n${text}`);
       materialCandidates.push(...extractMaterialCandidatesFromText(text));
       roomCandidates.push(...extractRoomSuggestionsFromText(text, { floor, source }));
     } catch {
@@ -2910,8 +2972,16 @@ async function collectMaterialSuggestionsFromPdf(pdf, sourceName = "") {
     materialCandidates.push(...extractMaterialCandidatesFromText(sourceName));
     roomCandidates.push(...extractRoomSuggestionsFromText(sourceName, { floor, source }));
   }
+  const activeEntry = drawingEntries.find((entry) => entry.id === activeDrawingId);
+  if (activeEntry && extractedPages.length) {
+    activeEntry.textSample = extractedPages.join("\n\n").slice(0, 20000);
+  }
   addMaterialSuggestions(materialCandidates, { persist: true });
   addRoomSuggestions(roomCandidates, { persist: true });
+  if (extractedPages.length) {
+    const characterCount = extractedPages.reduce((sum, text) => sum + text.length, 0);
+    setHint(`PDFの埋め込み文字を${characterCount.toLocaleString("ja-JP")}文字読み取り、候補へ反映しました。`);
+  }
 }
 
 function openingTradeName(value) {
