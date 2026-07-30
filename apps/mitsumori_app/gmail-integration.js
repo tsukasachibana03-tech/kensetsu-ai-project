@@ -277,7 +277,7 @@
 
   function handleOAuthResult() {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("gmail") === "connected") {
+    if (params.get("gmail") === "connected" || params.get("gmail") === "compose") {
       history.replaceState(null, "", window.location.pathname + window.location.hash);
       setTimeout(openCompose, 100);
     }
