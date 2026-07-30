@@ -6386,6 +6386,7 @@ async function sendProjectInfoToEstimate() {
     saveCurrentProjectState();
     const payload = {
       type: "project-info-to-estimate",
+      projectId: currentProject()?.id || `estimate-project-${Date.now()}`,
       projectName,
       projectInfo: { ...projectInfo, projectName },
       siteAddress: projectInfo.siteAddress || "",
@@ -6396,7 +6397,7 @@ async function sendProjectInfoToEstimate() {
       items: [],
       nextStep: "vendor-estimate-or-takeoff-import"
     };
-    const response = await fetch("/api/integration?channel=takeoff-to-estimate", {
+    const response = await fetch("/api/integration?channel=estimate-projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
