@@ -23,6 +23,7 @@ const els = {
   drawingName: document.getElementById("drawingName"),
   hintText: document.getElementById("hintText"),
   pdfControls: document.getElementById("pdfControls"),
+  pdfPageList: document.getElementById("pdfPageList"),
   pageView: document.getElementById("pageView"),
   prevPageButton: document.getElementById("prevPageButton"),
   nextPageButton: document.getElementById("nextPageButton"),
@@ -411,6 +412,7 @@ async function renderDrawing() {
     drawingCtx.clearRect(0, 0, renderViewport.width, renderViewport.height);
     await page.render({ canvasContext: drawingCtx, viewport: renderViewport }).promise;
     els.pageView.textContent = `${currentPage} / ${pageCount}`;
+    renderPdfPageList();
   } else if (imageBitmapSource) {
     setCanvasSize(imageBitmapSource.width, imageBitmapSource.height);
     drawingCtx.clearRect(0, 0, baseWidth, baseHeight);
@@ -424,6 +426,33 @@ async function renderDrawing() {
     drawingCtx.fillText("PDFまたは画像図面を読み込んでください", 245, 310);
   }
   drawOverlay();
+}
+
+function renderPdfPageList() {
+  if (!els.pdfPageList) return;
+  const visible = Boolean(pdfDoc && pageCount > 1);
+  els.pdfPageList.hidden = !visible;
+  if (!visible) {
+    els.pdfPageList.replaceChildren();
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = pageNumber === currentPage ? "active" : "";
+    button.textContent = `${pageNumber}ページ`;
+    button.setAttribute("aria-current", pageNumber === currentPage ? "page" : "false");
+    button.addEventListener("click", async () => {
+      if (pageNumber === currentPage) return;
+      currentPage = pageNumber;
+      await renderDrawing();
+      saveQuietly();
+    });
+    fragment.appendChild(button);
+  }
+  els.pdfPageList.replaceChildren(fragment);
+  els.pdfPageList.querySelector(".active")?.scrollIntoView({ block: "nearest" });
 }
 
 function drawOverlay() {
@@ -3703,6 +3732,7 @@ function applyAppState(data = {}) {
     : "図面未読込";
   els.pdfControls.hidden = true;
   if (els.fullPageOcrButton) els.fullPageOcrButton.disabled = true;
+  renderPdfPageList();
   updateScaleStatus();
   updateRoomStatus();
   renderRegisteredRoomSelect();
@@ -3811,6 +3841,7 @@ function resetDrawingSurface(message = "図面を読み込んでから、縮尺�
   updateScaleStatus();
   els.pdfControls.hidden = true;
   if (els.fullPageOcrButton) els.fullPageOcrButton.disabled = true;
+  renderPdfPageList();
   setHint(message);
   renderRecords();
   renderDrawingList();
