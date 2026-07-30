@@ -17,6 +17,7 @@ const els = {
   designerInput: document.getElementById("designerInput"),
   projectInfoStatus: document.getElementById("projectInfoStatus"),
   projectInfoConfidence: document.getElementById("projectInfoConfidence"),
+  skipTakeoffToEstimateButton: document.getElementById("skipTakeoffToEstimateButton"),
   newProjectButton: document.getElementById("newProjectButton"),
   duplicateProjectButton: document.getElementById("duplicateProjectButton"),
   deleteProjectButton: document.getElementById("deleteProjectButton"),
@@ -6367,6 +6368,60 @@ async function sendTakeoffToEstimate() {
   }
 }
 
+async function sendProjectInfoToEstimate() {
+  const button = els.skipTakeoffToEstimateButton;
+  const projectName = cleanProjectName(
+    projectInfo.projectName || els.projectNameInput?.value,
+    "新規見積案件"
+  );
+  const originalLabel = button?.textContent || "見積管理へ送る";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "見積案件を作成中…";
+  }
+  try {
+    if (projectInfo.projectName && els.projectNameInput?.value !== projectInfo.projectName) {
+      renameCurrentProject(projectInfo.projectName, { persist: false });
+    }
+    saveCurrentProjectState();
+    const payload = {
+      type: "project-info-to-estimate",
+      projectName,
+      projectInfo: { ...projectInfo, projectName },
+      siteAddress: projectInfo.siteAddress || "",
+      clientName: projectInfo.clientName || "",
+      updatedAt: new Date().toISOString(),
+      itemCount: 0,
+      total: 0,
+      items: [],
+      nextStep: "vendor-estimate-or-takeoff-import"
+    };
+    const response = await fetch("/api/integration?channel=takeoff-to-estimate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || `送信に失敗しました（${response.status}）`);
+    }
+    setHint(`「${projectName}」を見積管理へ送りました。図面拾いは省略されています。`);
+    window.setTimeout(() => {
+      if (window.parent && window.parent !== window) {
+        window.parent.location.href = "/estimate";
+      } else {
+        window.location.href = "/estimate";
+      }
+    }, 700);
+  } catch (error) {
+    setHint(`見積案件の作成に失敗しました: ${error.message || error}`);
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
+}
+
 function exportOpeningEstimateList() {
   const items = buildOpeningEstimateItems();
   if (items.length === 0) {
@@ -7571,6 +7626,7 @@ els.exportTransferButton.addEventListener("click", () => {
 });
 els.exportCsvButton.addEventListener("click", exportCsv);
 els.sendToEstimateButton?.addEventListener("click", sendTakeoffToEstimate);
+els.skipTakeoffToEstimateButton?.addEventListener("click", sendProjectInfoToEstimate);
 els.findOpeningDrawingsButton.addEventListener("click", () => {
   findAndLoadOpeningDrawing().catch(handleFileLoadError);
 });

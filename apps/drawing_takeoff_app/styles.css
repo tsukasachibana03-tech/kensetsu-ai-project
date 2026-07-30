@@ -206,6 +206,18 @@ h2 { font-size: 17px; }
   min-width: 0;
 }
 
+.skip-takeoff-button {
+  margin-top: 4px;
+  color: #fff;
+  border-color: #17696f;
+  background: #17696f;
+  font-weight: 800;
+}
+
+.skip-takeoff-button:hover {
+  background: #10585d;
+}
+
 .opening-trade-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
