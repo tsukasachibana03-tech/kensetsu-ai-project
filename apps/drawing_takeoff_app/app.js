@@ -3328,6 +3328,49 @@ async function loadLatestFromDropbox() {
   }
 }
 
+async function loadBundledGiboProject() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("project") !== "gibo") return false;
+
+  const existing = projectBook.projects.find((project) =>
+    String(project.name || project.state?.projectName || "").includes("儀保")
+  );
+  if (existing) {
+    if (existing.id !== projectBook.activeId) await switchProject(existing.id);
+    else await loadActiveProjectDrawing();
+    return true;
+  }
+
+  const response = await fetch("seed/gibo-latest.json", { cache: "no-store" });
+  if (!response.ok) throw new Error(`儀保邸データを読み込めませんでした (${response.status})`);
+  const payload = await response.json();
+  const source = payload?.book?.projects?.find((project) =>
+    String(project.name || project.state?.projectName || "").includes("儀保")
+  );
+  if (!source?.state) throw new Error("儀保邸データが見つかりませんでした");
+
+  saveCurrentProjectState();
+  const seeded = createProject(source.name || source.state.projectName || "儀保邸新築工事", source.state);
+  seeded.createdAt = source.createdAt || payload.savedAt || seeded.createdAt;
+  seeded.updatedAt = source.updatedAt || payload.savedAt || seeded.updatedAt;
+
+  const current = currentProject();
+  if (projectBook.projects.length === 1 && current && !stateHasWork(current.state)) {
+    projectBook.projects[0] = seeded;
+  } else {
+    projectBook.projects.push(seeded);
+  }
+  projectBook.activeId = seeded.id;
+  isApplyingProject = true;
+  applyAppState(seeded.state);
+  isApplyingProject = false;
+  renderProjectControls();
+  saveProjectBookQuietly();
+  await loadActiveProjectDrawing();
+  setHint(`「${seeded.name}」の保存済み拾いデータを読み込みました。`);
+  return true;
+}
+
 function loadProjectBookFromStorage() {
   const raw = localStorage.getItem(projectBookStorageKey);
   if (!raw) return null;
@@ -6351,7 +6394,7 @@ function replaceProjectStateBeforeImport() {
 async function loadProjectFromQuery() {
   const params = new URLSearchParams(window.location.search);
   const projectUrl = params.get("project");
-  if (!projectUrl) return;
+  if (!projectUrl || projectUrl === "gibo") return;
   try {
     const shouldReplace = params.get("replace") === "1";
     const currentState = captureAppState();
@@ -7065,5 +7108,8 @@ loadFinishTableForCurrentRoom();
 updateRoomStatus();
 renderRegisteredRoomSelect();
 renderDrawing();
-loadLatestFromDropbox().then(() => loadProjectFromQuery());
+loadLatestFromDropbox()
+  .then(() => loadBundledGiboProject())
+  .then(() => loadProjectFromQuery())
+  .catch(handleFileLoadError);
 updateOpeningTradeButtons();
