@@ -3061,7 +3061,10 @@ async function collectMaterialSuggestionsFromPdf(pdf, sourceName = "") {
   }
   const activeEntry = drawingEntries.find((entry) => entry.id === activeDrawingId);
   if (activeEntry && extractedPages.length) {
-    activeEntry.textSample = extractedPages.join("\n\n").slice(0, 20000);
+    const preparedText = String(activeEntry.textSample || "");
+    if (!preparedText.includes("【画像OCR】")) {
+      activeEntry.textSample = extractedPages.join("\n\n").slice(0, 20000);
+    }
   }
   addMaterialSuggestions(materialCandidates, { persist: true });
   addRoomSuggestions(roomCandidates, { persist: true });
@@ -5943,7 +5946,9 @@ async function loadDrawing(file, options = {}) {
       console.warn("PDF embedded text extraction failed", error);
       return { text: "", needsOcr: true };
     });
-    if (embeddedResult?.needsOcr) {
+    const activeEntry = drawingEntries.find((entry) => entry.id === activeDrawingId);
+    const preparedBeforeDisplay = String(activeEntry?.textSample || "").includes("【画像OCR】");
+    if (embeddedResult?.needsOcr && !preparedBeforeDisplay) {
       await runFullPagePdfOcr().catch((error) => {
         console.warn("Full-page OCR failed", error);
         setHint("日本語の自動OCRに失敗しました。図面を拡大してOCR範囲を指定してください。");
@@ -6423,6 +6428,79 @@ function renderDrawingList() {
   updateDrawingActionState();
 }
 
+async function prepareDroppedPdfText(entries) {
+  const pdfEntries = entries.filter((entry) => entry.file && fileExtension(entry.file) === "pdf");
+  if (!pdfEntries.length) return;
+  if (!window.Tesseract) {
+    await import("./tesseract.min.js?v=20260730-import-ocr");
+  }
+
+  let worker = null;
+  async function ensureWorker() {
+    if (worker) return worker;
+    if (!window.Tesseract) throw new Error("OCRライブラリを読み込めませんでした。");
+    worker = await window.Tesseract.createWorker(["jpn", "eng"], 1, {
+      workerPath: "./tesseract-worker.min.js",
+      logger: (message) => {
+        if (typeof message.progress === "number") {
+          setHint(`取込前OCR ${Math.round(message.progress * 100)}%: ${message.status || "文字認識"}`);
+        }
+      }
+    });
+    await worker.setParameters?.({
+      preserve_interword_spaces: "1",
+      tessedit_pageseg_mode: "11"
+    });
+    return worker;
+  }
+
+  try {
+    for (let fileIndex = 0; fileIndex < pdfEntries.length; fileIndex += 1) {
+      const entry = pdfEntries[fileIndex];
+      setHint(`取込前の文字解析: ${entry.name}（${fileIndex + 1}/${pdfEntries.length}）`);
+      const data = await entry.file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data }).promise;
+      const pageTexts = [];
+      const maxPages = Math.min(pdf.numPages || 0, 20);
+      for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const textContent = await page.getTextContent({ disableNormalization: false });
+        const embedded = embeddedPdfText(textContent);
+        let ocrText = "";
+        if (embeddedPdfTextNeedsOcr(embedded)) {
+          setHint(`取込前OCR: ${entry.name} ${pageNumber}/${maxPages}ページ`);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const scale = Math.min(2.2, 3200 / Math.max(baseViewport.width, baseViewport.height));
+          const viewport = page.getViewport({ scale: Math.max(1.35, scale) });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(viewport.width));
+          canvas.height = Math.max(1, Math.round(viewport.height));
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          context.fillStyle = "#fff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          await page.render({ canvasContext: context, viewport }).promise;
+          const ocrResult = await (await ensureWorker()).recognize(canvas);
+          ocrText = cleanEmbeddedPdfText(ocrResult?.data?.text || "");
+        }
+        pageTexts.push(
+          `【${pageNumber}ページ】\n${embedded}${ocrText ? `\n【画像OCR】\n${ocrText}` : ""}`.trim()
+        );
+      }
+      await pdf.destroy?.();
+      const combined = pageTexts.join("\n\n").slice(0, 30000);
+      entry.textSample = combined;
+      const floor = inferFloorLabelFromText(entry.name);
+      addMaterialSuggestions(extractMaterialCandidatesFromText(combined), { persist: false });
+      addRoomSuggestions(extractRoomSuggestionsFromText(combined, {
+        floor,
+        source: entry.name || "取込図面"
+      }), { persist: false });
+    }
+  } finally {
+    await worker?.terminate?.();
+  }
+}
+
 async function addDrawingFiles(files) {
   const drawingFiles = files.filter(isDrawingFile);
   if (drawingFiles.length === 0) return false;
@@ -6451,6 +6529,7 @@ async function addDrawingFiles(files) {
     return entry;
   });
 
+  await prepareDroppedPdfText(addedEntries);
   renderDrawingList();
   await loadFirstReadableEntry(addedEntries);
   saveQuietly();

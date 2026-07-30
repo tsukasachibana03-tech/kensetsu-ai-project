@@ -428,6 +428,11 @@ h2 { font-size: 17px; }
   font-weight: 800;
 }
 
+#fullPageOcrButton,
+.pdf-controls {
+  display: none !important;
+}
+
 .file-drop span,
 .status,
 #hintText,
